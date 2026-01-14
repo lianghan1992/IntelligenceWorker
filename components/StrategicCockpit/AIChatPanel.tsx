@@ -18,28 +18,8 @@ interface Message {
     timestamp?: number;
 }
 
-const MODEL_ID = "zhipu@glm-4.5-flash";
-
-// Only keep Knowledge Base Search
-const TOOLS = [
-    {
-        type: "function",
-        function: {
-            name: "search_knowledge_base",
-            description: "Search the internal automotive intelligence database for facts, news, and technical parameters.",
-            parameters: {
-                type: "object",
-                properties: {
-                    query: {
-                        type: "string",
-                        description: "The optimized search keywords for vector database."
-                    }
-                },
-                required: ["query"]
-            }
-        }
-    }
-];
+// Update model to Xiaomi (OpenRouter) as requested
+const MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
 
 // --- 思考链组件 ---
 const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
@@ -83,7 +63,7 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
 const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     
-    if ((!query && !isSearching) || (query === 'EMPTY_FALLBACK')) return null;
+    if ((!query && !isSearching)) return null;
 
     const itemCount = items ? items.length : 0;
 
@@ -95,7 +75,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
             >
                 {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-500 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
                 <span className="flex-1 text-left truncate min-w-0">
-                    {isSearching ? `检索中: "${query || '深度分析...'}"` : `检索完成: "${query}"`}
+                    {isSearching ? `检索中: "${query}"` : `已检索到 ${itemCount} 条情报`}
                 </span>
                 {!isSearching && itemCount > 0 && (
                     <span className="ml-1 bg-white px-1.5 py-0.5 rounded text-[9px] text-blue-600 border border-blue-100 font-mono flex-shrink-0">{itemCount}</span>
@@ -106,12 +86,12 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                 <div className="p-2 border-t border-blue-100/50">
                     {isSearching && (
                         <div className="py-2 flex flex-col items-center justify-center text-blue-400 gap-1">
-                             <span className="text-[10px] font-medium opacity-80 animate-pulse">正在从知识库召回数据...</span>
+                             <span className="text-[10px] font-medium opacity-80 animate-pulse">正在扫描知识库向量索引...</span>
                         </div>
                     )}
                     {!isSearching && (
                         <div className="space-y-2 max-h-56 overflow-y-auto custom-slim-scrollbar pr-1">
-                            {items.map((item, idx) => (
+                            {items.length > 0 ? items.map((item, idx) => (
                                 <div 
                                     key={item.id || idx} 
                                     onClick={() => onClick(item)}
@@ -127,9 +107,8 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                                         {item.content}
                                     </p>
                                 </div>
-                            ))}
-                            {itemCount === 0 && (
-                                <div className="py-2 text-center text-xs text-slate-400 italic">未发现强关联参考资料</div>
+                            )) : (
+                                <div className="py-2 text-center text-xs text-slate-400 italic">知识库中未找到强相关内容</div>
                             )}
                         </div>
                     )}
@@ -151,7 +130,7 @@ export const AIChatPanel: React.FC<{
         return [{ 
             id: 'init', 
             role: 'assistant', 
-            content: `我是您的 **AI 情报副驾驶**。\n📅 今天是 **${today}**。\n\n我专注于智能汽车领域的垂直情报分析，支持知识库实时检索。`, 
+            content: `我是您的 **AI 情报副驾驶**。\n📅 今天是 **${today}**。\n\n我专注于智能汽车领域的垂直情报分析，会自动检索知识库为您解答。`, 
             timestamp: Date.now() 
         }];
     });
@@ -187,214 +166,115 @@ export const AIChatPanel: React.FC<{
         }
     };
 
-    // Simplified JSON extraction for robustness
-    const extractJson = (str: string) => {
-        try {
-            const firstOpen = str.indexOf('{');
-            const lastClose = str.lastIndexOf('}');
-            if (firstOpen !== -1 && lastClose > firstOpen) {
-                const potentialJson = str.substring(firstOpen, lastClose + 1);
-                return JSON.parse(potentialJson);
-            }
-        } catch (e) { /* ignore */ }
-        return null;
-    };
-
     const handleSend = async () => {
         const currentInput = input.trim();
         if (!currentInput || isStreaming || isSearching) return;
         
-        // 1. Immediate UI update
+        // 1. UI Update: Add User Message
         setInput('');
         const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: currentInput, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
-        setIsStreaming(true);
-
-        // 2. Ensure Session
-        const activeSessionId = await ensureSession();
-
-        const currentHistory = [...messages, userMsg];
-        const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         
-        // New System Prompt
-        const systemPrompt = `你是一个情报检索和回答专家，你的回复仅允许与智能汽车相关，如果用户闲聊可以拒绝。
-当前日期: ${currentDate}。
-
-能力限制：
-1. 你的回答必须基于事实，如果不知道，请使用 "search_knowledge_base" 工具检索。
-2. 严禁编造信息。
-3. 如果用户问题涉及具体数据、新闻、技术参数，必须优先使用工具。
-
-工具使用规则：
-- 仅当需要外部信息时才调用工具。
-- 调用工具时，必须输出严格的 JSON 格式： { "tool": "search_knowledge_base", "query": "优化的搜索关键词" }
-- "query" 字段应针对向量检索进行优化（去除非关键词，提取核心实体和意图）。
-
-示例：
-用户："问界M9的销量怎么样？"
-输出：{ "tool": "search_knowledge_base", "query": "问界M9 销量 数据 2024" }`;
+        // 2. Prepare Assistant Message Placeholder for Retrieval
+        const assistantMsgId = crypto.randomUUID();
+        setMessages(prev => [...prev, { 
+            id: assistantMsgId, 
+            role: 'assistant', 
+            content: '', 
+            searchQuery: currentInput, // Show searching state immediately
+            timestamp: Date.now() 
+        }]);
+        setIsSearching(true);
 
         let accumulatedContent = '';
         let accumulatedReasoning = '';
-        let nativeToolCall: any = null;
-        let isToolCallDetected = false;
 
         try {
+            // 3. Ensure Session
+            const activeSessionId = await ensureSession();
+            
+            // 4. Perform Vector Search (Explicit RAG)
+            let retrievedItems: InfoItem[] = [];
+            try {
+                const searchRes = await searchSemanticSegments({
+                    query_text: currentInput,
+                    page: 1,
+                    page_size: 6, // Retrieve top 6 relevant segments
+                    similarity_threshold: 0.3
+                });
+                retrievedItems = searchRes.items || [];
+            } catch (e) {
+                console.error("Vector search failed", e);
+            }
+
+            // Update UI with search results
+            setMessages(prev => prev.map(m => 
+                m.id === assistantMsgId 
+                ? { ...m, retrievedItems: retrievedItems } 
+                : m
+            ));
+            setIsSearching(false);
+            setIsStreaming(true);
+
+            // 5. Construct Prompt with Context
+            const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+            
+            const contextText = retrievedItems.length > 0
+                ? retrievedItems.map((item, idx) => `[参考资料${idx + 1}] 标题: ${item.title}\n内容: ${item.content}`).join('\n\n')
+                : "（知识库中未找到高度相关资料，请基于您的训练数据回答，但需告知用户资料库无相关信息）";
+
+            const systemPrompt = `你是一个情报分析专家。当前日期: ${currentDate}。
+请基于下方提供的【参考资料】回答用户的【问题】。
+要求：
+1. 答案必须基于参考资料，如果资料不足，请明确说明。
+2. 引用资料时，可提及资料标题。
+3. 保持客观、专业、简洁。
+4. 严禁编造事实。`;
+
+            // Prepare messages payload
+            // Note: We use previous history + current augmented prompt
+            // To save context window, we might usually truncate older search results from history context in a real app,
+            // but here we just append the new exchange.
+            const historyMessages = messages.slice(0, -2).map(m => ({ role: m.role, content: m.content }));
+            const currentMessagePayload = `【参考资料】\n${contextText}\n\n【问题】\n${currentInput}`;
+
             await streamChatCompletions({
                 model: MODEL_ID,
                 messages: [
                     { role: 'system', content: systemPrompt },
-                    ...currentHistory.map(m => ({ role: m.role, content: m.content }))
+                    ...historyMessages,
+                    { role: 'user', content: currentMessagePayload }
                 ],
-                tools: TOOLS,
                 stream: true,
-                temperature: 0.1,
-                enable_billing: false // Disable billing for AI Copilot
+                temperature: 0.2, // Low temperature for factual Q&A
+                enable_billing: false // ⚡️ Disable billing as requested
             }, (chunk) => {
                 if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                 if (chunk.content) accumulatedContent += chunk.content;
                 
-                // Native Tool Call Detection
-                if (chunk.tool_calls) {
-                    if (!nativeToolCall) nativeToolCall = { name: '', arguments: '' };
-                    const call = chunk.tool_calls[0];
-                    if (call.function?.name) nativeToolCall.name = call.function.name;
-                    if (call.function?.arguments) nativeToolCall.arguments += call.function.arguments;
-                    isToolCallDetected = true;
-                }
-
-                // Text-based JSON Tool Call Detection (Fallback)
-                const contentTrimmed = accumulatedContent.trimStart();
-                if (!isToolCallDetected && (contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json'))) {
-                    isToolCallDetected = true;
-                }
-
-                if (isToolCallDetected) {
-                     if (!isSearching) setIsSearching(true);
-                     updateLastAssistantMessage("", accumulatedReasoning, "分析检索意图中...");
-                } else {
-                     updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
-                }
+                // Update the placeholder assistant message
+                setMessages(prev => prev.map(m => 
+                    m.id === assistantMsgId 
+                    ? { ...m, content: accumulatedContent, reasoning: accumulatedReasoning } 
+                    : m
+                ));
             }, undefined, undefined, activeSessionId || undefined, AGENTS.STRATEGIC_COPILOT);
 
-            // --- Tool Execution Logic ---
-            let finalToolQuery = '';
-            
-            // 1. Try Native Tool
-            if (nativeToolCall?.name) {
-                try {
-                    const args = JSON.parse(nativeToolCall.arguments);
-                    finalToolQuery = args.query;
-                } catch (e) { /* ignore */ }
-            }
-            
-            // 2. Try JSON Extraction from Text
-            if (!finalToolQuery) {
-                const jsonObj = extractJson(accumulatedContent);
-                if (jsonObj && jsonObj.query) {
-                    finalToolQuery = jsonObj.query;
-                }
-            }
-
-            if (finalToolQuery) {
-                setIsStreaming(false); 
-                setIsSearching(true);
-                updateLastAssistantMessage("", accumulatedReasoning, finalToolQuery);
-
-                let citations: InfoItem[] = [];
-                
-                // Execute Vector Search
-                try {
-                    const searchRes = await searchSemanticSegments({
-                        query_text: finalToolQuery,
-                        page: 1,
-                        page_size: 8,
-                        similarity_threshold: 0.25
-                    });
-                    citations = searchRes.items || [];
-                } catch (e) {
-                    console.error("Search failed", e);
-                }
-
-                setIsSearching(false);
-                setIsStreaming(true); 
-
-                const context = citations.map((item, idx) => 
-                    `[${idx+1}] 标题: ${item.title}\n内容: ${item.content}`
-                ).join('\n\n') || "知识库中未找到高度相关的信息。";
-
-                const toolResponseMsg = {
-                    role: 'user', // Treat tool output as user context for better instruction following in some models
-                    content: `### 检索结果 (关键词: ${finalToolQuery}):\n${context}\n\n请基于以上检索结果回答用户的问题。如果结果不相关，请诚实告知。`
-                };
-
-                accumulatedContent = '';
-                
-                await streamChatCompletions({
-                    model: MODEL_ID,
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        ...currentHistory.map(m => ({ role: m.role, content: m.content })),
-                        toolResponseMsg
-                    ],
-                    stream: true,
-                    enable_billing: false // Disable billing for AI Copilot
-                }, (chunk) => {
-                    if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
-                    if (chunk.content) accumulatedContent += chunk.content;
-                    updateLastAssistantMessage(accumulatedContent, accumulatedReasoning, finalToolQuery, citations);
-                }, undefined, undefined, activeSessionId || undefined, AGENTS.STRATEGIC_COPILOT);
-            } else if (isToolCallDetected && !finalToolQuery) {
-                 // Fallback if tool detected but no query parsed
-                 updateLastAssistantMessage(accumulatedContent || "无法解析工具参数，请重试。", accumulatedReasoning);
-            } else {
-                 // Normal text response update is already done in stream callback
-                 updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
-            }
-
         } catch (error) {
-            updateLastAssistantMessage(accumulatedContent + "\n\n> *⚠️ 网络连接异常，请重试。*", accumulatedReasoning);
+            setMessages(prev => prev.map(m => 
+                m.id === assistantMsgId 
+                ? { ...m, content: accumulatedContent + "\n\n> *⚠️ 网络连接或服务异常，请稍后重试。*" } 
+                : m
+            ));
         } finally {
             setIsStreaming(false);
             setIsSearching(false);
         }
     };
 
-    const updateLastAssistantMessage = (content: string, reasoning: string, searchQuery?: string, retrievedItems?: InfoItem[]) => {
-        setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.role === 'assistant') {
-                return [...prev.slice(0, -1), { 
-                    ...last, 
-                    content, 
-                    reasoning, 
-                    searchQuery: searchQuery !== undefined ? searchQuery : last.searchQuery, 
-                    retrievedItems: retrievedItems || last.retrievedItems,
-                    citations: retrievedItems || last.citations 
-                }];
-            } else {
-                return [...prev, { 
-                    id: crypto.randomUUID(), 
-                    role: 'assistant', 
-                    content, 
-                    reasoning, 
-                    searchQuery, 
-                    retrievedItems, 
-                    citations: retrievedItems,
-                    timestamp: Date.now() 
-                }];
-            }
-        });
-    };
-
     const renderMessageContent = (content: string, isUser: boolean) => {
         if (!content) return null;
         
-        // Hide raw tool JSON from user view
-        if (!isUser && (content.trim().startsWith('{') || content.trim().startsWith('```json'))) {
-             return <div className="text-xs text-slate-400 italic">正在解析工具指令...</div>;
-        }
-
         const userProseClass = "prose prose-sm max-w-none text-white break-words prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80";
         const aiProseClass = "prose prose-sm max-w-none text-slate-700 break-words prose-p:text-slate-700 prose-headings:text-slate-900 prose-strong:text-indigo-700 prose-a:text-indigo-600 prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 prose-blockquote:bg-indigo-50 prose-blockquote:px-3 prose-blockquote:py-1";
 
@@ -464,12 +344,12 @@ export const AIChatPanel: React.FC<{
                                     {/* Reasoning Block (Only Assistant) */}
                                     {msg.reasoning && <ThinkingBlock content={msg.reasoning} isStreaming={isStreaming && isLastAssistant} />}
                                     
-                                    {/* Retrieval Process Block (Only Assistant) */}
+                                    {/* Retrieval Process Block (Only Assistant) - NOW USING EXPLICIT RAG */}
                                     {!isUser && msg.searchQuery && (
                                         <RetrievedIntelligence 
                                             query={msg.searchQuery} 
                                             items={msg.retrievedItems || []} 
-                                            isSearching={isLastAssistant && (isSearching || (!msg.retrievedItems && !msg.content))} 
+                                            isSearching={isLastAssistant && isSearching} 
                                             onClick={(item) => onReferenceClick && onReferenceClick(item)}
                                         />
                                     )}
@@ -478,7 +358,7 @@ export const AIChatPanel: React.FC<{
                                     <div className="relative break-words overflow-hidden">
                                         {renderMessageContent(msg.content, isUser)}
                                         
-                                        {/* Loading Dots */}
+                                        {/* Loading Dots (Only if no content yet and not searching) */}
                                         {!isUser && isStreaming && isLastAssistant && !msg.content && !isSearching && !msg.reasoning && (
                                             <div className="flex gap-1 items-center py-1">
                                                 <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
@@ -518,7 +398,7 @@ export const AIChatPanel: React.FC<{
                         <div className="flex gap-1.5 px-1">
                            <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity cursor-default">
                                <CheckCircleIcon className="w-3 h-3 text-emerald-500" />
-                               <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wide">AI Guard On</span>
+                               <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wide">RAG Mode</span>
                            </div>
                         </div>
                         <button 
