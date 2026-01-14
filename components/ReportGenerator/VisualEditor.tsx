@@ -616,12 +616,21 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
         }
     }, [scale]);
 
-    // Command Helper
+    // --- Zoom Interaction ---
+    const handleWheel = useCallback((e: React.WheelEvent) => {
+        if (e.altKey) {
+            e.preventDefault();
+            const delta = -e.deltaY * 0.001; // Scale factor
+            const newScale = Math.min(Math.max(0.1, scale + delta), 3);
+            setScale(newScale);
+        }
+    }, [scale]);
+
     const sendCommand = (action: string, value?: any) => {
         if (iframeRef.current?.contentWindow) iframeRef.current.contentWindow.postMessage({ action, value }, '*');
     };
 
-    // Actions Handlers
+    // --- Actions Handlers ---
     const handleUpdateStyle = (key: string, value: string | number) => {
         sendCommand('UPDATE_STYLE', { [key]: value });
         setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
@@ -636,14 +645,14 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
         sendCommand('UPDATE_ATTRIBUTE', { key, val: value });
         setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
     };
-
+    
     const handleInsertImage = () => {
-        const url = prompt("请输入网络图片 URL:");
+        const url = prompt("请输入图片 URL:");
         if (url) {
             sendCommand('INSERT_ELEMENT', { type: 'img', src: url });
         }
     };
-    
+
     const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -657,9 +666,10 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
         }
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
-    
+
     const handleImageChange = () => {
-        const url = prompt("请输入图片 URL:", selectedElement.src || "");
+        const currentSrc = selectedElement?.src || "";
+        const url = prompt("请输入新图片 URL:", currentSrc);
         if (url !== null) {
             handleUpdateAttribute('src', url);
         }
@@ -667,7 +677,6 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
 
     // --- Toolbar Components ---
     const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selectedElement.tagName)) && !selectedElement.hasImgChild;
-    // Check if it's an IMG tag OR a wrapper div containing an IMG (inserted by us)
     const isImg = selectedElement && (selectedElement.tagName === 'IMG' || (selectedElement.tagName === 'DIV' && selectedElement.hasImgChild));
     
     const isBold = selectedElement && (selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700);
@@ -742,24 +751,23 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                 /* No Selection - Insert Tools */
                 <div className="flex items-center gap-2">
                      <span className="text-xs font-bold text-slate-400 mr-2">插入:</span>
-                     <div className="flex items-center gap-2">
-                         <button 
-                             onClick={handleInsertImage}
-                             className="flex items-center gap-1 px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm"
-                             title="插入网络图片"
-                         >
-                             <LinkIcon className="w-3.5 h-3.5"/> 网络图片
+                     <div className="relative group">
+                         <button className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
+                             <PhotoIcon className="w-3.5 h-3.5"/> 图片
                          </button>
-                         <label className="flex items-center gap-1 px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm cursor-pointer" title="上传本地图片">
-                             <PhotoIcon className="w-3.5 h-3.5"/> 本地图片
-                             <input 
-                                 ref={fileInputRef}
-                                 type="file" 
-                                 accept="image/*" 
-                                 onChange={handleInsertUpload} 
-                                 className="hidden" 
-                             />
-                         </label>
+                         <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
+                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2"><LinkIcon className="w-3 h-3"/> 网络图片</button>
+                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer">
+                                 <PhotoIcon className="w-3 h-3"/> 本地上传
+                                 <input 
+                                     ref={fileInputRef}
+                                     type="file" 
+                                     accept="image/*" 
+                                     onChange={handleInsertUpload} 
+                                     className="hidden" 
+                                 />
+                             </label>
+                         </div>
                      </div>
                 </div>
             )}
@@ -794,7 +802,10 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
 
              <div className="flex-1 relative overflow-hidden flex">
                 {/* Canvas Area */}
-                <div className="flex-1 flex items-center justify-center bg-slate-200 relative overflow-hidden">
+                <div 
+                    className="flex-1 flex items-center justify-center bg-slate-200 relative overflow-hidden"
+                    onWheel={handleWheel}
+                >
                     <div 
                         style={{ 
                             width: '1600px', height: '900px', 
@@ -805,25 +816,8 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                         }}
                         className="bg-white flex-shrink-0"
                     >
-                        <iframe 
-                            ref={iframeRef} 
-                            className="w-full h-full border-none bg-white" 
-                            title="Visual Editor" 
-                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms" 
-                        />
+                        <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
                     </div>
-                    
-                    {/* Floating HUD for selection type */}
-                    {selectedElement && (
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur text-white rounded-full shadow-2xl border border-white/10 px-4 py-2 flex items-center gap-4 z-40 animate-in fade-in slide-in-from-top-2 select-none">
-                             <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">{selectedElement.tagName === 'DIV' && selectedElement.hasImgChild ? 'IMAGE' : selectedElement.tagName}</span>
-                             <div className="h-4 w-px bg-white/10"></div>
-                             <div className="flex gap-2">
-                                 <button onClick={() => sendCommand('LAYER', 'up')} className="p-1 hover:text-indigo-400 transition-colors" title="上移一层">↑</button>
-                                 <button onClick={() => sendCommand('LAYER', 'down')} className="p-1 hover:text-indigo-400 transition-colors" title="下移一层">↓</button>
-                             </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Right Properties Panel */}
