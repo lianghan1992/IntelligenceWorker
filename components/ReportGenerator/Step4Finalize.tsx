@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTPageData, SharedGeneratorProps } from './types';
 import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../api/stratify'; 
+import { getWalletBalance } from '../../api/user'; // Import wallet balance check
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
     ChevronLeftIcon, CheckIcon, CodeIcon, BrainIcon,
@@ -107,6 +108,17 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     const generateHtml = useCallback(async (idx: number) => {
         const page = pages[idx];
         if (!page || page.html || page.isGenerating) return;
+
+        // --- Pre-check Balance ---
+        try {
+            const wallet = await getWalletBalance();
+            if (wallet.balance <= 0) {
+                if (onHandleInsufficientBalance) onHandleInsufficientBalance();
+                return;
+            }
+        } catch(e) {
+            console.warn("Failed to check balance before finalize", e);
+        }
 
         onLlmStatusChange?.(true);
         const newPagesStart = [...pages];

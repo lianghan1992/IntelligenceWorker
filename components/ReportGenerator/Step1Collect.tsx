@@ -7,6 +7,7 @@ import {
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { searchSemanticSegments, getArticleHtml } from '../../api/intelligence';
+import { getWalletBalance } from '../../api/user'; // Import wallet balance check
 import { PPTStage, ChatMessage, PPTData, PPTPageData, SharedGeneratorProps } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
 import { InfoItem } from '../../types';
@@ -417,6 +418,19 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const runOutlineGeneration = async (userPromptText: string, isRefinement: boolean) => {
         setIsLlmActive(true);
         
+        // --- 1. Pre-check Balance before heavy lifting (e.g. vector search) ---
+        try {
+            const wallet = await getWalletBalance();
+            if (wallet.balance <= 0) {
+                // If balance is <= 0, trigger warning and ABORT early.
+                if (onHandleInsufficientBalance) onHandleInsufficientBalance();
+                setIsLlmActive(false);
+                return; // Stop here!
+            }
+        } catch(e) {
+            console.warn("Failed to check balance before generation, proceeding carefully", e);
+        }
+
         // Lazy Creation Trigger
         let activeSessionId = sessionId;
         if (!activeSessionId && onEnsureSession) {
@@ -539,6 +553,19 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         if (stage !== 'compose' || isLlmActive || !autoGenMode) return;
 
         const processQueue = async () => {
+            // --- 1. Pre-check Balance before queue starts ---
+            try {
+                const wallet = await getWalletBalance();
+                if (wallet.balance <= 0) {
+                    if (onHandleInsufficientBalance) onHandleInsufficientBalance();
+                    // Stop queue execution immediately
+                    setAutoGenMode(null);
+                    return; 
+                }
+            } catch(e) {
+                console.warn("Failed to check balance before queue", e);
+            }
+
             let activeSessionId = sessionId;
             if (!activeSessionId && onEnsureSession) {
                 activeSessionId = await onEnsureSession();

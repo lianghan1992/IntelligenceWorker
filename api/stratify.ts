@@ -76,13 +76,20 @@ export const streamChatCompletions = async (
             body: JSON.stringify({ ...params, stream: true }),
         });
 
-        // Specific handling for 402 Payment Required
+        // Specific handling for 402 Payment Required (Standard HTTP Code)
         if (response.status === 402) {
             throw new Error("INSUFFICIENT_BALANCE");
         }
 
         if (!response.ok) {
             const errorText = await response.text();
+            
+            // Enhanced Error Detection: Check body for "Insufficient balance" or "402" 
+            // even if the status code is 500 or others.
+            if (errorText.includes("Insufficient balance") || errorText.includes("402")) {
+                throw new Error("INSUFFICIENT_BALANCE");
+            }
+            
             throw new Error(`API Error (${response.status}): ${errorText}`);
         }
 

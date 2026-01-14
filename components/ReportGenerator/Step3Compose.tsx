@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PPTData, PPTStage, PPTPageData, SharedGeneratorProps } from './types';
 import { generateBatchPdf, getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
+import { getWalletBalance } from '../../api/user'; // Import wallet balance check
 import { 
     SparklesIcon, DownloadIcon, RefreshIcon, ViewGridIcon, 
     PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon, CodeIcon,
