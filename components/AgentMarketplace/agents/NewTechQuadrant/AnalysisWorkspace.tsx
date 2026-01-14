@@ -5,7 +5,7 @@ import { ArticlePublic } from '../../../../types';
 import { 
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
     CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
-    DownloadIcon, PencilIcon, LinkIcon, SparklesIcon
+    DownloadIcon, PencilIcon, LinkIcon, SparklesIcon, TrendingUpIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 
@@ -14,7 +14,7 @@ interface AnalysisWorkspaceProps {
     techList: TechItem[];
     setTechList: React.Dispatch<React.SetStateAction<TechItem[]>>;
     onBack: () => void;
-    isExtracting: boolean; // Added prop
+    isExtracting: boolean;
 }
 
 // 模拟 RAG 日志
@@ -201,7 +201,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
     return (
         <div className="flex h-full overflow-hidden">
             {/* Left Sidebar: Tech List */}
-            <div className="w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10">
+            <div className="w-[420px] bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10">
                 <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                     <h3 className="font-bold text-slate-700">识别清单 ({techList.length})</h3>
                     <button onClick={onBack} className="text-xs text-slate-400 hover:text-slate-600">重选文章</button>
@@ -212,7 +212,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                             {isExtracting ? (
                                 <>
                                     <RefreshIcon className="w-6 h-6 mx-auto mb-2 animate-spin text-indigo-400"/>
-                                    正在从文章中提取技术点...
+                                    正在从文章库提取并检索背景...
                                 </>
                             ) : (
                                 <>
@@ -233,20 +233,29 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                 }`}
                             >
                                 <div className="flex justify-between items-start mb-2">
-                                    <h4 className={`font-bold text-sm truncate pr-2 ${activeTechId === item.id ? 'text-indigo-700' : 'text-slate-800'}`}>{item.name}</h4>
-                                    {item.analysisState === 'done' && <CheckCircleIcon className="w-4 h-4 text-green-500" />}
+                                    <h4 className={`font-bold text-sm truncate pr-2 flex-1 ${activeTechId === item.id ? 'text-indigo-700' : 'text-slate-800'}`}>{item.name}</h4>
+                                    {item.analysisState === 'done' && <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />}
                                 </div>
                                 
-                                <div className="flex flex-wrap gap-2 mb-2">
+                                <div className="flex flex-wrap gap-2 mb-3">
                                     <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[80px]">{item.field}</span>
-                                    <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 truncate max-w-[80px]">{item.status}</span>
                                 </div>
 
-                                <div className="text-xs text-slate-500 mb-3 line-clamp-2 leading-relaxed" title={item.description}>
+                                {/* Status Section (Rich Text) */}
+                                <div className="mb-3 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
+                                    <div className="text-[10px] font-bold text-blue-600 mb-1 flex items-center gap-1">
+                                        <TrendingUpIcon className="w-3 h-3"/> 行业应用现状
+                                    </div>
+                                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                                        {item.status || "正在检索行业应用数据..."}
+                                    </p>
+                                </div>
+
+                                <div className="text-xs text-slate-500 mb-2 line-clamp-2 leading-relaxed" title={item.description}>
                                     {item.description}
                                 </div>
                                 
-                                <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-2">
+                                <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-1">
                                      {item.original_url ? (
                                         <a 
                                             href={item.original_url} 
@@ -259,7 +268,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                         </a>
                                      ) : <span className="text-[10px] text-slate-300">-</span>}
 
-                                     {/* Status Text */}
+                                     {/* State Badge */}
                                      <div className="flex items-center gap-1.5 text-[10px] font-mono">
                                         {item.analysisState === 'idle' && <span className="text-slate-400">待分析</span>}
                                         {item.analysisState === 'analyzing' && <span className="text-indigo-500 font-bold flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 分析中</span>}
@@ -294,13 +303,21 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                         <h2 className="text-2xl font-extrabold text-slate-800">{activeItem.name}</h2>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase tracking-wider">{activeItem.field}</span>
-                                            <div className="h-3 w-px bg-slate-300"></div>
-                                            <span className="text-xs text-slate-500">{activeItem.status}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="space-y-6">
+                                    {/* Industry Status Section - Enhanced */}
+                                    <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
+                                        <h4 className="text-sm font-bold text-blue-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                            <TrendingUpIcon className="w-4 h-4"/> 行业应用现状 (基于 RAG 检索)
+                                        </h4>
+                                        <p className="text-sm text-slate-700 leading-loose">
+                                            {activeItem.status}
+                                        </p>
+                                    </div>
+
                                     <div>
                                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">技术描述</h4>
                                         <p className="text-sm text-slate-700 leading-loose bg-slate-50 p-4 rounded-xl border border-slate-100">

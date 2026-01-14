@@ -4,7 +4,7 @@ import { ArticleSelectionStep } from './ArticleSelectionStep';
 import { AnalysisWorkspace } from './AnalysisWorkspace';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { getPrompts } from '../../../../api/stratify';
-import { chatGemini } from '../../../../api/intelligence';
+import { chatGemini, searchSemanticSegments } from '../../../../api/intelligence';
 
 export interface TechItem {
     id: string;
@@ -131,13 +131,34 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             for (const article of articles) {
                 try {
                     let contentToAnalyze = article.content;
+
+                    // --- RAG Step: Retrieve Context ---
+                    // Use title + start of content as query
+                    const queryText = `${article.title} ${contentToAnalyze.slice(0, 100)}`;
+                    let retrievedInfo = "暂无相关背景资料。";
+                    
+                    try {
+                        const searchRes = await searchSemanticSegments({
+                            query_text: queryText,
+                            page: 1,
+                            page_size: 5, // Top 5 chunks
+                            similarity_threshold: 0.35
+                        });
+                        
+                        if (searchRes.items && searchRes.items.length > 0) {
+                            retrievedInfo = searchRes.items
+                                .map((item, idx) => `[资料${idx+1}] ${item.title}: ${item.content.slice(0, 200)}...`)
+                                .join('\n\n');
+                        }
+                    } catch (searchErr) {
+                        console.warn("Vector search failed, proceeding without context", searchErr);
+                    }
                     
                     // Replace placeholders
-                    // {{ article_content }} -> The article text + URL
                     const articleContext = `标题: ${article.title}\nURL: ${article.original_url || ''}\n内容: ${contentToAnalyze}`;
                     
                     let filledPrompt = targetPrompt.content.replace('{{ article_content }}', articleContext);
-                    filledPrompt = filledPrompt.replace('{{ retrieved_info }}', ''); 
+                    filledPrompt = filledPrompt.replace('{{ retrieved_info }}', retrievedInfo); 
 
                     // Call LLM
                     const response = await chatGemini([
