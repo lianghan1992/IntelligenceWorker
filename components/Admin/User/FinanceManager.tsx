@@ -205,7 +205,9 @@ export const FinanceManager: React.FC = () => {
                                                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">{tx.id.slice(0, 8)}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">{tx.user_id.slice(0, 8)}...</span>
+                                                    <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">
+                                                        {tx.user_id ? tx.user_id.slice(0, 8) + '...' : '-'}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase ${
