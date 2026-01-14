@@ -1,3 +1,4 @@
+// src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
@@ -360,11 +361,21 @@ export const startBackgroundBatchHtmlGeneration = (data: { point_id?: string; fo
         body: JSON.stringify(data)
     });
 
-export const downloadArticlePdf = async (id: string): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/articles/${id}/pdf`;
+export const downloadArticlePdf = async (id: string, options?: { width?: number; height?: number }): Promise<Blob> => {
+    let url = `${INTELSPIDER_SERVICE_PATH}/articles/${id}/pdf`;
+    
+    if (options) {
+        const params = new URLSearchParams();
+        if (options.width) params.append('width', options.width.toString());
+        if (options.height) params.append('height', options.height.toString());
+        const qs = params.toString();
+        if (qs) url += `?${qs}`;
+    }
+
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
+    
     const response = await fetch(url, { headers, method: 'POST' }); 
     if (!response.ok) throw new Error('Download failed');
     return response.blob();
@@ -481,114 +492,6 @@ export const triggerAnalysis = (articleId: string, templateUuid?: string): Promi
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger/${articleId}`, { method: 'POST', body: JSON.stringify({ template_uuid: templateUuid }) });
 
 
-// --- Uploaded Docs (Revised) ---
-
-export const getUploadedDocs = async (params: { page?: number; size?: number; status?: string; keyword?: string; source_id?: string; point_id?: string }): Promise<{items: UploadedDocument[], total: number, page: number, size: number, total_pages: number}> => {
-    const query = createApiQuery(params);
-    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
-    const items = (res.items || []).map((item: any) => ({
-        ...item,
-        uuid: item.id, // Map 'id' from API to 'uuid' for compatibility
-        file_size: item.file_size || 0,
-        page_count: item.page_count || 0
-    }));
-    return { ...res, items };
-}
-
-export const getUploadedDocDetail = async (id: string): Promise<UploadedDocument> => {
-    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}`);
-    return { ...res, uuid: res.id, file_size: res.file_size || 0, page_count: res.page_count || 0 };
-}
-
-export const uploadDocs = (data: { files: File[], point_id: string, publish_date?: string }): Promise<void> => {
-    const formData = new FormData();
-    data.files.forEach(f => formData.append('files', f));
-    formData.append('point_id', data.point_id);
-    if (data.publish_date) formData.append('publish_date', data.publish_date);
-    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, { method: 'POST', body: formData });
-}
-
-export const deleteUploadedDoc = (id: string): Promise<{ message: string }> => 
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}`, { method: 'DELETE' });
-
-export const regenerateDocumentSummary = (id: string): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/regenerate-summary`, { method: 'POST' });
-
-export const regenerateDocumentCover = (id: string): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/regenerate-cover`, { method: 'POST' });
-
-export const getUploadedDocCover = async (id: string): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/cover`;
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    
-    // Explicitly accept images
-    headers.set('Accept', 'image/*');
-
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('Fetch cover failed');
-    return response.blob();
-}
-
-export const downloadUploadedDoc = async (id: string): Promise<Blob> => {
-    // Assuming a standard download path or using preview if download not explicit in list
-    // If not explicit, user might need to use preview or we assume /download endpoint exists in backend as standard
-    // Based on previous code, let's keep the download path assumption unless it fails.
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/download`; 
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('Download failed');
-    return response.blob();
-}
-
-export const getDocPreview = async (id: string, page: number): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/preview/${page}`;
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('Preview failed');
-    return response.blob();
-}
-
-// Doc Tags (Points mapping)
-export const getDocTags = (): Promise<DocTag[]> => 
-    apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`);
-
-export const createDocTag = (name: string): Promise<DocTag> => 
-    apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`, { method: 'POST', body: JSON.stringify({ name }) });
-
-export const updateDocTag = (uuid: string, name: string): Promise<DocTag> => 
-    apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${uuid}`, { method: 'PUT', body: JSON.stringify({ name }) });
-
-export const deleteDocTag = (uuid: string): Promise<{ message: string }> => 
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${uuid}`, { method: 'DELETE' });
-
-export const searchDocTags = (query: string): Promise<DocTag[]> =>
-    apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/search/tags`, { method: 'POST', body: JSON.stringify({ query }) });
-
-export const batchUpdateDocsPoint = (data: { old_point_uuid: string, new_point_uuid: string, doc_uuids?: string[] }): Promise<{ message: string }> => 
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/batch-update-point`, { method: 'POST', body: JSON.stringify(data) });
-
-export const getServiceHealth = (): Promise<{ status: string }> => {
-    return apiFetch<{ status: string }>(`${INTELSPIDER_SERVICE_PATH}/health`);
-}
-
-export const getProxies = (): Promise<SpiderProxy[]> => 
-    apiFetch<SpiderProxy[]>(`${INTELSPIDER_SERVICE_PATH}/proxies/`);
-
-export const addProxy = (data: { url: string, enabled: boolean }): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies/`, { method: 'POST', body: JSON.stringify(data) });
-
-export const deleteProxy = (url: string): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies/${encodeURIComponent(url)}`, { method: 'DELETE' }); 
-
-export const testProxy = (url: string): Promise<{ success: boolean; latency_ms: number }> => 
-    apiFetch<{ success: boolean; latency_ms: number }>(`${INTELSPIDER_SERVICE_PATH}/proxies/test`, { method: 'POST', body: JSON.stringify({ url }) });
-
 // --- New Gemini Chat API ---
 
 export const chatGemini = async (
@@ -604,3 +507,103 @@ export const chatGemini = async (
         })
     });
 };
+
+// --- Service Health ---
+export const getServiceHealth = (): Promise<{ status: string }> => 
+    apiFetch<{ status: string }>(`${INTELSPIDER_SERVICE_PATH}/health`).catch(() => ({ status: 'error' }));
+
+// --- Proxies ---
+export const getProxies = (): Promise<SpiderProxy[]> => 
+    apiFetch<SpiderProxy[]>(`${INTELSPIDER_SERVICE_PATH}/proxies`);
+
+export const addProxy = (data: { url: string; enabled: boolean }): Promise<SpiderProxy> => 
+    apiFetch<SpiderProxy>(`${INTELSPIDER_SERVICE_PATH}/proxies`, { method: 'POST', body: JSON.stringify(data) });
+
+export const deleteProxy = (url: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies`, { method: 'DELETE', body: JSON.stringify({ url }) });
+
+export const testProxy = (url: string): Promise<{ success: boolean; latency_ms: number }> => 
+    apiFetch<{ success: boolean; latency_ms: number }>(`${INTELSPIDER_SERVICE_PATH}/proxies/test`, { method: 'POST', body: JSON.stringify({ url }) });
+
+// --- Uploaded Documents & Tags ---
+
+// Doc Tags
+export const getDocTags = (): Promise<DocTag[]> => 
+    apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/doc-tags`);
+
+export const createDocTag = (name: string): Promise<DocTag> => 
+    apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/doc-tags`, { method: 'POST', body: JSON.stringify({ name }) });
+
+export const updateDocTag = (uuid: string, name: string): Promise<DocTag> => 
+    apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/doc-tags/${uuid}`, { method: 'PUT', body: JSON.stringify({ name }) });
+
+export const deleteDocTag = (uuid: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/doc-tags/${uuid}`, { method: 'DELETE' });
+
+// Uploaded Docs
+export const getUploadedDocs = (params: any): Promise<PaginatedResponse<UploadedDocument>> => {
+    const apiParams = { ...params };
+    // Map filters if needed, usually params directly match
+    const query = createApiQuery(apiParams);
+    return apiFetch<PaginatedResponse<UploadedDocument>>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
+};
+
+export const getUploadedDocDetail = (uuid: string): Promise<UploadedDocument> => 
+    apiFetch<UploadedDocument>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`);
+
+export const uploadDocs = (data: { files: File[]; point_id: string; publish_date?: string }): Promise<void> => {
+    const formData = new FormData();
+    data.files.forEach(f => formData.append('files', f));
+    formData.append('point_id', data.point_id);
+    if (data.publish_date) formData.append('publish_date', data.publish_date);
+    
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, {
+        method: 'POST',
+        body: formData
+    });
+};
+
+export const deleteUploadedDoc = (uuid: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`, { method: 'DELETE' });
+
+export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/download`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('Download failed');
+    return response.blob();
+};
+
+export const getUploadedDocCover = async (uuid: string): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/cover`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('Failed to fetch cover');
+    return response.blob();
+};
+
+export const getDocPreview = async (uuid: string, page: number): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/preview?page=${page}`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('Failed to fetch preview');
+    return response.blob();
+};
+
+export const regenerateDocumentSummary = (uuid: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/regenerate-summary`, { method: 'POST' });
+
+export const regenerateDocumentCover = (uuid: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/regenerate-cover`, { method: 'POST' });
+
+export const batchUpdateDocsPoint = (data: { old_point_uuid: string; new_point_uuid: string }): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/batch-update-point`, { method: 'POST', body: JSON.stringify(data) });
