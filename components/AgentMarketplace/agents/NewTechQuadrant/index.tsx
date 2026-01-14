@@ -22,6 +22,73 @@ export interface TechItem {
 
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
 
+// Helper: Robustly extract JSON array from text that might contain extra markdown or text
+const extractJsonArray = (text: string): any[] | null => {
+    if (!text) return null;
+    
+    // 1. Try finding the first '['
+    const startIndex = text.indexOf('[');
+    if (startIndex === -1) return null;
+
+    // 2. Iterate to find the matching closing ']' using a stack counter
+    let bracketCount = 0;
+    let endIndex = -1;
+    let inString = false;
+    let isEscaped = false;
+
+    for (let i = startIndex; i < text.length; i++) {
+        const char = text[i];
+        
+        if (isEscaped) {
+            isEscaped = false;
+            continue;
+        }
+        
+        if (char === '\\') {
+            isEscaped = true;
+            continue;
+        }
+        
+        if (char === '"') {
+            inString = !inString;
+            continue;
+        }
+        
+        if (!inString) {
+            if (char === '[') {
+                bracketCount++;
+            } else if (char === ']') {
+                bracketCount--;
+                if (bracketCount === 0) {
+                    endIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (endIndex !== -1) {
+        const jsonStr = text.substring(startIndex, endIndex + 1);
+        try {
+            const result = JSON.parse(jsonStr);
+            if (Array.isArray(result)) return result;
+        } catch (e) {
+            console.warn("JSON parse failed on extracted string:", jsonStr);
+        }
+    }
+    
+    // Fallback: Attempt to clean up markdown code blocks if the above failed
+    const codeBlockMatch = text.match(/```(?:json)?([\s\S]*?)```/);
+    if (codeBlockMatch) {
+        try {
+            const result = JSON.parse(codeBlockMatch[1]);
+            if (Array.isArray(result)) return result;
+        } catch (e) {}
+    }
+
+    return null;
+};
+
 const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [step, setStep] = useState<'selection' | 'workspace'>('selection');
     const [selectedArticles, setSelectedArticles] = useState<ArticlePublic[]>([]);
@@ -69,8 +136,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     // {{ article_content }} -> The article text + URL
                     const articleContext = `标题: ${article.title}\nURL: ${article.original_url || ''}\n内容: ${contentToAnalyze}`;
                     
-                    // Note: {{ retrieved_info }} is removed from prompt template as per requirement, 
-                    // so we don't need to replace it, or just replace with empty string if it still exists.
                     let filledPrompt = targetPrompt.content.replace('{{ article_content }}', articleContext);
                     filledPrompt = filledPrompt.replace('{{ retrieved_info }}', ''); 
 
@@ -82,25 +147,23 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     if (response && response.choices && response.choices.length > 0) {
                         const responseText = response.choices[0].message.content;
                         
-                        // Parse JSON
-                        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-                        if (jsonMatch) {
-                            const jsonStr = jsonMatch[0];
-                            const items = JSON.parse(jsonStr);
+                        // Use robust extractor
+                        const items = extractJsonArray(responseText);
+                        
+                        if (items && Array.isArray(items)) {
+                            const newItems: TechItem[] = items.map((item: any) => ({
+                                id: crypto.randomUUID(),
+                                name: item.name || '未知技术',
+                                field: item.field || '其他',
+                                description: item.description || '无描述',
+                                status: item.status || '未知',
+                                original_url: item.original_url || article.original_url || '', 
+                                analysisState: 'idle'
+                            }));
                             
-                            if (Array.isArray(items)) {
-                                const newItems: TechItem[] = items.map((item: any) => ({
-                                    id: crypto.randomUUID(),
-                                    name: item.name || '未知技术',
-                                    field: item.field || '其他',
-                                    description: item.description || '无描述',
-                                    status: item.status || '未知',
-                                    original_url: item.original_url || article.original_url || '', // Use returned URL or fallback to article URL
-                                    analysisState: 'idle'
-                                }));
-                                
-                                setTechList(prev => [...prev, ...newItems]);
-                            }
+                            setTechList(prev => [...prev, ...newItems]);
+                        } else {
+                            console.warn("Failed to extract JSON array from response:", responseText);
                         }
                     }
 
@@ -131,6 +194,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     techList={techList}
                     setTechList={setTechList}
                     onBack={() => setStep('selection')}
+                    isExtracting={isExtracting}
                 />
             )}
         </div>

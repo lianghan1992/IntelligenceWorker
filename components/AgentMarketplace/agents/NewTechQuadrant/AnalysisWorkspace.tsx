@@ -5,7 +5,7 @@ import { ArticlePublic } from '../../../../types';
 import { 
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
     CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
-    DownloadIcon, PencilIcon, LinkIcon
+    DownloadIcon, PencilIcon, LinkIcon, SparklesIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 
@@ -14,6 +14,7 @@ interface AnalysisWorkspaceProps {
     techList: TechItem[];
     setTechList: React.Dispatch<React.SetStateAction<TechItem[]>>;
     onBack: () => void;
+    isExtracting: boolean; // Added prop
 }
 
 // 模拟 RAG 日志
@@ -129,7 +130,7 @@ const MOCK_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, techList, setTechList, onBack }) => {
+export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, techList, setTechList, onBack, isExtracting }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [markdownInput, setMarkdownInput] = useState('');
     const [logs, setLogs] = useState<string[]>([]);
@@ -208,8 +209,17 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                 <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar bg-slate-50/50">
                     {techList.length === 0 ? (
                         <div className="text-center py-10 text-slate-400 text-sm">
-                            <RefreshIcon className="w-6 h-6 mx-auto mb-2 animate-spin text-indigo-400"/>
-                            正在从文章中提取技术点...
+                            {isExtracting ? (
+                                <>
+                                    <RefreshIcon className="w-6 h-6 mx-auto mb-2 animate-spin text-indigo-400"/>
+                                    正在从文章中提取技术点...
+                                </>
+                            ) : (
+                                <>
+                                    <SparklesIcon className="w-6 h-6 mx-auto mb-2 text-slate-300"/>
+                                    未识别到有效技术点
+                                </>
+                            )}
                         </div>
                     ) : (
                         techList.map(item => (
