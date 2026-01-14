@@ -1,12 +1,18 @@
 
-import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
     TrashIcon, CloseIcon, DocumentTextIcon, 
     PhotoIcon, ViewGridIcon, PencilIcon, 
-    LinkIcon, RefreshIcon, ArrowIcon
+    LinkIcon, RefreshIcon,
 } from '../icons';
 
-// --- Local Icons ---
+interface VisualEditorProps {
+    initialHtml: string;
+    onSave: (newHtml: string) => void;
+    scale?: number;
+}
+
+// --- Icons ---
 const BoldIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 11.81C16.36 11.23 17 10.23 17 9c0-2.21-1.79-4-4-4H7v14h7.5c2.09 0 3.5-1.75 3.5-3.88 0-1.63-1.04-3.05-2.4-3.31zM10.5 7.5H13c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>;
 const ItalicIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>;
 const AlignLeftIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>;
@@ -14,28 +20,8 @@ const AlignCenterIcon = ({className}:{className?:string}) => <svg className={cla
 const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
 const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
 const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
+const ArrowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"/></svg>;
 const SelectIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M7 2l12 11.2-5.8.5 3.3 7.3-2.2.9-3.2-7.4-4.4 4.6z"/></svg>;
-
-// --- Interfaces ---
-export interface VisualEditorHandle {
-    updateStyle: (key: string, value: string | number) => void;
-    updateContent: (text: string) => void;
-    updateAttribute: (key: string, value: string) => void;
-    insertElement: (type: 'img', value: string) => void;
-    updateTransform: (dx: number, dy: number, scale?: number) => void;
-    changeLayer: (direction: 'up' | 'down') => void;
-    duplicate: () => void;
-    deleteElement: () => void;
-    deselect: () => void;
-}
-
-export interface VisualEditorProps {
-    initialHtml: string;
-    onSave: (newHtml: string) => void;
-    scale?: number;
-    onScaleChange?: (scale: number) => void;
-    onSelectionChange?: (element: any) => void;
-}
 
 // --- Properties Panel ---
 interface PropertiesPanelProps {
@@ -62,6 +48,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     }
 
     const parseVal = (val: string) => parseInt(val) || 0;
+    // Note: The element might be an IMG tag or a DIV wrapper containing an IMG.
+    // If we select the wrapper, we want to edit the image inside.
     const isImg = element.tagName === 'IMG' || (element.tagName === 'DIV' && element.hasImgChild);
 
     return (
@@ -148,6 +136,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                                     {align === 'left' && <AlignLeftIcon className="w-3 h-3"/>}
                                     {align === 'center' && <AlignCenterIcon className="w-3 h-3"/>}
                                     {align === 'right' && <AlignRightIcon className="w-3 h-3"/>}
+                                    {align === 'justify' && <span className="text-[9px] font-bold">≡</span>}
                                 </button>
                             ))}
                         </div>
@@ -221,8 +210,7 @@ const EDITOR_SCRIPT = `
   \`;
   document.head.appendChild(style);
 
-  function pushUpdate() {
-      // Small debounce to avoid flooding
+  function pushHistory() {
       setTimeout(() => {
         if (!selectedEl) return;
         const wasSelected = selectedEl;
@@ -269,6 +257,7 @@ const EDITOR_SCRIPT = `
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              
+             // Copy computed positioning styles to wrapper
              const comp = window.getComputedStyle(target);
              const width = target.offsetWidth;
              const height = target.offsetHeight;
@@ -285,6 +274,7 @@ const EDITOR_SCRIPT = `
              wrapper.style.width = width + 'px';
              wrapper.style.height = height + 'px';
              
+             // Reset img to fill wrapper
              target.style.position = 'static';
              target.style.transform = 'none';
              target.style.width = '100%';
@@ -295,10 +285,11 @@ const EDITOR_SCRIPT = `
                  target.parentNode.insertBefore(wrapper, target);
                  wrapper.appendChild(target);
                  target = wrapper;
-                 pushUpdate();
+                 pushHistory();
              }
         }
     }
+    // ---------------------------------------
 
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect(); return;
@@ -308,6 +299,7 @@ const EDITOR_SCRIPT = `
 
   document.body.addEventListener('mouseover', (e) => {
       if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
+      // Hover effect on wrapper if hovering img inside
       let target = e.target;
       if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
            target = target.parentElement;
@@ -333,7 +325,7 @@ const EDITOR_SCRIPT = `
              selectedEl.contentEditable = 'false';
              selectedEl.removeEventListener('blur', onBlur);
              createResizers(selectedEl);
-             pushUpdate(); 
+             pushHistory(); 
          };
          selectedEl.addEventListener('blur', onBlur);
      }
@@ -353,6 +345,7 @@ const EDITOR_SCRIPT = `
 
       const comp = window.getComputedStyle(selectedEl);
       
+      // If wrapper, get img src
       let imgSrc = selectedEl.getAttribute('src');
       let hasImgChild = false;
       if (selectedEl.classList.contains('ai-img-wrapper')) {
@@ -410,6 +403,7 @@ const EDITOR_SCRIPT = `
     }
     if (action === 'INSERT_ELEMENT') {
         if (value.type === 'img') {
+             // Create Wrapper DIV instead of IMG directly
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              wrapper.style.position = 'absolute';
@@ -428,15 +422,22 @@ const EDITOR_SCRIPT = `
                  }
                  wrapper.style.width = w + 'px'; 
                  wrapper.style.height = h + 'px';
+                 
                  img.style.width = '100%';
                  img.style.height = '100%';
                  img.style.objectFit = 'cover';
                  img.style.display = 'block';
+                 
                  wrapper.appendChild(img);
+                 
                  const canvas = document.getElementById('canvas') || document.body;
                  canvas.appendChild(wrapper);
+                 
                  selectElement(wrapper);
-                 pushUpdate();
+                 pushHistory();
+             }
+             img.onerror = function() {
+                 console.error('Image failed to load');
              }
              img.src = value.src;
         }
@@ -444,8 +445,8 @@ const EDITOR_SCRIPT = `
     }
     
     if (!selectedEl) return;
-    if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushUpdate(); return; }
-    if (action === 'UPDATE_STYLE') { Object.assign(selectedEl.style, value); pushUpdate(); } 
+    if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushHistory(); return; }
+    if (action === 'UPDATE_STYLE') { Object.assign(selectedEl.style, value); pushHistory(); } 
     else if (action === 'UPDATE_ATTRIBUTE') { 
         if (value.key === 'src' && selectedEl.classList.contains('ai-img-wrapper')) {
             const img = selectedEl.querySelector('img');
@@ -453,9 +454,9 @@ const EDITOR_SCRIPT = `
         } else {
             selectedEl.setAttribute(value.key, value.val); 
         }
-        pushUpdate(); 
+        pushHistory(); 
     }
-    else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushUpdate(); } 
+    else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); } 
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
         const currentTransform = clone.style.transform || '';
@@ -471,15 +472,17 @@ const EDITOR_SCRIPT = `
         }
         selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
         selectElement(clone);
-        pushUpdate();
+        pushHistory();
     }
     else if (action === 'LAYER') {
         const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
         selectedEl.style.zIndex = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
+        // Only set position relative if it's static, to make z-index work. 
+        // But for inserted images (absolute), we keep absolute.
         if (window.getComputedStyle(selectedEl).position === 'static') {
              selectedEl.style.position = 'relative'; 
         }
-        pushUpdate();
+        pushHistory();
     }
     else if (action === 'UPDATE_TRANSFORM') {
         const currentTransform = selectedEl.style.transform || '';
@@ -498,7 +501,7 @@ const EDITOR_SCRIPT = `
         const newScale = value.scale !== undefined ? value.scale : currentScale;
         selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) scale(\${newScale})\`;
         selectElement(selectedEl);
-        pushUpdate();
+        pushHistory();
     }
     else if (action === 'DESELECT_FORCE') {
         deselect();
@@ -515,6 +518,7 @@ const EDITOR_SCRIPT = `
         initialWidth = parseFloat(window.getComputedStyle(selectedEl).width);
         initialHeight = parseFloat(window.getComputedStyle(selectedEl).height);
         
+        // Capture initial transform for Top/Left resizing
         const transform = selectedEl.style.transform || '';
         const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
         if (match) {
@@ -530,6 +534,8 @@ const EDITOR_SCRIPT = `
     }
     
     if (!selectedEl) return;
+    
+    // FIX: Allow dragging if clicking on the selected element OR its children (like img inside wrapper)
     const isSelfOrChild = selectedEl === e.target || selectedEl.contains(e.target);
     if (!isSelfOrChild && e.target !== selectedEl) return;
     
@@ -561,6 +567,7 @@ const EDITOR_SCRIPT = `
         let newX = window.initialTransformX;
         let newY = window.initialTransformY;
 
+        // Logic for Resizing
         if (resizeHandle.includes('e')) newWidth = initialWidth + dx;
         if (resizeHandle.includes('s')) newHeight = initialHeight + dy;
         
@@ -573,19 +580,27 @@ const EDITOR_SCRIPT = `
             newY += dy;
         }
         
+        // Ensure minimum size
         if (newWidth > 10) {
             selectedEl.style.width = \`\${newWidth}px\`;
+             // Only update position if we are resizing left/top and size allows it
+             if (resizeHandle.includes('w')) {
+                 // We need to keep transform sync
+             }
         }
         if (newHeight > 10) {
             selectedEl.style.height = \`\${newHeight}px\`;
         }
         
+        // Update Transform if N/W resizing
         if (resizeHandle.includes('w') || resizeHandle.includes('n')) {
+             // Retrieve existing scale if any
             const currentTransform = selectedEl.style.transform || '';
             let scalePart = '';
             const scaleMatch = currentTransform.match(/scale\\([^)]+\\)/);
             if (scaleMatch) scalePart = scaleMatch[0];
             
+            // Only update transform if size update was valid (min width check)
             if ((resizeHandle.includes('w') && newWidth > 10) || (resizeHandle.includes('n') && newHeight > 10)) {
                  selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) \${scalePart}\`;
             }
@@ -607,55 +622,66 @@ const EDITOR_SCRIPT = `
 
   window.addEventListener('mouseup', () => {
     if (isDragging || isResizing) {
-        isDragging = false; isResizing = false; pushUpdate();
+        isDragging = false; isResizing = false; pushHistory();
     }
   });
 })();
 </script>
 `;
 
-export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({ initialHtml, onSave, scale, onScaleChange, onSelectionChange }, ref) => {
-    const iframeRef = useRef<HTMLIFrameElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
+export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave, scale: externalScale = 1 }) => {
+    const [scale, setScale] = useState(externalScale);
     const [selectedElement, setSelectedElement] = useState<any>(null);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Using simple useState instead of history hook
+    const [htmlContent, setHtmlContent] = useState(initialHtml);
     const isInternalUpdate = useRef(false);
 
-    // Expose methods to parent
-    useImperativeHandle(ref, () => ({
-        updateStyle: (key, value) => sendCommand('UPDATE_STYLE', { [key]: value }),
-        updateContent: (text) => sendCommand('UPDATE_CONTENT', text),
-        updateAttribute: (key, value) => sendCommand('UPDATE_ATTRIBUTE', { key, val: value }),
-        insertElement: (type, src) => sendCommand('INSERT_ELEMENT', { type, src }),
-        updateTransform: (dx, dy, scaleVal) => sendCommand('UPDATE_TRANSFORM', { dx, dy, scale: scaleVal }),
-        changeLayer: (direction) => sendCommand('LAYER', direction),
-        duplicate: () => sendCommand('DUPLICATE'),
-        deleteElement: () => sendCommand('DELETE'),
-        deselect: () => sendCommand('DESELECT_FORCE')
-    }));
+    // Sync external scale
+    useEffect(() => {
+        setScale(externalScale);
+    }, [externalScale]);
 
-    // Handle initial load of HTML
+    // Initial Load & External Updates
     useEffect(() => {
         if (isInternalUpdate.current) { isInternalUpdate.current = false; return; }
         
+        // Update local state when prop changes
+        setHtmlContent(initialHtml);
+
         const iframe = iframeRef.current;
         if (iframe) {
             const doc = iframe.contentDocument;
             if (doc) {
                 doc.open();
                 let content = initialHtml || '';
-                // Ensure wrapper for full height bg
                 if (!content.toLowerCase().includes('<html')) {
                      content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script><style>html, body { min-height: 100vh; margin: 0; background: white; }</style></head><body>${content}</body></html>`;
                 }
-                // Inject script if not present
-                if (!content.includes('window.visualEditorScale')) {
-                     content = content.toLowerCase().includes('</body>') ? content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`) : content + EDITOR_SCRIPT;
-                }
+                content = content.toLowerCase().includes('</body>') ? content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`) : content + EDITOR_SCRIPT;
                 doc.write(content);
                 doc.close();
             }
         }
     }, [initialHtml]);
+
+    // Handle Messages from Iframe
+    useEffect(() => {
+        const handler = (e: MessageEvent) => {
+            if (e.data.type === 'SELECTED') setSelectedElement(e.data);
+            else if (e.data.type === 'DESELECT') setSelectedElement(null);
+            else if (e.data.type === 'HISTORY_UPDATE') {
+                isInternalUpdate.current = true;
+                let cleanHtml = e.data.html.replace(EDITOR_SCRIPT.trim(), '');
+                setHtmlContent(cleanHtml);
+                onSave(cleanHtml);
+            }
+        };
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
+    }, [onSave, setHtmlContent]);
 
     // Update Scale inside iframe
     useEffect(() => {
@@ -663,72 +689,22 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
             iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
         }
     }, [scale]);
-    
-    // Auto-scale fit logic
-    useEffect(() => {
-        if (containerRef.current) {
-            const { clientWidth, clientHeight } = containerRef.current;
-            // Target 1600x900
-            const scaleX = (clientWidth - 80) / 1600; // -80 for padding
-            const scaleY = (clientHeight - 80) / 900;
-            const initialScale = Math.min(scaleX, scaleY, 1);
-            if (onScaleChange) onScaleChange(Math.max(0.1, initialScale));
-        }
-    }, []);
 
-    // Handle Messages from Iframe
-    useEffect(() => {
-        const handler = (e: MessageEvent) => {
-            if (e.data.type === 'SELECTED') {
-                setSelectedElement(e.data);
-                if (onSelectionChange) onSelectionChange(e.data);
-            }
-            else if (e.data.type === 'DESELECT') {
-                setSelectedElement(null);
-                if (onSelectionChange) onSelectionChange(null);
-            }
-            else if (e.data.type === 'HISTORY_UPDATE') {
-                isInternalUpdate.current = true;
-                let cleanHtml = e.data.html.replace(EDITOR_SCRIPT.trim(), '');
-                onSave(cleanHtml);
-            }
-        };
-        window.addEventListener('message', handler);
-        return () => window.removeEventListener('message', handler);
-    }, [onSave, onSelectionChange]);
-
+    // --- Zoom Interaction ---
     const handleWheel = useCallback((e: React.WheelEvent) => {
-        if (e.altKey && onScaleChange) {
+        if (e.altKey) {
             e.preventDefault();
-            const delta = -e.deltaY * 0.001; 
+            const delta = -e.deltaY * 0.001; // Scale factor
             const newScale = Math.min(Math.max(0.1, scale + delta), 3);
-            onScaleChange(newScale);
+            setScale(newScale);
         }
-    }, [scale, onScaleChange]);
+    }, [scale]);
 
     const sendCommand = (action: string, value?: any) => {
         if (iframeRef.current?.contentWindow) iframeRef.current.contentWindow.postMessage({ action, value }, '*');
     };
-    
-    const handleInsertImage = () => {
-        const url = prompt("请输入图片 URL:");
-        if (url) sendCommand('INSERT_ELEMENT', { type: 'img', src: url });
-    };
-    
-    const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    sendCommand('INSERT_ELEMENT', { type: 'img', src: event.target.result as string });
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-    
-    // --- Actions Handlers Wrappers for Property Panel ---
+
+    // --- Actions Handlers ---
     const handleUpdateStyle = (key: string, value: string | number) => {
         sendCommand('UPDATE_STYLE', { [key]: value });
         setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
@@ -744,63 +720,186 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
         setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
     };
     
-    // --- Top Toolbar for Insert/Zoom (Since undo/redo removed) ---
-    const TopToolbar = () => (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur border border-slate-200 shadow-lg rounded-full px-4 py-2 flex items-center gap-4 z-20 transition-all hover:scale-105">
-            <div className="flex items-center gap-2">
-                 <button onClick={handleInsertImage} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg text-xs font-bold transition-colors">
-                     <LinkIcon className="w-3.5 h-3.5" /> 网络图片
-                 </button>
-                 <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                     <PhotoIcon className="w-3.5 h-3.5" /> 本地上传
-                     <input type="file" accept="image/*" onChange={handleInsertUpload} className="hidden" />
-                 </label>
-            </div>
-            <div className="w-px h-4 bg-slate-300"></div>
-            <div className="flex items-center gap-2 text-slate-500">
-                <button onClick={() => onScaleChange && onScaleChange(Math.max(0.1, scale - 0.1))} className="hover:text-indigo-600 text-lg font-bold px-1">-</button>
-                <span className="text-xs font-mono min-w-[3rem] text-center">{Math.round(scale * 100)}%</span>
-                <button onClick={() => onScaleChange && onScaleChange(Math.min(3, scale + 0.1))} className="hover:text-indigo-600 text-lg font-bold px-1">+</button>
-            </div>
+    const handleInsertImage = () => {
+        const url = prompt("请输入图片 URL:");
+        if (url) {
+            sendCommand('INSERT_ELEMENT', { type: 'img', src: url });
+        }
+    };
+
+    const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    sendCommand('INSERT_ELEMENT', { type: 'img', src: event.target.result as string });
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleImageChange = () => {
+        const currentSrc = selectedElement?.src || "";
+        const url = prompt("请输入新图片 URL:", currentSrc);
+        if (url !== null) {
+            handleUpdateAttribute('src', url);
+        }
+    };
+
+    // --- Toolbar Components ---
+    const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selectedElement.tagName)) && !selectedElement.hasImgChild;
+    const isImg = selectedElement && (selectedElement.tagName === 'IMG' || (selectedElement.tagName === 'DIV' && selectedElement.hasImgChild));
+    
+    const isBold = selectedElement && (selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700);
+    const isItalic = selectedElement && selectedElement.fontStyle === 'italic';
+    const align = selectedElement?.textAlign || 'left';
+
+    const Toolbar = () => (
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+            {selectedElement ? (
+                <>
+                    {/* Typography */}
+                    {isText && (
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                             <div className="flex items-center bg-white border border-slate-200 rounded px-1">
+                                <input 
+                                    type="number" 
+                                    value={parseInt(selectedElement.fontSize)||16} 
+                                    onChange={(e) => handleUpdateStyle('fontSize', `${e.target.value}px`)}
+                                    className="w-8 text-xs outline-none text-center py-1"
+                                />
+                                <span className="text-[10px] text-slate-400 mr-1">px</span>
+                            </div>
+                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                            <button onClick={() => handleUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1.5 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => handleUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1.5 rounded hover:bg-white ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
+                            <div className="flex gap-0.5 border border-slate-200 rounded bg-white ml-1">
+                                <button onClick={() => handleUpdateStyle('textAlign', 'left')} className={`p-1 hover:text-indigo-600 ${align === 'left' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignLeftIcon className="w-3.5 h-3.5"/></button>
+                                <button onClick={() => handleUpdateStyle('textAlign', 'center')} className={`p-1 hover:text-indigo-600 ${align === 'center' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignCenterIcon className="w-3.5 h-3.5"/></button>
+                                <button onClick={() => handleUpdateStyle('textAlign', 'right')} className={`p-1 hover:text-indigo-600 ${align === 'right' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignRightIcon className="w-3.5 h-3.5"/></button>
+                            </div>
+                             <div className="relative w-6 h-6 ml-1 cursor-pointer border border-slate-200 rounded overflow-hidden" title="文字颜色">
+                                 <div className="absolute inset-0" style={{backgroundColor: selectedElement.color || '#000'}}></div>
+                                 <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('color', e.target.value)} />
+                             </div>
+                        </div>
+                    )}
+                    
+                    {/* Image */}
+                    {isImg && (
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm">
+                                <RefreshIcon className="w-3 h-3"/> 换图
+                             </button>
+                        </div>
+                    )}
+
+                    {/* Colors & Layout */}
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                         <div className="relative w-6 h-6 cursor-pointer border border-slate-200 rounded overflow-hidden" title="背景颜色">
+                             <div className="absolute inset-0" style={{backgroundColor: selectedElement.backgroundColor || 'transparent'}}></div>
+                             <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('backgroundColor', e.target.value)} />
+                         </div>
+                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                         <button onClick={() => sendCommand('LAYER', 'up')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
+                         <button onClick={() => sendCommand('LAYER', 'down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
+                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                         <button onClick={() => sendCommand('DUPLICATE')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
+                         <button onClick={() => { sendCommand('DELETE'); setSelectedElement(null); }} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
+                    </div>
+
+                    {/* Transform Nudge */}
+                    <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: -10, dy: 0 })} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
+                        <div className="flex flex-col gap-0.5">
+                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: -10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
+                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: 10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></button>
+                        </div>
+                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 10, dy: 0 })} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3"/></button>
+                    </div>
+                </>
+            ) : (
+                /* No Selection - Insert Tools */
+                <div className="flex items-center gap-2">
+                     <span className="text-xs font-bold text-slate-400 mr-2">插入:</span>
+                     <div className="relative group">
+                         <button className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
+                             <PhotoIcon className="w-3.5 h-3.5"/> 图片
+                         </button>
+                         <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
+                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2"><LinkIcon className="w-3 h-3"/> 网络图片</button>
+                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer">
+                                 <PhotoIcon className="w-3 h-3"/> 本地上传
+                                 <input 
+                                     ref={fileInputRef}
+                                     type="file" 
+                                     accept="image/*" 
+                                     onChange={handleInsertUpload} 
+                                     className="hidden" 
+                                 />
+                             </label>
+                         </div>
+                     </div>
+                </div>
+            )}
         </div>
     );
 
     return (
-        <div className="flex w-full h-full bg-slate-200 overflow-hidden relative">
-            <TopToolbar />
-            
-            {/* Scrollable Canvas Wrapper */}
-            <div 
-                ref={containerRef}
-                className="flex-1 relative overflow-auto flex items-center justify-center p-10"
-                onWheel={handleWheel}
-            >
-                 <div 
-                    style={{ 
-                        width: '1600px', height: '900px', 
-                        transform: `scale(${scale})`, 
-                        transformOrigin: 'center center',
-                        boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
-                        transition: 'transform 0.1s ease-out'
-                    }}
-                    className="bg-white flex-shrink-0"
-                >
-                    <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
+        <div className="flex flex-col w-full h-full bg-slate-100 rounded-sm overflow-hidden relative">
+             {/* Toolbar */}
+             <div className="h-12 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">
+                <div className="flex items-center gap-2">
+                    {/* Undo/Redo removed as requested */}
+                    
+                    {/* Integrated Tools */}
+                    <Toolbar />
                 </div>
-            </div>
+                
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">
+                        Zoom: {Math.round(scale * 100)}%
+                    </span>
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                        <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="p-1 text-slate-500 font-bold hover:bg-white rounded text-xs">-</button>
+                        <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="p-1 text-slate-500 font-bold hover:bg-white rounded text-xs">+</button>
+                    </div>
+                </div>
+             </div>
 
-            {/* Right Properties Panel */}
-            {selectedElement && (
+             <div className="flex-1 relative overflow-hidden flex">
+                {/* Canvas Area */}
+                <div 
+                    className="flex-1 flex items-center justify-center bg-slate-200 relative overflow-hidden"
+                    onWheel={handleWheel}
+                >
+                    <div 
+                        style={{ 
+                            width: '1600px', height: '900px', 
+                            transform: `scale(${scale})`, 
+                            transformOrigin: 'center center',
+                            boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+                            transition: 'transform 0.1s ease-out'
+                        }}
+                        className="bg-white flex-shrink-0"
+                    >
+                        <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
+                    </div>
+                </div>
+
+                {/* Right Properties Panel */}
                 <PropertiesPanel 
                     element={selectedElement}
                     onUpdateStyle={handleUpdateStyle}
                     onUpdateContent={handleUpdateContent}
                     onUpdateAttribute={handleUpdateAttribute}
-                    onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); if(onSelectionChange) onSelectionChange(null); }}
-                    onClose={() => { sendCommand('DESELECT_FORCE'); setSelectedElement(null); if(onSelectionChange) onSelectionChange(null); }}
+                    onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); }}
+                    onClose={() => { sendCommand('DESELECT_FORCE'); setSelectedElement(null); }}
                 />
-            )}
+             </div>
         </div>
     );
-});
-VisualEditor.displayName = 'VisualEditor';
+};
