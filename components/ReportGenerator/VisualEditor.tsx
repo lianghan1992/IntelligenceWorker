@@ -38,11 +38,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     if (!element) {
         return (
             <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center z-20">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                    <SelectIcon className="w-6 h-6 opacity-30" />
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100">
+                    <SelectIcon className="w-10 h-10 opacity-30" />
                 </div>
-                <h3 className="font-bold text-slate-600 mb-1">未选择元素</h3>
-                <p className="text-xs">请在左侧画布点击选择一个元素以编辑属性</p>
+                <h3 className="font-bold text-slate-700 mb-2 text-base">未选择元素</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">请在左侧画布点击选择一个元素，以编辑其内容和样式。</p>
             </div>
         );
     }
@@ -50,84 +50,105 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     const parseVal = (val: string) => parseInt(val) || 0;
     const parseFontSize = (val: string) => parseInt(val) || 16;
     
-    // Note: The element might be an IMG tag or a DIV wrapper containing an IMG.
-    // If we select the wrapper, we want to edit the image inside.
     const isImg = element.tagName === 'IMG' || (element.tagName === 'DIV' && element.hasImgChild);
 
     return (
         <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20">
-            <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div className="px-5 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{isImg ? 'IMAGE' : element.tagName}</span>
-                    <span className="text-xs font-bold text-slate-700">属性编辑</span>
+                    <span className="text-[10px] font-extrabold bg-indigo-600 text-white px-2 py-0.5 rounded uppercase tracking-wide shadow-sm">{isImg ? 'IMAGE' : element.tagName}</span>
+                    <span className="text-sm font-bold text-slate-800">属性编辑</span>
                 </div>
-                <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-4 h-4" /></button>
+                <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-colors"><CloseIcon className="w-5 h-5" /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
                 {(!isImg && element.tagName !== 'HR' && element.tagName !== 'BR') && (
                     <div className="space-y-2">
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><DocumentTextIcon className="w-3 h-3" /> 内容</h4>
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                            <DocumentTextIcon className="w-4 h-4 text-slate-400" /> 内容文本
+                        </h4>
                         <textarea 
                             value={element.content || ''}
                             onChange={(e) => onUpdateContent(e.target.value)}
-                            className="w-full text-xs border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-indigo-500 outline-none bg-slate-50 resize-y min-h-[60px]"
+                            className="w-full text-sm border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white resize-y min-h-[100px] text-slate-700 shadow-sm transition-shadow"
+                            placeholder="输入文本内容..."
                         />
                     </div>
                 )}
                 
                 {isImg && (
                     <div className="space-y-2">
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PhotoIcon className="w-3 h-3" /> 图片源</h4>
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                            <PhotoIcon className="w-4 h-4 text-slate-400" /> 图片源
+                        </h4>
                         <div>
-                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">URL</label>
+                             <label className="text-xs text-slate-600 font-medium mb-1.5 block">URL 链接</label>
                              <input 
                                 type="text" 
                                 value={element.src || ''} 
                                 onChange={(e) => onUpdateAttribute('src', e.target.value)} 
-                                className="w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-indigo-500 outline-none bg-slate-50 text-slate-600"
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-700 shadow-sm"
                                 placeholder="https://..."
                              />
                         </div>
                     </div>
                 )}
 
-                <div className="h-px bg-slate-100"></div>
+                <div className="h-px bg-slate-200"></div>
 
-                <div className="space-y-2">
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><ViewGridIcon className="w-3 h-3" /> 尺寸</h4>
-                    <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                        <ViewGridIcon className="w-4 h-4 text-slate-400" /> 尺寸
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">宽</label>
-                            <input type="number" value={parseVal(element.width)} onChange={(e) => onUpdateStyle('width', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-indigo-500 outline-none"/>
+                            <label className="text-xs text-slate-600 font-medium mb-1.5 block">宽度 (W)</label>
+                            <div className="relative">
+                                <input type="number" value={parseVal(element.width)} onChange={(e) => onUpdateStyle('width', `${e.target.value}px`)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"/>
+                                <span className="absolute right-3 top-2 text-xs text-slate-400">px</span>
+                            </div>
                         </div>
                         <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">高</label>
-                            <input type="number" value={parseVal(element.height)} onChange={(e) => onUpdateStyle('height', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-indigo-500 outline-none"/>
+                            <label className="text-xs text-slate-600 font-medium mb-1.5 block">高度 (H)</label>
+                            <div className="relative">
+                                <input type="number" value={parseVal(element.height)} onChange={(e) => onUpdateStyle('height', `${e.target.value}px`)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"/>
+                                <span className="absolute right-3 top-2 text-xs text-slate-400">px</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="h-px bg-slate-100"></div>
+                <div className="h-px bg-slate-200"></div>
 
-                <div className="space-y-3">
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PencilIcon className="w-3 h-3" /> 样式</h4>
+                <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                        <PencilIcon className="w-4 h-4 text-slate-400" /> 样式排版
+                    </h4>
+                    
+                    {/* Font Color */}
                     <div>
-                        <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">颜色</label>
-                        <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
-                            <div className="w-4 h-4 rounded border border-slate-200" style={{backgroundColor: element.color || '#000'}}></div>
-                            <input type="color" value={element.color || '#000000'} onChange={(e) => onUpdateStyle('color', e.target.value)} className="w-6 h-6 opacity-0 absolute cursor-pointer"/>
-                            <input type="text" value={element.color} onChange={(e) => onUpdateStyle('color', e.target.value)} className="flex-1 text-[10px] outline-none uppercase font-mono text-slate-600"/>
+                        <label className="text-xs text-slate-600 font-medium mb-1.5 block">文字颜色</label>
+                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg p-1.5 pl-3 bg-white shadow-sm hover:border-indigo-300 transition-colors relative">
+                            <div className="w-6 h-6 rounded border border-slate-200 shadow-sm" style={{backgroundColor: element.color || '#000'}}></div>
+                            <input type="color" value={element.color || '#000000'} onChange={(e) => onUpdateStyle('color', e.target.value)} className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"/>
+                            <input 
+                                type="text" 
+                                value={element.color} 
+                                onChange={(e) => onUpdateStyle('color', e.target.value)} 
+                                className="flex-1 text-sm outline-none uppercase font-mono text-slate-700 bg-transparent font-medium"
+                            />
                         </div>
                     </div>
                     
+                    {/* Typography Row */}
                     <div className="flex gap-3">
                          <div className="flex-1">
-                            <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">字号 (px)</label>
-                            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white h-8">
+                            <label className="text-xs text-slate-600 font-medium mb-1.5 block">字号 (px)</label>
+                            <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white h-9 shadow-sm">
                                 <button 
                                     onClick={() => onUpdateStyle('fontSize', `${Math.max(1, parseFontSize(element.fontSize) - 2)}px`)}
-                                    className="w-8 h-full flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-r border-slate-100 active:bg-slate-100"
+                                    className="w-9 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-r border-slate-200 active:bg-slate-100 font-bold"
                                     title="减小字号"
                                 >
                                     -
@@ -136,11 +157,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                                     type="number" 
                                     value={parseFontSize(element.fontSize)} 
                                     onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} 
-                                    className="flex-1 w-full text-center text-xs font-bold text-slate-700 outline-none h-full appearance-none"
+                                    className="flex-1 w-full text-center text-sm font-bold text-slate-800 outline-none h-full appearance-none bg-transparent"
                                 />
                                 <button 
                                     onClick={() => onUpdateStyle('fontSize', `${parseFontSize(element.fontSize) + 2}px`)}
-                                    className="w-8 h-full flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-100 active:bg-slate-100"
+                                    className="w-9 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-200 active:bg-slate-100 font-bold"
                                     title="增大字号"
                                 >
                                     +
@@ -148,56 +169,77 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                             </div>
                         </div>
                         <div className="w-1/3">
-                             <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">字重</label>
-                             <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full h-8 border rounded-lg font-bold text-xs flex items-center justify-center transition-all ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}>
+                             <label className="text-xs text-slate-600 font-medium mb-1.5 block">字重</label>
+                             <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full h-9 border rounded-lg font-bold text-sm flex items-center justify-center transition-all shadow-sm ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-300 hover:border-indigo-300 hover:text-indigo-600'}`}>
                                 B
                              </button>
                         </div>
                     </div>
+
+                    {/* Alignment */}
                     <div>
-                        <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">对齐</label>
-                        <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+                        <label className="text-xs text-slate-600 font-medium mb-1.5 block">对齐方式</label>
+                        <div className="flex border border-slate-300 rounded-lg overflow-hidden bg-white shadow-sm h-9">
                             {['left', 'center', 'right', 'justify'].map((align) => (
-                                <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1.5 flex justify-center hover:bg-white transition-colors ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm font-bold' : 'text-slate-400'}`}>
-                                    {align === 'left' && <AlignLeftIcon className="w-3.5 h-3.5"/>}
-                                    {align === 'center' && <AlignCenterIcon className="w-3.5 h-3.5"/>}
-                                    {align === 'right' && <AlignRightIcon className="w-3.5 h-3.5"/>}
-                                    {align === 'justify' && <span className="text-[9px] font-bold">≡</span>}
+                                <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 flex items-center justify-center hover:bg-slate-50 transition-colors border-r border-slate-200 last:border-r-0 ${element.textAlign === align ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-400'}`}>
+                                    {align === 'left' && <AlignLeftIcon className="w-4 h-4"/>}
+                                    {align === 'center' && <AlignCenterIcon className="w-4 h-4"/>}
+                                    {align === 'right' && <AlignRightIcon className="w-4 h-4"/>}
+                                    {align === 'justify' && <span className="text-[10px] font-bold">≡</span>}
                                 </button>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                <div className="h-px bg-slate-100"></div>
+                <div className="h-px bg-slate-200"></div>
 
-                <div className="space-y-2">
-                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PhotoIcon className="w-3 h-3" /> 背景与边框</h4>
+                <div className="space-y-3">
+                     <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                        <PhotoIcon className="w-4 h-4 text-slate-400" /> 背景与外观
+                     </h4>
+                     
+                     {/* Background Color */}
                      <div>
-                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">背景色</label>
-                        <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
-                            <div className="w-4 h-4 rounded border border-slate-200" style={{backgroundColor: element.backgroundColor || 'transparent'}}></div>
-                            <input type="color" value={element.backgroundColor || '#ffffff'} onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} className="w-6 h-6 opacity-0 absolute cursor-pointer"/>
-                            <input type="text" value={element.backgroundColor} onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} className="flex-1 text-[10px] outline-none uppercase font-mono text-slate-600" placeholder="NONE"/>
+                        <label className="text-xs text-slate-600 font-medium mb-1.5 block">背景填充</label>
+                        <div className="flex items-center gap-2 border border-slate-300 rounded-lg p-1.5 pl-3 bg-white shadow-sm hover:border-indigo-300 transition-colors relative">
+                            <div className="w-6 h-6 rounded border border-slate-200 shadow-sm" style={{backgroundColor: element.backgroundColor || 'transparent'}}></div>
+                            <input type="color" value={element.backgroundColor || '#ffffff'} onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"/>
+                            <input 
+                                type="text" 
+                                value={element.backgroundColor} 
+                                onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} 
+                                className="flex-1 text-sm outline-none uppercase font-mono text-slate-700 bg-transparent font-medium" 
+                                placeholder="NONE"
+                            />
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">圆角</label>
-                            <input type="number" value={parseVal(element.borderRadius)} onChange={(e) => onUpdateStyle('borderRadius', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-indigo-500 outline-none"/>
+                            <label className="text-xs text-slate-600 font-medium mb-1.5 block">圆角半径</label>
+                            <div className="relative">
+                                <input type="number" value={parseVal(element.borderRadius)} onChange={(e) => onUpdateStyle('borderRadius', `${e.target.value}px`)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"/>
+                                <span className="absolute right-3 top-2 text-xs text-slate-400">px</span>
+                            </div>
                         </div>
                         <div>
-                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">不透明度</label>
-                             <input type="number" min="0" max="1" step="0.1" value={element.opacity !== undefined ? element.opacity : 1} onChange={(e) => onUpdateStyle('opacity', e.target.value)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-indigo-500 outline-none"/>
+                             <label className="text-xs text-slate-600 font-medium mb-1.5 block">不透明度</label>
+                             <input 
+                                type="number" 
+                                min="0" max="1" step="0.1" 
+                                value={element.opacity !== undefined ? element.opacity : 1} 
+                                onChange={(e) => onUpdateStyle('opacity', e.target.value)} 
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
+                             />
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-slate-50">
-                <button onClick={onDelete} className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors font-bold text-xs">
-                    <TrashIcon className="w-3.5 h-3.5" /> 删除元素
+            <div className="p-5 border-t border-slate-200 bg-slate-50">
+                <button onClick={onDelete} className="w-full flex items-center justify-center gap-2 py-3 bg-white text-red-600 border border-red-200 rounded-xl hover:bg-red-50 hover:border-red-300 transition-all font-bold text-sm shadow-sm active:scale-95">
+                    <TrashIcon className="w-4 h-4" /> 删除选中元素
                 </button>
             </div>
         </div>
@@ -224,15 +266,15 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 9999; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
-    .ai-resizer { position: absolute; width: 8px; height: 8px; background: white; border: 1px solid #3b82f6; z-index: 10000; border-radius: 50%; }
-    .ai-r-nw { top: -4px; left: -4px; cursor: nw-resize; }
-    .ai-r-n  { top: -4px; left: 50%; margin-left: -4px; cursor: n-resize; }
-    .ai-r-ne { top: -4px; right: -4px; cursor: ne-resize; }
-    .ai-r-e  { top: 50%; right: -4px; margin-top: -4px; cursor: e-resize; }
-    .ai-r-se { bottom: -4px; right: -4px; cursor: se-resize; }
-    .ai-r-s  { bottom: -4px; left: 50%; margin-left: -4px; cursor: s-resize; }
-    .ai-r-sw { bottom: -4px; left: -4px; cursor: sw-resize; }
-    .ai-r-w  { top: 50%; left: -4px; margin-top: -4px; cursor: w-resize; }
+    .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 2px solid #3b82f6; z-index: 10000; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .ai-r-nw { top: -6px; left: -6px; cursor: nw-resize; }
+    .ai-r-n  { top: -6px; left: 50%; margin-left: -6px; cursor: n-resize; }
+    .ai-r-ne { top: -6px; right: -6px; cursor: ne-resize; }
+    .ai-r-e  { top: 50%; right: -6px; margin-top: -6px; cursor: e-resize; }
+    .ai-r-se { bottom: -6px; right: -6px; cursor: se-resize; }
+    .ai-r-s  { bottom: -6px; left: 50%; margin-left: -6px; cursor: s-resize; }
+    .ai-r-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+    .ai-r-w  { top: 50%; left: -6px; margin-top: -6px; cursor: w-resize; }
   \`;
   document.head.appendChild(style);
 
@@ -381,11 +423,18 @@ const EDITOR_SCRIPT = `
               hasImgChild = true;
           }
       }
+      
+      // Fix for content extraction
+      let contentText = selectedEl.innerText;
+      if (!contentText || contentText.trim() === '') {
+         // Fallback for some elements
+         contentText = selectedEl.textContent;
+      }
 
       window.parent.postMessage({ 
           type: 'SELECTED', 
           tagName: selectedEl.tagName,
-          content: selectedEl.innerText,
+          content: contentText,
           color: comp.color,
           fontSize: comp.fontSize,
           fontWeight: comp.fontWeight,
@@ -782,6 +831,8 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
     const isBold = selectedElement && (selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700);
     const isItalic = selectedElement && selectedElement.fontStyle === 'italic';
     const align = selectedElement?.textAlign || 'left';
+    
+    const parseFontSize = (val: string) => parseInt(val) || 16;
 
     const Toolbar = () => (
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
@@ -790,24 +841,31 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                     {/* Typography */}
                     {isText && (
                         <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                             <div className="flex items-center bg-white border border-slate-200 rounded px-1">
+                             <div className="flex items-center bg-white border border-slate-200 rounded px-1 h-8">
+                                <button 
+                                    onClick={() => handleUpdateStyle('fontSize', `${Math.max(1, parseFontSize(selectedElement.fontSize) - 2)}px`)}
+                                    className="w-8 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-r border-slate-100 font-bold text-sm"
+                                >-</button>
                                 <input 
                                     type="number" 
-                                    value={parseInt(selectedElement.fontSize)||16} 
+                                    value={parseFontSize(selectedElement.fontSize)} 
                                     onChange={(e) => handleUpdateStyle('fontSize', `${e.target.value}px`)}
-                                    className="w-8 text-xs outline-none text-center py-1"
+                                    className="w-10 text-sm font-bold text-slate-700 outline-none text-center h-full appearance-none"
                                 />
-                                <span className="text-[10px] text-slate-400 mr-1">px</span>
+                                <button 
+                                    onClick={() => handleUpdateStyle('fontSize', `${parseFontSize(selectedElement.fontSize) + 2}px`)}
+                                    className="w-8 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-100 font-bold text-sm"
+                                >+</button>
                             </div>
                             <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                            <button onClick={() => handleUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1.5 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
-                            <button onClick={() => handleUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1.5 rounded hover:bg-white ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
-                            <div className="flex gap-0.5 border border-slate-200 rounded bg-white ml-1">
-                                <button onClick={() => handleUpdateStyle('textAlign', 'left')} className={`p-1 hover:text-indigo-600 ${align === 'left' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignLeftIcon className="w-3.5 h-3.5"/></button>
-                                <button onClick={() => handleUpdateStyle('textAlign', 'center')} className={`p-1 hover:text-indigo-600 ${align === 'center' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignCenterIcon className="w-3.5 h-3.5"/></button>
-                                <button onClick={() => handleUpdateStyle('textAlign', 'right')} className={`p-1 hover:text-indigo-600 ${align === 'right' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignRightIcon className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => handleUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`w-8 h-8 flex items-center justify-center rounded hover:bg-white transition-colors ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-4 h-4"/></button>
+                            <button onClick={() => handleUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`w-8 h-8 flex items-center justify-center rounded hover:bg-white transition-colors ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-4 h-4"/></button>
+                            <div className="flex gap-0.5 border border-slate-200 rounded bg-white ml-1 h-8">
+                                <button onClick={() => handleUpdateStyle('textAlign', 'left')} className={`w-8 h-full flex items-center justify-center hover:text-indigo-600 transition-colors ${align === 'left' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignLeftIcon className="w-4 h-4"/></button>
+                                <button onClick={() => handleUpdateStyle('textAlign', 'center')} className={`w-8 h-full flex items-center justify-center hover:text-indigo-600 transition-colors ${align === 'center' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignCenterIcon className="w-4 h-4"/></button>
+                                <button onClick={() => handleUpdateStyle('textAlign', 'right')} className={`w-8 h-full flex items-center justify-center hover:text-indigo-600 transition-colors ${align === 'right' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignRightIcon className="w-4 h-4"/></button>
                             </div>
-                             <div className="relative w-6 h-6 ml-1 cursor-pointer border border-slate-200 rounded overflow-hidden" title="文字颜色">
+                             <div className="relative w-8 h-8 ml-1 cursor-pointer border border-slate-200 rounded overflow-hidden shadow-sm" title="文字颜色">
                                  <div className="absolute inset-0" style={{backgroundColor: selectedElement.color || '#000'}}></div>
                                  <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('color', e.target.value)} />
                              </div>
@@ -817,34 +875,34 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                     {/* Image */}
                     {isImg && (
                         <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm">
-                                <RefreshIcon className="w-3 h-3"/> 换图
+                             <button onClick={handleImageChange} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded text-xs font-bold hover:text-indigo-600 text-slate-600 shadow-sm transition-colors">
+                                <RefreshIcon className="w-3.5 h-3.5"/> 换图
                              </button>
                         </div>
                     )}
 
                     {/* Colors & Layout */}
                     <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                         <div className="relative w-6 h-6 cursor-pointer border border-slate-200 rounded overflow-hidden" title="背景颜色">
+                         <div className="relative w-8 h-8 cursor-pointer border border-slate-200 rounded overflow-hidden shadow-sm" title="背景颜色">
                              <div className="absolute inset-0" style={{backgroundColor: selectedElement.backgroundColor || 'transparent'}}></div>
                              <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('backgroundColor', e.target.value)} />
                          </div>
                          <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                         <button onClick={() => sendCommand('LAYER', 'up')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
-                         <button onClick={() => sendCommand('LAYER', 'down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
+                         <button onClick={() => sendCommand('LAYER', 'up')} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-white rounded transition-colors" title="上移一层"><LayerIcon className="w-4 h-4 rotate-180"/></button>
+                         <button onClick={() => sendCommand('LAYER', 'down')} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-white rounded transition-colors" title="下移一层"><LayerIcon className="w-4 h-4"/></button>
                          <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                         <button onClick={() => sendCommand('DUPLICATE')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
-                         <button onClick={() => { sendCommand('DELETE'); setSelectedElement(null); }} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
+                         <button onClick={() => sendCommand('DUPLICATE')} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-white rounded transition-colors" title="复制"><DuplicateIcon className="w-4 h-4"/></button>
+                         <button onClick={() => { sendCommand('DELETE'); setSelectedElement(null); }} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-white rounded transition-colors" title="删除"><TrashIcon className="w-4 h-4"/></button>
                     </div>
 
                     {/* Transform Nudge */}
                     <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: -10, dy: 0 })} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
+                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: -10, dy: 0 })} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
                         <div className="flex flex-col gap-0.5">
-                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: -10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
-                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: 10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></button>
+                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: -10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
+                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: 10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></button>
                         </div>
-                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 10, dy: 0 })} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3"/></button>
+                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 10, dy: 0 })} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded transition-colors"><ArrowIcon className="w-3 h-3"/></button>
                     </div>
                 </>
             ) : (
@@ -852,13 +910,13 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                 <div className="flex items-center gap-2">
                      <span className="text-xs font-bold text-slate-400 mr-2">插入:</span>
                      <div className="relative group">
-                         <button className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
-                             <PhotoIcon className="w-3.5 h-3.5"/> 图片
+                         <button className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
+                             <PhotoIcon className="w-4 h-4"/> 图片
                          </button>
-                         <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
-                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2"><LinkIcon className="w-3 h-3"/> 网络图片</button>
-                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer">
-                                 <PhotoIcon className="w-3 h-3"/> 本地上传
+                         <div className="absolute top-full left-0 mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
+                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 font-medium items-center"><LinkIcon className="w-3.5 h-3.5"/> 网络图片</button>
+                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer font-medium items-center">
+                                 <PhotoIcon className="w-3.5 h-3.5"/> 本地上传
                                  <input 
                                      ref={fileInputRef}
                                      type="file" 
@@ -877,7 +935,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
     return (
         <div className="flex flex-col w-full h-full bg-slate-100 rounded-sm overflow-hidden relative">
              {/* Toolbar */}
-             <div className="h-12 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">
+             <div className="h-14 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">
                 <div className="flex items-center gap-2">
                     {/* Undo/Redo removed as requested */}
                     
@@ -890,8 +948,8 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                         Zoom: {Math.round(scale * 100)}%
                     </span>
                     <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-                        <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="p-1 text-slate-500 font-bold hover:bg-white rounded text-xs">-</button>
-                        <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="p-1 text-slate-500 font-bold hover:bg-white rounded text-xs">+</button>
+                        <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="w-7 h-7 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-sm transition-colors">-</button>
+                        <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="w-7 h-7 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-sm transition-colors">+</button>
                     </div>
                 </div>
              </div>

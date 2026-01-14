@@ -282,14 +282,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
 
              {/* Main Stage */}
              <div className="flex-1 flex items-center justify-center relative z-0 overflow-hidden" ref={containerRef}>
-                 {/* Prev Button */}
-                 <button 
-                    onClick={() => setActiveIdx(Math.max(0, activeIdx - 1))}
-                    disabled={activeIdx === 0}
-                    className="absolute left-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0 z-30"
-                 >
-                     <ChevronLeftIcon className="w-6 h-6" />
-                 </button>
+                 {/* Removed previous and next buttons from here as requested */}
 
                  {/* Slide Container / Visual Editor */}
                  <div className="w-full h-full flex items-center justify-center p-4 relative">
@@ -314,15 +307,6 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
 
                  {/* Right Guide Panel (HUD) - Conditionally Rendered */}
                  {showGuide && <GuidePanel onClose={handleCloseGuide} />}
-
-                 {/* Next Button */}
-                 <button 
-                    onClick={() => setActiveIdx(Math.min(pages.length - 1, activeIdx + 1))}
-                    disabled={activeIdx === pages.length - 1}
-                    className="absolute right-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0 z-30"
-                 >
-                     <ChevronRightIcon className="w-6 h-6" />
-                 </button>
              </div>
 
              {/* Filmstrip Footer */}
