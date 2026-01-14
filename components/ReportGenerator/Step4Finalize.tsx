@@ -218,14 +218,20 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                         VISUAL EDITOR ACTIVE
                      </p>
                  </div>
-                 <div className="flex gap-4">
-                     <button onClick={onBackToCompose} className="px-5 py-2.5 rounded-xl border border-white/10 hover:bg-white/10 text-xs font-bold transition-all">返回大纲</button>
+                 <div className="flex items-center gap-4">
+                     <div className="flex items-center gap-1.5 text-[10px] text-green-400 font-medium bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.1)]">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                        实时自动保存
+                     </div>
+                     <button onClick={onBackToCompose} className="px-5 py-2.5 rounded-xl border border-white/10 hover:bg-white/10 text-xs font-bold transition-all">
+                        返回
+                     </button>
                      <button 
                         onClick={handleExport}
                         disabled={!allRendered || isExporting}
                         className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-50 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                      >
-                         {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>} 导出 PDF
+                         {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>} 导出单页PDF
                      </button>
                  </div>
              </div>

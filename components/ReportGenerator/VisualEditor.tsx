@@ -353,21 +353,32 @@ const EDITOR_SCRIPT = `
     if (action === 'INSERT_ELEMENT') {
         if (value.type === 'img') {
              const img = document.createElement('img');
+             img.onload = function() {
+                 let w = this.naturalWidth;
+                 let h = this.naturalHeight;
+                 if (w > 400) {
+                     const ratio = 400 / w;
+                     w = 400;
+                     h = h * ratio;
+                 }
+                 img.style.width = w + 'px'; 
+                 img.style.height = h + 'px';
+                 img.style.display = 'block';
+                 img.style.position = 'absolute'; 
+                 img.style.left = '50px';
+                 img.style.top = '50px';
+                 img.style.zIndex = '50';
+                 
+                 const canvas = document.getElementById('canvas') || document.body;
+                 canvas.appendChild(img);
+                 
+                 selectElement(img);
+                 pushHistory();
+             }
+             img.onerror = function() {
+                 console.error('Image failed to load');
+             }
              img.src = value.src;
-             img.style.width = '300px'; 
-             img.style.height = 'auto';
-             img.style.display = 'block';
-             img.style.position = 'absolute'; 
-             img.style.left = '50px';
-             img.style.top = '50px';
-             img.style.zIndex = '50';
-             
-             const canvas = document.getElementById('canvas');
-             if (canvas) canvas.appendChild(img);
-             else document.body.appendChild(img);
-             
-             selectElement(img);
-             pushHistory();
         }
         return;
     }
@@ -492,6 +503,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
     const [scale, setScale] = useState(externalScale);
     const [selectedElement, setSelectedElement] = useState<any>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const { state: htmlContent, pushState: setHtmlContent, undo, redo, canUndo, canRedo, reset } = useHistory(initialHtml);
     const isInternalUpdate = useRef(false);
 
@@ -566,7 +578,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
     };
 
     const handleInsertImage = () => {
-        const url = prompt("请输入新图片 URL:");
+        const url = prompt("请输入网络图片 URL:");
         if (url) {
             sendCommand('INSERT_ELEMENT', { type: 'img', src: url });
         }
@@ -583,6 +595,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
             };
             reader.readAsDataURL(file);
         }
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
     
     const handleImageChange = () => {
@@ -667,17 +680,24 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                 /* No Selection - Insert Tools */
                 <div className="flex items-center gap-2">
                      <span className="text-xs font-bold text-slate-400 mr-2">插入:</span>
-                     <div className="relative group">
-                         <button className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
-                             <PhotoIcon className="w-3.5 h-3.5"/> 图片
+                     <div className="flex items-center gap-2">
+                         <button 
+                             onClick={handleInsertImage}
+                             className="flex items-center gap-1 px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm"
+                             title="插入网络图片"
+                         >
+                             <LinkIcon className="w-3.5 h-3.5"/> 网络图片
                          </button>
-                         <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
-                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2"><LinkIcon className="w-3 h-3"/> 网络图片</button>
-                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer">
-                                 <PhotoIcon className="w-3 h-3"/> 本地上传
-                                 <input type="file" accept="image/*" onChange={handleInsertUpload} className="hidden" />
-                             </label>
-                         </div>
+                         <label className="flex items-center gap-1 px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm cursor-pointer" title="上传本地图片">
+                             <PhotoIcon className="w-3.5 h-3.5"/> 本地图片
+                             <input 
+                                 ref={fileInputRef}
+                                 type="file" 
+                                 accept="image/*" 
+                                 onChange={handleInsertUpload} 
+                                 className="hidden" 
+                             />
+                         </label>
                      </div>
                 </div>
             )}
