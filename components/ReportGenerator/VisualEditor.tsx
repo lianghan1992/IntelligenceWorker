@@ -271,10 +271,49 @@ const EDITOR_SCRIPT = `
     if (selectedEl && selectedEl !== e.target) deselect();
     
     let target = e.target;
-    // If user clicks an image inside a wrapper, select the wrapper
-    if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
-        target = target.parentElement;
+    
+    // --- Auto-wrap IMG for resizing ---
+    if (target.tagName === 'IMG') {
+        if (target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
+             target = target.parentElement;
+        } else {
+             // Create wrapper for the image to enable resizing/selection handles
+             const wrapper = document.createElement('div');
+             wrapper.className = 'ai-img-wrapper';
+             
+             // Copy computed positioning styles to wrapper
+             const comp = window.getComputedStyle(target);
+             const width = target.offsetWidth;
+             const height = target.offsetHeight;
+             
+             wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
+             wrapper.style.position = comp.position === 'static' ? 'relative' : comp.position;
+             wrapper.style.left = comp.left;
+             wrapper.style.top = comp.top;
+             wrapper.style.right = comp.right;
+             wrapper.style.bottom = comp.bottom;
+             wrapper.style.margin = comp.margin;
+             wrapper.style.transform = comp.transform;
+             wrapper.style.zIndex = comp.zIndex;
+             wrapper.style.width = width + 'px';
+             wrapper.style.height = height + 'px';
+             
+             // Reset img to fill wrapper
+             target.style.position = 'static';
+             target.style.transform = 'none';
+             target.style.width = '100%';
+             target.style.height = '100%';
+             target.style.margin = '0';
+             
+             if (target.parentNode) {
+                 target.parentNode.insertBefore(wrapper, target);
+                 wrapper.appendChild(target);
+                 target = wrapper;
+                 pushHistory();
+             }
+        }
     }
+    // ---------------------------------------
 
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect(); return;
