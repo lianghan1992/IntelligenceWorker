@@ -3,7 +3,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { VisualCanvas, VisualCanvasHandle } from './VisualCanvas';
 import { 
     CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon, RefreshIcon,
-    ArrowLeftIcon, PencilIcon, PhotoIcon, LinkIcon
+    ArrowLeftIcon, PencilIcon, PhotoIcon, LinkIcon, ViewGridIcon, 
+    DocumentTextIcon, TrashIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 
@@ -14,16 +15,12 @@ const UndoIcon = ({ className }: { className?: string }) => (
 const RedoIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z"/></svg>
 );
-const ClipboardIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}><path fillRule="evenodd" d="M10.5 3A1.501 1.501 0 009 4.5h6A1.5 1.5 0 0013.5 3h-3zm-2.693.178A3 3 0 0110.5 1.5h3a3 3 0 012.694 1.678c.497.042.992.092 1.486.15 1.495.173 2.57 1.46 2.57 2.929V19.5a3 3 0 01-3 3H6.75a3 3 0 01-3-3V6.257c0-1.47 1.075-2.756 2.57-2.93.493-.057.989-.107 1.487-.15z" clipRule="evenodd" /></svg>
-);
-const BoldIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 11.81C16.36 11.23 17 10.23 17 9c0-2.21-1.79-4-4-4H7v14h7.5c2.09 0 3.5-1.75 3.5-3.88 0-1.63-1.04-3.05-2.4-3.31zM10.5 7.5H13c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>;
+const BoldIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 11.81C16.36 11.23 17 10.23 17 9c0-2.21-1.79-4-4-4H7v14h7.5c2.09 0 3.5-1.75 3.5-3.88 0-1.63-1.04-3.05-2.4-3.31zM10.5 7.5H13c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>;
 const ItalicIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>;
 const AlignLeftIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>;
 const AlignCenterIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>;
 const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
 const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
-const TrashIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>;
 const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
 const ArrowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"/></svg>;
 
@@ -101,8 +98,6 @@ function useHistory<T>(initialState: T) {
         });
     }, [currentIndex]);
     
-    // FIX: Depend on the history array content, not just length.
-    // This ensures index updates even if length stays same (e.g. undo + new action resulting in same length)
     useEffect(() => {
         setCurrentIndex(history.length - 1);
     }, [history]);
@@ -202,61 +197,96 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
         }
     };
 
+    // Helper data for toolbar state
     const isText = selection && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selection.tagName));
-    const isImg = selection && selection.tagName === 'IMG';
+    const isImg = selection && (selection.tagName === 'IMG' || (selection.tagName === 'DIV' && selection.hasImgChild));
     const isBold = selection && (selection.fontWeight === 'bold' || parseInt(selection.fontWeight) >= 700);
     const isItalic = selection && selection.fontStyle === 'italic';
     const align = selection?.textAlign || 'left';
+    
+    const parseVal = (val: string) => parseInt(val) || 0;
+    const parseFontSize = (val: string) => parseInt(val) || 16;
 
-    // Toolbar Component
+    // Integrated Toolbar Component
     const Toolbar = () => (
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-            {/* Common Actions */}
             {selection ? (
                 <>
-                    {/* Typography */}
+                    {/* Element Type Badge */}
+                    <div className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold uppercase border border-indigo-100 mr-2">
+                        {isImg ? 'IMAGE' : selection.tagName}
+                    </div>
+
+                    {/* Typography Group */}
                     {isText && (
                         <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                             <div className="flex items-center bg-white border border-slate-200 rounded px-1">
+                             <div className="flex items-center bg-white border border-slate-200 rounded px-1 h-7">
+                                <button 
+                                    onClick={() => editorRef.current?.updateStyle('fontSize', `${Math.max(1, parseFontSize(selection.fontSize) - 2)}px`)}
+                                    className="w-6 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-r border-slate-100 font-bold text-xs"
+                                >-</button>
                                 <input 
                                     type="number" 
-                                    value={parseInt(selection.fontSize)||16} 
+                                    value={parseFontSize(selection.fontSize)} 
                                     onChange={(e) => editorRef.current?.updateStyle('fontSize', `${e.target.value}px`)}
-                                    className="w-8 text-xs outline-none text-center py-1"
+                                    className="w-8 text-xs font-bold text-slate-700 outline-none text-center h-full appearance-none bg-transparent"
                                 />
-                                <span className="text-[10px] text-slate-400 mr-1">px</span>
+                                <button 
+                                    onClick={() => editorRef.current?.updateStyle('fontSize', `${parseFontSize(selection.fontSize) + 2}px`)}
+                                    className="w-6 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-100 font-bold text-xs"
+                                >+</button>
                             </div>
                             <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                            <button onClick={() => editorRef.current?.updateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1.5 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
-                            <button onClick={() => editorRef.current?.updateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1.5 rounded hover:bg-white ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => editorRef.current?.updateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => editorRef.current?.updateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1 rounded hover:bg-white ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
+                            
                             <div className="flex gap-0.5 border border-slate-200 rounded bg-white ml-1">
                                 <button onClick={() => editorRef.current?.updateStyle('textAlign', 'left')} className={`p-1 hover:text-indigo-600 ${align === 'left' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignLeftIcon className="w-3.5 h-3.5"/></button>
                                 <button onClick={() => editorRef.current?.updateStyle('textAlign', 'center')} className={`p-1 hover:text-indigo-600 ${align === 'center' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignCenterIcon className="w-3.5 h-3.5"/></button>
                                 <button onClick={() => editorRef.current?.updateStyle('textAlign', 'right')} className={`p-1 hover:text-indigo-600 ${align === 'right' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignRightIcon className="w-3.5 h-3.5"/></button>
                             </div>
-                             <div className="relative w-6 h-6 ml-1 cursor-pointer border border-slate-200 rounded overflow-hidden" title="文字颜色">
+                            
+                             <div className="relative w-6 h-6 ml-1 cursor-pointer border border-slate-200 rounded overflow-hidden shadow-sm" title="文字颜色">
                                  <div className="absolute inset-0" style={{backgroundColor: selection.color || '#000'}}></div>
                                  <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => editorRef.current?.updateStyle('color', e.target.value)} />
                              </div>
                         </div>
                     )}
                     
-                    {/* Image */}
+                    {/* Image Actions */}
                     {isImg && (
                         <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm">
+                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm transition-colors">
                                 <RefreshIcon className="w-3 h-3"/> 换图
                              </button>
                         </div>
                     )}
 
-                    {/* Colors & Layout */}
-                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                         <div className="relative w-6 h-6 cursor-pointer border border-slate-200 rounded overflow-hidden" title="背景颜色">
+                    {/* Dimensions & Background Group */}
+                    <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-bold text-slate-400">W</span>
+                            <input type="number" value={parseVal(selection.width)} onChange={(e) => editorRef.current?.updateStyle('width', `${e.target.value}px`)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-bold text-slate-400">H</span>
+                            <input type="number" value={parseVal(selection.height)} onChange={(e) => editorRef.current?.updateStyle('height', `${e.target.value}px`)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
+                        </div>
+                        
+                        <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                        
+                        <div className="relative w-6 h-6 cursor-pointer border border-slate-200 rounded overflow-hidden shadow-sm" title="背景颜色">
                              <div className="absolute inset-0" style={{backgroundColor: selection.backgroundColor || 'transparent'}}></div>
                              <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => editorRef.current?.updateStyle('backgroundColor', e.target.value)} />
                          </div>
-                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                         <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-bold text-slate-400">R</span>
+                            <input type="number" value={parseVal(selection.borderRadius)} onChange={(e) => editorRef.current?.updateStyle('borderRadius', `${e.target.value}px`)} className="w-8 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
+                         </div>
+                    </div>
+
+                    {/* Actions Group */}
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
                          <button onClick={() => editorRef.current?.changeLayer('up')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
                          <button onClick={() => editorRef.current?.changeLayer('down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
                          <div className="w-px h-4 bg-slate-200 mx-1"></div>
@@ -264,7 +294,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                          <button onClick={() => { editorRef.current?.deleteElement(); setSelection(null); }} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
                     </div>
 
-                    {/* Transform Nudge */}
+                    {/* Transform Nudge Group */}
                     <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
                         <button onClick={() => editorRef.current?.updateTransform(-10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
                         <div className="flex flex-col gap-0.5">
@@ -275,18 +305,23 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                     </div>
                 </>
             ) : (
-                /* No Selection - Insert Tools */
+                /* Insert Tools (No Selection) */
                 <div className="flex items-center gap-2">
                      <span className="text-xs font-bold text-slate-400 mr-2">插入:</span>
                      <div className="relative group">
-                         <button className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
+                         <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
                              <PhotoIcon className="w-3.5 h-3.5"/> 图片
                          </button>
-                         <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
-                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2"><LinkIcon className="w-3 h-3"/> 网络图片</button>
-                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer">
-                                 <PhotoIcon className="w-3 h-3"/> 本地上传
-                                 <input type="file" accept="image/*" onChange={handleInsertUpload} className="hidden" />
+                         <div className="absolute top-full left-0 mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
+                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 font-medium items-center"><LinkIcon className="w-3.5 h-3.5"/> 网络图片</button>
+                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer font-medium items-center">
+                                 <PhotoIcon className="w-3.5 h-3.5"/> 本地上传
+                                 <input 
+                                     type="file" 
+                                     accept="image/*" 
+                                     onChange={handleInsertUpload} 
+                                     className="hidden" 
+                                 />
                              </label>
                          </div>
                      </div>
@@ -339,7 +374,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
 
                     {/* Toolbar (Only in Visual Mode) */}
                     {viewMode === 'visual' && (
-                        <div className="flex-1 ml-4 overflow-hidden">
+                        <div className="flex-1 ml-4 overflow-hidden border-l border-slate-100 pl-4 h-full flex items-center">
                             <Toolbar />
                         </div>
                     )}
