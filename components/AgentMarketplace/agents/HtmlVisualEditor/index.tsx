@@ -99,14 +99,13 @@ function useHistory<T>(initialState: T) {
             if (newHistory.length > 50) newHistory.shift();
             return [...newHistory, newState];
         });
-        setCurrentIndex(prev => {
-            return history.length >= 50 ? 49 : prev + 1; 
-        });
-    }, [currentIndex, history.length]);
+    }, [currentIndex]);
     
+    // FIX: Depend on the history array content, not just length.
+    // This ensures index updates even if length stays same (e.g. undo + new action resulting in same length)
     useEffect(() => {
         setCurrentIndex(history.length - 1);
-    }, [history.length]);
+    }, [history]);
 
     const undo = useCallback(() => {
         setCurrentIndex(prev => Math.max(0, prev - 1));
@@ -176,7 +175,8 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
     };
     
     const handleImageChange = () => {
-        const url = prompt("请输入图片 URL:", selection.src || "");
+        const currentSrc = selection.src || "";
+        const url = prompt("请输入图片 URL:", currentSrc);
         if (url !== null) {
             editorRef.current?.updateAttribute('src', url);
         }
@@ -261,7 +261,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                          <button onClick={() => editorRef.current?.changeLayer('down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
                          <div className="w-px h-4 bg-slate-200 mx-1"></div>
                          <button onClick={() => editorRef.current?.duplicate()} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
-                         <button onClick={() => editorRef.current?.deleteElement()} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
+                         <button onClick={() => { editorRef.current?.deleteElement(); setSelection(null); }} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
                     </div>
 
                     {/* Transform Nudge */}

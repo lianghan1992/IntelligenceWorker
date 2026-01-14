@@ -32,27 +32,6 @@ export interface VisualCanvasProps {
     onSelectionChange?: (element: any) => void;
 }
 
-// ... (Retain useHistory hook and PropertiesPanel component as is) ...
-function useHistory<T>(initialState: T) {
-    const [history, setHistory] = useState<T[]>([initialState]);
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const state = history[currentIndex];
-    const pushState = useCallback((newState: T) => {
-        setHistory(prev => {
-            const newHistory = prev.slice(0, currentIndex + 1);
-            if (newHistory[newHistory.length - 1] === newState) return prev;
-            if (newHistory.length > 50) newHistory.shift();
-            return [...newHistory, newState];
-        });
-        setCurrentIndex(prev => prev + 1 >= 50 ? 49 : prev + 1);
-    }, [currentIndex]);
-    useEffect(() => { setCurrentIndex(history.length - 1); }, [history.length]);
-    const undo = useCallback(() => setCurrentIndex(prev => Math.max(0, prev - 1)), []);
-    const redo = useCallback(() => setCurrentIndex(prev => Math.min(history.length - 1, prev + 1)), [history.length]);
-    const reset = useCallback((newState: T) => { setHistory([newState]); setCurrentIndex(0); }, []);
-    return { state, pushState, undo, redo, canUndo: currentIndex > 0, canRedo: currentIndex < history.length - 1, reset };
-}
-
 interface PropertiesPanelProps {
     element: any;
     onUpdateStyle: (key: string, value: string) => void;
@@ -481,7 +460,7 @@ const EDITOR_SCRIPT = `
 export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({ initialHtml, onSave, scale, onScaleChange, onSelectionChange }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const { state: htmlContent, pushState: setHtmlContent, undo, redo, canUndo, canRedo, reset } = useHistory(initialHtml);
+    // Removed duplicate useHistory hook here. State is now fully managed by parent.
     const isInternalUpdate = useRef(false);
     const [selectedElement, setSelectedElement] = useState<any>(null);
 
@@ -498,15 +477,17 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         deselect: () => sendCommand('DESELECT_FORCE')
     }));
 
-    // Initial Load & External Updates
+    // Initial Load & External Updates (e.g. from parent undo/redo)
     useEffect(() => {
         if (isInternalUpdate.current) { isInternalUpdate.current = false; return; }
-        if (htmlContent !== initialHtml) { reset(initialHtml); }
+        // We trust initialHtml from parent is the source of truth
 
         const iframe = iframeRef.current;
         if (iframe) {
             const doc = iframe.contentDocument;
             if (doc) {
+                // Completely rewrite iframe content when parent state changes externally
+                // This handles undo/redo by restoring the exact HTML snapshot
                 doc.open();
                 let content = initialHtml || '';
                 // Ensure wrapper for full height bg
@@ -546,13 +527,13 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
             else if (e.data.type === 'HISTORY_UPDATE') {
                 isInternalUpdate.current = true;
                 let cleanHtml = e.data.html.replace(EDITOR_SCRIPT.trim(), '');
-                setHtmlContent(cleanHtml);
+                // notify parent to update its history without triggering a re-render cycle back to child immediately
                 onSave(cleanHtml);
             }
         };
         window.addEventListener('message', handler);
         return () => window.removeEventListener('message', handler);
-    }, [onSave, setHtmlContent, onSelectionChange]);
+    }, [onSave, onSelectionChange]);
 
     // Update Scale inside iframe
     useEffect(() => {
