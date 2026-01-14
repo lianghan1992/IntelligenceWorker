@@ -57,6 +57,16 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 }
 ```
 
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | string | 用户唯一ID (UUID) |
+| `username` | string | 用户名 |
+| `email` | string | 邮箱地址 |
+| `is_active` | boolean | 账户是否激活 (true: 激活, false: 禁用) |
+| `created_at` | string | 账户创建时间 (ISO 8601 格式) |
+
 ### 1.2 用户登录
 
 验证用户凭据并返回一个JWT访问令牌。
@@ -86,6 +96,17 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 }
 ```
 
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `message` | string | 操作结果消息 |
+| `user` | object | 用户基本信息对象 |
+| `user.id` | string | 用户唯一ID |
+| `user.username` | string | 用户名 |
+| `user.email` | string | 邮箱 |
+| `accessToken` | string | JWT 访问令牌，后续请求需携带此 Token |
+
 ### 1.3 获取当前用户信息
 
 获取当前已认证用户的信息。
@@ -105,6 +126,16 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
   "created_at": "2023-10-27T10:00:00Z"
 }
 ```
+
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | string | 用户唯一ID |
+| `username` | string | 用户名 |
+| `email` | string | 邮箱 |
+| `is_active` | boolean | 账户状态 |
+| `created_at` | string | 创建时间 |
 
 ## 2. 个人资源管理 (Personal Resources)
 
@@ -136,6 +167,18 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 ]
 ```
 
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | string | 交易流水ID |
+| `amount` | number | 交易金额 (正数为收入，负数为支出) |
+| `balance_after` | number | 交易后余额 |
+| `transaction_type` | string | 交易类型 (枚举值见 1.3 节) |
+| `description` | string | 交易描述 |
+| `meta_data` | string | 元数据 (JSON字符串)，包含具体消费详情 |
+| `created_at` | string | 交易时间 |
+
 ### 2.3 获取我的配额信息 (Quota)
 
 获取当前用户的配额与余额信息。
@@ -153,6 +196,14 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
   "remaining_balance": 1.00
 }
 ```
+
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `balance` | number | 当前钱包余额 |
+| `plan_name` | string | 当前订阅计划名称 (如 free, pro) |
+| `remaining_balance` | number | 剩余可用余额 (同 balance) |
 
 ### 2.4 获取我的总消费统计
 
@@ -175,6 +226,17 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 }
 ```
 
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `total_recharge` | number | 累计充值金额 |
+| `total_consumption` | number | 累计消费金额 |
+| `total_consumption_tokens` | integer | 累计消耗 Token 总数 (输入+输出) |
+| `total_input_tokens` | integer | 累计输入 Token 数 |
+| `total_output_tokens` | integer | 累计输出 Token 数 |
+| `total_api_calls` | integer | 累计 API 调用次数 |
+
 ### 2.5 获取我订阅的情报源
 
 -   **路径:** `/api/user/me/sources`
@@ -195,25 +257,15 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 ]
 ```
 
-### 2.3 获取我订阅的情报源
+**返回字段说明**
 
--   **路径:** `/api/user/me/sources`
--   **方法:** `GET`
--   **认证:** 需要Bearer Token
-
-**返回示例**
-
-```json
-[
-  {
-    "uuid": "src-001",
-    "name": "Automotive News",
-    "base_url": "https://example.com",
-    "source_type": "news",
-    "status": "active"
-  }
-]
-```
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `uuid` | string | 情报源ID |
+| `name` | string | 情报源名称 |
+| `base_url` | string | 基础网址 |
+| `source_type` | string | 来源类型 (如 news, blog, official) |
+| `status` | string | 状态 (active/inactive) |
 
 ### 2.6 订阅新的情报源
 
@@ -243,13 +295,6 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
     "content": "关注电动汽车电池技术的发展趋势",
     "keywords": "EV, Battery, Lithium",
     "created_at": "2023-10-27T10:00:00Z"
-  },
-  {
-    "id": "uuid-poi-002",
-    "user_id": "uuid-user-123",
-    "content": "自动驾驶政策法规",
-    "keywords": "Autonomous Driving, Policy, Regulation",
-    "created_at": "2023-10-28T14:30:00Z"
   }
 ]
 ```
@@ -277,15 +322,6 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 | `content` | string | 是 | 关注点描述，例如"新能源汽车销量分析" |
 | `keywords` | string | 是 | 关键词 (逗号分隔)，例如"NEV, Sales, Analysis" |
 
-**请求示例**
-
-```json
-{
-  "content": "关注特斯拉在中国市场的定价策略",
-  "keywords": "Tesla, China, Pricing, Strategy"
-}
-```
-
 **返回示例**
 
 ```json
@@ -298,22 +334,21 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 }
 ```
 
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | string | 关注点ID |
+| `user_id` | string | 用户ID |
+| `content` | string | 内容描述 |
+| `keywords` | string | 关键词 |
+| `created_at` | string | 创建时间 |
+
 ### 2.10 删除关注点
 
 -   **路径:** `/api/user/me/pois/{poi_id}`
 -   **方法:** `DELETE`
 -   **认证:** 需要Bearer Token
-
-**参数说明**
-
-| 参数名 | 位置 | 类型 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `poi_id` | Path | string | 要删除的关注点ID |
-
-**返回**
-
--   `204 No Content`: 删除成功
--   `404 Not Found`: 关注点不存在或无权删除
 
 ## 3. 用户管理 (Admin)
 
@@ -353,6 +388,24 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
   ]
 }
 ```
+
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `total` | integer | 总记录数 |
+| `page` | integer | 当前页码 |
+| `limit` | integer | 每页记录数 |
+| `totalPages` | integer | 总页数 |
+| `items` | array | 用户列表数据 |
+| `items[].id` | string | 用户ID |
+| `items[].username` | string | 用户名 |
+| `items[].email` | string | 邮箱 |
+| `items[].plan_name` | string | 订阅计划名称 |
+| `items[].source_subscription_count` | integer | 订阅源数量 |
+| `items[].poi_count` | integer | 关注点数量 |
+| `items[].status` | string | 状态 (active/disabled) |
+| `items[].created_at` | string | 注册时间 |
 
 ### 3.2 获取单个用户信息
 
@@ -410,6 +463,24 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 }
 ```
 
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `total` | integer | 总记录数 |
+| `page` | integer | 当前页码 |
+| `limit` | integer | 每页记录数 |
+| `totalPages` | integer | 总页数 |
+| `items` | array | 交易列表 |
+| `items[].id` | string | 交易ID |
+| `items[].user_id` | string | 用户ID |
+| `items[].amount` | number | 交易金额 |
+| `items[].balance_after` | number | 交易后余额 |
+| `items[].transaction_type` | string | 交易类型 (ai_consumption, recharge, gift, refund, pdf_download) |
+| `items[].description` | string | 描述 |
+| `items[].created_at` | string | 交易时间 |
+| `items[].meta_data` | string | 交易元数据 (JSON) |
+
 ### 3.5 获取所有支付订单 (管理)
 
 管理员获取所有支付订单记录。
@@ -438,6 +509,7 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
   "items": [
     {
       "order_no": "ORD202311010001",
+      "user_id": "uuid-user-123",
       "amount": 100.00,
       "gateway": "wechat",
       "status": "paid",
@@ -449,6 +521,25 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
   ]
 }
 ```
+
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `total` | integer | 总记录数 |
+| `page` | integer | 当前页码 |
+| `limit` | integer | 每页记录数 |
+| `totalPages` | integer | 总页数 |
+| `items` | array | 订单列表 |
+| `items[].order_no` | string | 系统订单号 |
+| `items[].user_id` | string | 用户ID |
+| `items[].amount` | number | 订单金额 |
+| `items[].gateway` | string | 支付网关 (如 wechat) |
+| `items[].status` | string | 订单状态 (pending: 待支付, paid: 已支付, failed: 失败, cancelled: 已取消) |
+| `items[].external_order_no` | string | 外部订单号 (支付平台返回) |
+| `items[].qr_code_url` | string | 支付二维码链接 |
+| `items[].created_at` | string | 创建时间 |
+| `items[].paid_at` | string | 支付完成时间 |
 
 ## 4. 订阅计划 (Plans)
 
@@ -474,6 +565,15 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 }
 ```
 
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `key` (如 free, pro) | string | 计划代码 |
+| `value.name` | string | 计划显示名称 |
+| `value.price` | number | 价格 |
+| `value.features` | array | 包含的功能特性列表 |
+
 ## 5. 钱包与支付 (Wallet & Payment)
 
 管理用户钱包余额、充值与流水查询。
@@ -492,6 +592,12 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 }
 ```
 
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `balance` | number | 钱包当前余额 |
+
 ### 5.2 获取钱包流水
 
 获取当前用户的充值与消费记录。支持分页与筛选。
@@ -508,7 +614,7 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
 | `limit` | integer | 否 | 每页数量 (默认 20) |
 | `app_id` | string | 否 | 根据 App ID (Scenario ID) 筛选 |
 | `start_date` | string | 否 | 开始日期 (YYYY-MM-DD) |
-| `end_date` | string | 否 | 结束日期 (YYYY-MM-DD) |
+| `end_date` | string | 结束日期 (YYYY-MM-DD) |
 
 **返回示例**
 
@@ -527,19 +633,27 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
       "description": "AI Usage: openrouter/gpt-4",
       "created_at": "2025-01-01T12:00:00Z",
       "meta_data": "{\"channel\": \"openrouter\", \"model\": \"gpt-4\", \"app_id\": \"研报生成助手\", \"input_tokens\": 100, \"output_tokens\": 50}"
-    },
-    {
-      "id": "uuid...",
-      "amount": 1.00,
-      "balance_after": 1.00,
-      "transaction_type": "gift",
-      "description": "New user registration gift",
-      "created_at": "2025-01-01T10:00:00Z",
-      "meta_data": null
     }
   ]
 }
 ```
+
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `total` | integer | 总记录数 |
+| `page` | integer | 当前页码 |
+| `limit` | integer | 每页记录数 |
+| `totalPages` | integer | 总页数 |
+| `items` | array | 交易列表 |
+| `items[].id` | string | 交易ID |
+| `items[].amount` | number | 交易金额 (正数充值，负数消费) |
+| `items[].balance_after` | number | 余额快照 |
+| `items[].transaction_type` | string | 交易类型 (ai_consumption, recharge, gift, refund, pdf_download) |
+| `items[].description` | string | 描述信息 |
+| `items[].created_at` | string | 创建时间 |
+| `items[].meta_data` | string | 额外元数据 (JSON格式) |
 
 ### 5.3 充值
 
@@ -566,6 +680,15 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
   "message": "Order created"
 }
 ```
+
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `order_no` | string | 系统生成的订单号 |
+| `pay_url` | string | 支付跳转链接 (如微信支付scheme) |
+| `qr_code_url` | string | 支付二维码URL (可用于生成二维码) |
+| `message` | string | 响应消息 |
 
 ### 5.4 支付回调 (Payment Callback)
 
@@ -595,3 +718,15 @@ User Service 负责用户身份认证、账户管理、钱包与支付、订阅�
   }
 }
 ```
+
+**返回字段说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `status` | string | 订单状态 (paid, pending, failed) |
+| `remote_status` | string | 支付渠道原始状态码 |
+| `order` | object | 订单详情对象 |
+| `order.order_no` | string | 订单号 |
+| `order.amount` | number | 金额 |
+| `order.status` | string | 订单状态 |
+| `order.paid_at` | string | 支付时间 |

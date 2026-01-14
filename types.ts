@@ -71,10 +71,15 @@ export interface WalletTransaction {
 }
 
 // Admin view of transaction extends basic transaction with user info
-export interface AdminTransaction extends WalletTransaction {
+export interface AdminTransaction {
+    id: string;
     user_id: string;
-    username?: string; // Optional enriched data
-    email?: string;
+    amount: number;
+    balance_after: number;
+    transaction_type: string;
+    description: string;
+    created_at: string;
+    meta_data: string | null;
 }
 
 export interface PaymentOrder {

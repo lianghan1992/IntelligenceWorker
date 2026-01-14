@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AdminTransaction, PaymentOrder } from '../../../types';
-import { getAdminTransactions, getAdminOrders } from '../../../api/user';
-import { RefreshIcon, SearchIcon, CreditCardIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, ChevronLeftIcon, ChevronRightIcon } from '../../icons';
+import { AdminTransaction, PaymentOrder, UserListItem } from '../../../types';
+import { getAdminTransactions, getAdminOrders, getUserById } from '../../../api/user';
+import { RefreshIcon, SearchIcon, CreditCardIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, UserIcon, ClockIcon } from '../../icons';
 import { AGENT_NAMES } from '../../../agentConfig';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
@@ -13,12 +13,12 @@ const formatCurrency = (val: number) => {
 
 const getStatusBadge = (status: string) => {
     switch (status) {
-        case 'paid': return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1"><CheckCircleIcon className="w-3 h-3"/> 已支付</span>;
-        case 'pending': return <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold">待支付</span>;
-        case 'failed': return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1"><ShieldExclamationIcon className="w-3 h-3"/> 失败</span>;
-        case 'cancelled': return <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs font-bold">已取消</span>;
-        case 'refunded': return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">已退款</span>;
-        default: return <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs">{status}</span>;
+        case 'paid': return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit"><CheckCircleIcon className="w-3 h-3"/> 已支付</span>;
+        case 'pending': return <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold w-fit">待支付</span>;
+        case 'failed': return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit"><ShieldExclamationIcon className="w-3 h-3"/> 失败</span>;
+        case 'cancelled': return <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs font-bold w-fit">已取消</span>;
+        case 'refunded': return <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold w-fit">已退款</span>;
+        default: return <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs w-fit">{status}</span>;
     }
 };
 
@@ -34,23 +34,109 @@ const getTransactionTypeLabel = (type: string) => {
     }
 };
 
+// Parse meta_data JSON string
 const parseMeta = (metaStr: string | null) => {
     try {
-        if (!metaStr) return { model: '-', tokens: '-', app_id: '' };
+        if (!metaStr) return null;
         const meta = JSON.parse(metaStr);
-        const total = (meta.input_tokens || 0) + (meta.output_tokens || 0);
+        
         let displayModel = meta.model || '-';
         if (meta.channel === 'openrouter' && displayModel.endsWith(':free')) {
             displayModel = displayModel.replace(':free', '');
         }
+
         return {
             model: displayModel,
-            tokens: total || meta.tokens || '-',
-            app_id: meta.app_id || ''
+            channel: meta.channel,
+            input_tokens: meta.input_tokens || 0,
+            output_tokens: meta.output_tokens || 0,
+            app_id: meta.app_id || '',
+            full: meta
         };
     } catch (e) {
-        return { model: '-', tokens: '-', app_id: '' };
+        return null;
     }
+};
+
+// --- User Detail Modal ---
+const UserDetailModal: React.FC<{ userId: string; onClose: () => void }> = ({ userId, onClose }) => {
+    const [user, setUser] = useState<UserListItem | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        const fetchUser = async () => {
+            setIsLoading(true);
+            try {
+                const data = await getUserById(userId);
+                setUser(data);
+            } catch (e: any) {
+                setError(e.message || "无法获取用户信息");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchUser();
+    }, [userId]);
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-200">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <UserIcon className="w-5 h-5 text-indigo-600"/> 用户详情
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-full transition-colors"><CloseIcon className="w-5 h-5"/></button>
+                </div>
+                
+                <div className="p-6">
+                    {isLoading ? (
+                        <div className="py-10 text-center"><Spinner /></div>
+                    ) : error ? (
+                        <div className="py-10 text-center text-red-500">{error}</div>
+                    ) : user ? (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-2xl font-bold border-4 border-white shadow-lg">
+                                    {user.username.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div className="text-xl font-bold text-slate-900">{user.username}</div>
+                                    <div className="text-sm text-slate-500">{user.email}</div>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">ID</div>
+                                    <div className="text-xs font-mono text-slate-700 break-all">{user.id}</div>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">订阅计划</div>
+                                    <div className="font-bold text-indigo-600">{user.plan_name}</div>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">账号状态</div>
+                                    <div className={`text-sm font-bold ${user.status === 'active' ? 'text-green-600' : 'text-red-500'}`}>
+                                        {user.status}
+                                    </div>
+                                </div>
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">注册时间</div>
+                                    <div className="text-xs text-slate-700">{new Date(user.created_at).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between text-xs text-slate-500">
+                                <span>情报源订阅: <b>{user.source_subscription_count}</b></span>
+                                <span>关注点: <b>{user.poi_count}</b></span>
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export const FinanceManager: React.FC = () => {
@@ -69,6 +155,9 @@ export const FinanceManager: React.FC = () => {
     // Filters
     const [userId, setUserId] = useState(''); 
     const [status, setStatus] = useState(''); 
+
+    // Modals
+    const [viewingUserId, setViewingUserId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -181,9 +270,9 @@ export const FinanceManager: React.FC = () => {
                             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b font-bold tracking-wider">
                                 <tr>
                                     <th className="px-6 py-4">时间 / ID</th>
-                                    <th className="px-6 py-4">用户 ID</th>
-                                    <th className="px-6 py-4">类型</th>
-                                    <th className="px-6 py-4">描述 / 来源</th>
+                                    <th className="px-6 py-4">用户</th>
+                                    <th className="px-6 py-4">类型 / 描述</th>
+                                    <th className="px-6 py-4">详情 (Meta)</th>
                                     <th className="px-6 py-4 text-right">变动金额</th>
                                     <th className="px-6 py-4 text-right">余额快照</th>
                                 </tr>
@@ -196,38 +285,62 @@ export const FinanceManager: React.FC = () => {
                                         const meta = parseMeta(tx.meta_data);
                                         const isIncome = tx.amount > 0;
                                         const typeLabel = getTransactionTypeLabel(tx.transaction_type);
-                                        const appName = meta.app_id ? (AGENT_NAMES[meta.app_id as keyof typeof AGENT_NAMES] || meta.app_id) : '';
+                                        const appName = meta?.app_id ? (AGENT_NAMES[meta.app_id as keyof typeof AGENT_NAMES] || meta.app_id) : '';
 
                                         return (
                                             <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-4">
+                                                <td className="px-6 py-4 align-top">
                                                     <div className="text-xs font-bold text-slate-700">{new Date(tx.created_at).toLocaleString()}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{tx.id.slice(0, 8)}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{tx.id.slice(0, 8)}...</div>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">
-                                                        {tx.user_id ? tx.user_id.slice(0, 8) + '...' : '-'}
-                                                    </span>
+                                                <td className="px-6 py-4 align-top">
+                                                    <button 
+                                                        onClick={() => setViewingUserId(tx.user_id)}
+                                                        className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors cursor-pointer flex items-center gap-1 w-fit"
+                                                        title="点击查看用户详情"
+                                                    >
+                                                        <UserIcon className="w-3 h-3"/>
+                                                        {tx.user_id.slice(0, 8)}...
+                                                    </button>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase ${
+                                                <td className="px-6 py-4 align-top">
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase mb-1 inline-block ${
                                                         isIncome ? 'bg-green-50 text-green-700 border-green-100' : 'bg-orange-50 text-orange-700 border-orange-100'
                                                     }`}>
                                                         {typeLabel}
                                                     </span>
+                                                    <div className="text-xs text-slate-600 line-clamp-2 max-w-xs">{tx.description}</div>
                                                 </td>
-                                                <td className="px-6 py-4 max-w-xs">
-                                                    <div className="text-xs text-slate-800 font-medium truncate" title={tx.description}>{tx.description}</div>
-                                                    <div className="flex flex-wrap gap-2 mt-1">
-                                                        {appName && <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 rounded">{appName}</span>}
-                                                        {meta.model !== '-' && <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 rounded flex items-center gap-1"><ChipIcon className="w-3 h-3"/> {meta.model}</span>}
-                                                        {meta.tokens !== '-' && <span className="text-[10px] text-slate-400">{meta.tokens} toks</span>}
-                                                    </div>
+                                                <td className="px-6 py-4 align-top">
+                                                    {meta ? (
+                                                        <div className="space-y-1">
+                                                            {appName && (
+                                                                <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded w-fit border border-indigo-100">
+                                                                    {appName}
+                                                                </div>
+                                                            )}
+                                                            {meta.model !== '-' && (
+                                                                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                                                                    <ChipIcon className="w-3.5 h-3.5 text-slate-400"/>
+                                                                    <span className="font-mono">{meta.model}</span>
+                                                                </div>
+                                                            )}
+                                                            {(meta.input_tokens > 0 || meta.output_tokens > 0) && (
+                                                                <div className="flex gap-2 text-[10px] text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded w-fit border border-slate-100">
+                                                                    <span title="Input Tokens">In: {meta.input_tokens}</span>
+                                                                    <span className="text-slate-300">|</span>
+                                                                    <span title="Output Tokens">Out: {meta.output_tokens}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-300 text-xs">-</span>
+                                                    )}
                                                 </td>
-                                                <td className={`px-6 py-4 text-right font-mono font-bold text-sm ${isIncome ? 'text-green-600' : 'text-orange-600'}`}>
+                                                <td className={`px-6 py-4 text-right font-mono font-black text-sm align-top ${isIncome ? 'text-green-600' : 'text-orange-600'}`}>
                                                     {isIncome ? '+' : ''}{formatCurrency(tx.amount)}
                                                 </td>
-                                                <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">
+                                                <td className="px-6 py-4 text-right font-mono text-xs text-slate-500 align-top">
                                                     {formatCurrency(tx.balance_after)}
                                                 </td>
                                             </tr>
@@ -243,8 +356,8 @@ export const FinanceManager: React.FC = () => {
                             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b font-bold tracking-wider">
                                 <tr>
                                     <th className="px-6 py-4">订单号 / 时间</th>
-                                    <th className="px-6 py-4">用户 ID</th>
-                                    <th className="px-6 py-4">渠道</th>
+                                    <th className="px-6 py-4">用户</th>
+                                    <th className="px-6 py-4">支付网关</th>
                                     <th className="px-6 py-4 text-right">金额</th>
                                     <th className="px-6 py-4 text-center">状态</th>
                                     <th className="px-6 py-4">外部单号</th>
@@ -256,30 +369,34 @@ export const FinanceManager: React.FC = () => {
                                 ) : (
                                     orders.map(order => (
                                         <tr key={order.order_no} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4 align-top">
                                                 <div className="font-mono text-xs font-bold text-slate-700">{order.order_no}</div>
                                                 <div className="text-[10px] text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleString()}</div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">
-                                                    {order.user_id ? order.user_id.slice(0, 8) + '...' : '-'}
-                                                </span>
+                                            <td className="px-6 py-4 align-top">
+                                                <button 
+                                                    onClick={() => setViewingUserId(order.user_id)}
+                                                    className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors cursor-pointer flex items-center gap-1 w-fit"
+                                                >
+                                                    <UserIcon className="w-3 h-3"/>
+                                                    {order.user_id.slice(0, 8)}...
+                                                </button>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase">
+                                            <td className="px-6 py-4 align-top">
+                                                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase bg-white border border-slate-200 px-2 py-1 rounded w-fit">
                                                     <ServerIcon className="w-3.5 h-3.5 text-slate-400"/>
                                                     {order.gateway}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-right font-mono font-black text-slate-800">
+                                            <td className="px-6 py-4 text-right font-mono font-black text-slate-800 align-top">
                                                 {formatCurrency(order.amount)}
                                             </td>
-                                            <td className="px-6 py-4 text-center">
+                                            <td className="px-6 py-4 text-center align-top">
                                                 {getStatusBadge(order.status)}
-                                                {order.paid_at && <div className="text-[9px] text-green-600 mt-1">{new Date(order.paid_at).toLocaleTimeString()}</div>}
+                                                {order.paid_at && <div className="text-[9px] text-green-600 mt-1 flex items-center justify-center gap-1"><ClockIcon className="w-3 h-3"/> {new Date(order.paid_at).toLocaleTimeString()}</div>}
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-[10px] font-mono text-slate-400 max-w-[120px] truncate" title={order.external_order_no}>
+                                            <td className="px-6 py-4 align-top">
+                                                <div className="text-[10px] font-mono text-slate-400 max-w-[150px] truncate bg-slate-50 px-1.5 py-0.5 rounded" title={order.external_order_no}>
                                                     {order.external_order_no || '-'}
                                                 </div>
                                             </td>
@@ -313,6 +430,8 @@ export const FinanceManager: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {viewingUserId && <UserDetailModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />}
         </div>
     );
 };
