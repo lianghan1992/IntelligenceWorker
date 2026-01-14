@@ -33,6 +33,7 @@ const AlignRightIcon = ({className}:{className?:string}) => <svg className={clas
 const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
 const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
 const ArrowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"/></svg>;
+const SelectIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M7 2l12 11.2-5.8.5 3.3 7.3-2.2.9-3.2-7.4-4.4 4.6z"/></svg>;
 
 // --- History Hook ---
 function useHistory<T>(initialState: T) {
@@ -70,14 +71,26 @@ interface PropertiesPanelProps {
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onUpdateAttribute, onDelete, onClose }) => {
-    if (!element) return null;
+    // Empty State
+    if (!element) {
+        return (
+            <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                    <SelectIcon className="w-6 h-6 opacity-30" />
+                </div>
+                <h3 className="font-bold text-slate-600 mb-1">未选择元素</h3>
+                <p className="text-xs">请在左侧画布点击选择一个元素以编辑属性</p>
+            </div>
+        );
+    }
+
     const parseVal = (val: string) => parseInt(val) || 0;
     // Note: The element might be an IMG tag or a DIV wrapper containing an IMG.
     // If we select the wrapper, we want to edit the image inside.
     const isImg = element.tagName === 'IMG' || (element.tagName === 'DIV' && element.hasImgChild);
 
     return (
-        <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300">
+        <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20">
             <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{isImg ? 'IMAGE' : element.tagName}</span>
@@ -541,6 +554,18 @@ const EDITOR_SCRIPT = `
         startY = e.clientY;
         initialWidth = parseFloat(window.getComputedStyle(selectedEl).width);
         initialHeight = parseFloat(window.getComputedStyle(selectedEl).height);
+        
+        // Capture initial transform for Top/Left resizing
+        const transform = selectedEl.style.transform || '';
+        const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
+        if (match) {
+            window.initialTransformX = parseFloat(match[1]);
+            window.initialTransformY = parseFloat(match[2]);
+        } else {
+            window.initialTransformX = 0;
+            window.initialTransformY = 0;
+        }
+        
         e.stopPropagation(); e.preventDefault();
         return;
     }
@@ -566,18 +591,54 @@ const EDITOR_SCRIPT = `
         e.preventDefault();
         const dx = (e.clientX - startX) / scale;
         const dy = (e.clientY - startY) / scale;
+        
         let newWidth = initialWidth;
         let newHeight = initialHeight;
+        let newX = window.initialTransformX;
+        let newY = window.initialTransformY;
+
+        // Logic for Resizing
         if (resizeHandle.includes('e')) newWidth = initialWidth + dx;
         if (resizeHandle.includes('s')) newHeight = initialHeight + dy;
-        if (resizeHandle.includes('w')) newWidth = initialWidth - dx; 
-        if (resizeHandle.includes('n')) newHeight = initialHeight - dy;
+        
+        if (resizeHandle.includes('w')) {
+            newWidth = initialWidth - dx;
+            newX += dx;
+        }
+        if (resizeHandle.includes('n')) {
+            newHeight = initialHeight - dy;
+            newY += dy;
+        }
         
         // Ensure minimum size
-        if (newWidth > 10) selectedEl.style.width = \`\${newWidth}px\`;
-        if (newHeight > 10) selectedEl.style.height = \`\${newHeight}px\`;
+        if (newWidth > 10) {
+            selectedEl.style.width = \`\${newWidth}px\`;
+             // Only update position if we are resizing left/top and size allows it
+             if (resizeHandle.includes('w')) {
+                 // We need to keep transform sync
+             }
+        }
+        if (newHeight > 10) {
+            selectedEl.style.height = \`\${newHeight}px\`;
+        }
+        
+        // Update Transform if N/W resizing
+        if (resizeHandle.includes('w') || resizeHandle.includes('n')) {
+             // Retrieve existing scale if any
+            const currentTransform = selectedEl.style.transform || '';
+            let scalePart = '';
+            const scaleMatch = currentTransform.match(/scale\\([^)]+\\)/);
+            if (scaleMatch) scalePart = scaleMatch[0];
+            
+            // Only update transform if size update was valid (min width check)
+            if ((resizeHandle.includes('w') && newWidth > 10) || (resizeHandle.includes('n') && newHeight > 10)) {
+                 selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) \${scalePart}\`;
+            }
+        }
+        
         return;
     }
+    
     if (!isDragging || !selectedEl) return;
     e.preventDefault();
     const dx = (e.clientX - startX) / scale; 
@@ -859,17 +920,15 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                     </div>
                 </div>
 
-                {/* Right Properties Panel */}
-                {selectedElement && (
-                    <PropertiesPanel 
-                        element={selectedElement}
-                        onUpdateStyle={handleUpdateStyle}
-                        onUpdateContent={handleUpdateContent}
-                        onUpdateAttribute={handleUpdateAttribute}
-                        onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); }}
-                        onClose={() => { sendCommand('DESELECT_FORCE'); setSelectedElement(null); }}
-                    />
-                )}
+                {/* Right Properties Panel - Persistent */}
+                <PropertiesPanel 
+                    element={selectedElement}
+                    onUpdateStyle={handleUpdateStyle}
+                    onUpdateContent={handleUpdateContent}
+                    onUpdateAttribute={handleUpdateAttribute}
+                    onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); }}
+                    onClose={() => { sendCommand('DESELECT_FORCE'); setSelectedElement(null); }}
+                />
              </div>
         </div>
     );
