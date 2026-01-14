@@ -10,4 +10,5 @@ export interface AgentConfig {
     component: React.LazyExoticComponent<React.ComponentType<any>>;
     tags?: string[];
     isBeta?: boolean;
+    disabled?: boolean;
 }

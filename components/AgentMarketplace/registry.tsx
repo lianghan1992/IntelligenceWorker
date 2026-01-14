@@ -15,7 +15,8 @@ export const AGENT_REGISTRY: AgentConfig[] = [
         category: '数据分析',
         icon: ChartIcon,
         component: NewTechIdentifier,
-        tags: ['CSV分析', 'PPT生成', '技术评估']
+        tags: ['CSV分析', 'PPT生成', '技术评估'],
+        disabled: true // Temporarily disabled
     },
     {
         id: 'html-visual-editor', // New local ID, no need to add to global config unless we track billing specifically for it

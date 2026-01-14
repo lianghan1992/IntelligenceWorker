@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { AgentConfig } from './types';
 import { AGENT_REGISTRY } from './registry';
-import { SearchIcon, CubeIcon, SparklesIcon } from '../icons';
+import { SearchIcon, CubeIcon, SparklesIcon, LockClosedIcon } from '../icons';
 
 interface MarketHomeProps {
     onSelectAgent: (agentId: string) => void;
@@ -76,22 +76,39 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                         {filteredAgents.map(agent => (
                             <div 
                                 key={agent.id}
-                                onClick={() => onSelectAgent(agent.id)}
-                                className="group bg-white rounded-2xl border border-slate-200 p-6 cursor-pointer hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 flex flex-col h-full relative overflow-hidden"
+                                onClick={() => !agent.disabled && onSelectAgent(agent.id)}
+                                className={`group bg-white rounded-2xl border p-6 flex flex-col h-full relative overflow-hidden transition-all duration-300 ${
+                                    agent.disabled 
+                                        ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-75' 
+                                        : 'border-slate-200 cursor-pointer hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-900/5'
+                                }`}
                             >
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition-opacity transform translate-x-4 -translate-y-4 group-hover:translate-x-0 group-hover:translate-y-0">
-                                    <div className="bg-indigo-50 text-indigo-600 rounded-full p-2">
-                                        <ArrowRightIcon className="w-4 h-4" />
+                                {!agent.disabled && (
+                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-100 transition-opacity transform translate-x-4 -translate-y-4 group-hover:translate-x-0 group-hover:translate-y-0">
+                                        <div className="bg-indigo-50 text-indigo-600 rounded-full p-2">
+                                            <ArrowRightIcon className="w-4 h-4" />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                                 
                                 <div className="mb-5">
-                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200 mb-4 group-hover:scale-110 transition-transform duration-300">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4 transition-transform duration-300 ${
+                                        agent.disabled 
+                                            ? 'bg-slate-200 shadow-none grayscale' 
+                                            : 'bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-200 group-hover:scale-110'
+                                    }`}>
                                         <agent.icon className="w-6 h-6" />
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-indigo-700 transition-colors">
-                                        {agent.name}
-                                    </h3>
+                                    <div className="flex justify-between items-start">
+                                        <h3 className={`text-lg font-bold mb-2 transition-colors ${agent.disabled ? 'text-slate-500' : 'text-slate-900 group-hover:text-indigo-700'}`}>
+                                            {agent.name}
+                                        </h3>
+                                        {agent.disabled && (
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded border border-slate-300 flex items-center gap-1">
+                                                <LockClosedIcon className="w-3 h-3" /> 维护中
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-sm text-slate-500 leading-relaxed line-clamp-2">
                                         {agent.description}
                                     </p>
@@ -101,7 +118,7 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-2 py-1 rounded">
                                         {agent.category}
                                     </span>
-                                    {agent.isBeta && (
+                                    {!agent.disabled && agent.isBeta && (
                                         <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded border border-purple-100 flex items-center gap-1">
                                             <SparklesIcon className="w-3 h-3" /> Beta
                                         </span>
@@ -124,7 +141,7 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
     );
 };
 
-// Simple internal icon for layout
+// Simple internal icons for layout
 const ArrowRightIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
