@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { PPTData, PPTStage, PPTPageData } from './types';
+import { PPTData, PPTStage, PPTPageData, SharedGeneratorProps } from './types';
 import { generateBatchPdf, getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
 import { 
@@ -12,8 +12,9 @@ import { Step2Outline } from './Step2Outline';
 import { tryParsePartialJson } from './Step1Collect'; 
 import { KnowledgeTools } from './KnowledgeTools';
 import { marked } from 'marked';
+import { AGENTS } from '../../agentConfig';
 
-interface MainCanvasProps {
+interface MainCanvasProps extends SharedGeneratorProps {
     stage: PPTStage;
     data: PPTData;
     activePageIndex: number;
@@ -21,8 +22,6 @@ interface MainCanvasProps {
     isLlmActive: boolean;
     setStage?: (stage: PPTStage) => void; 
     setData?: React.Dispatch<React.SetStateAction<PPTData>>;
-    sessionId?: string; 
-    onRefreshSession?: () => void; // Add refresh session prop
 }
 
 // --- Helper: Simple HTML Syntax Highlighter ---
@@ -154,7 +153,7 @@ const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
 const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
 
 export const MainCanvas: React.FC<MainCanvasProps> = ({ 
-    stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData, sessionId, onRefreshSession
+    stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData, sessionId, onRefreshSession, onHandleInsufficientBalance
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const activePage = data.pages[activePageIndex];

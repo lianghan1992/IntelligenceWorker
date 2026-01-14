@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { PPTPageData } from './types';
+import { PPTPageData, SharedGeneratorProps } from './types';
 import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../api/stratify'; 
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
@@ -10,15 +10,13 @@ import {
 import { VisualEditor } from './VisualEditor';
 import { AGENTS } from '../../agentConfig'; // Import AGENTS
 
-interface Step4FinalizeProps {
+interface Step4FinalizeProps extends SharedGeneratorProps {
     topic: string;
     pages: PPTPageData[];
     onBackToCompose: () => void;
     onUpdatePages: (newPages: PPTPageData[]) => void;
     onLlmStatusChange?: (isActive: boolean) => void;
     onStreamingUpdate?: (msg: any) => void;
-    sessionId?: string; // Added sessionId
-    onRefreshSession?: () => void; // Added refresh handler
 }
 
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -76,7 +74,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     onUpdatePages,
     onLlmStatusChange,
     sessionId,
-    onRefreshSession
+    onRefreshSession,
+    onHandleInsufficientBalance
 }) => {
     const [pages, setPages] = useState<PPTPageData[]>(initialPages);
     const [activeIdx, setActiveIdx] = useState(0);
@@ -142,11 +141,20 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                 if (onRefreshSession) onRefreshSession();
             }, (err) => {
                 onLlmStatusChange?.(false);
+                throw err; // Propagate to catch
             }, sessionId, AGENTS.REPORT_GENERATOR); // Added AGENTS.REPORT_GENERATOR
-        } catch (e) {
+        } catch (e: any) {
             onLlmStatusChange?.(false);
+            if (e.message === 'INSUFFICIENT_BALANCE' && onHandleInsufficientBalance) {
+                onHandleInsufficientBalance();
+                // Mark current page as not generating so user can retry later
+                const errorPages = [...pages];
+                errorPages[idx] = { ...pages[idx], isGenerating: false };
+                setPages(errorPages);
+                onUpdatePages(errorPages);
+            }
         }
-    }, [pages, topic, onLlmStatusChange, onUpdatePages, sessionId, onRefreshSession]);
+    }, [pages, topic, onLlmStatusChange, onUpdatePages, sessionId, onRefreshSession, onHandleInsufficientBalance]);
 
     useEffect(() => {
         const isBusy = pages.some(p => p.isGenerating);

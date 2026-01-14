@@ -5,7 +5,7 @@ import { MainCanvas } from './Step3Compose';
 import { Step4Finalize } from './Step4Finalize'; 
 import { PPTStage, ChatMessage, PPTData } from './types';
 import { createSession, getSession, updateSession } from '../../api/stratify';
-import { CloudIcon, CheckIcon, RefreshIcon, ChartIcon } from '../icons';
+import { CloudIcon, CheckIcon, RefreshIcon, ChartIcon, ShieldExclamationIcon, ArrowRightIcon } from '../icons';
 import { SessionHistoryDrawer } from './SessionHistoryModal';
 import { AGENTS } from '../../agentConfig';
 
@@ -20,7 +20,11 @@ const DEFAULT_DATA: PPTData = {
 // Using global configuration
 const REPORT_GENERATOR_AGENT_ID = AGENTS.REPORT_GENERATOR;
 
-const ScenarioWorkstation: React.FC = () => {
+interface ReportGeneratorProps {
+    onShowBilling?: () => void;
+}
+
+const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ onShowBilling }) => {
     // --- State Initialization ---
     const [stage, setStage] = useState<PPTStage>('collect');
     const [history, setHistory] = useState<ChatMessage[]>([]);
@@ -36,6 +40,7 @@ const ScenarioWorkstation: React.FC = () => {
     
     // UI State
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [showBalanceAlert, setShowBalanceAlert] = useState(false);
 
     // Helper: Load specific session
     const loadSession = useCallback(async (sid: string) => {
@@ -104,6 +109,12 @@ const ScenarioWorkstation: React.FC = () => {
         }
     };
 
+    // Error Handler for 402 Payment Required
+    const handleInsufficientBalance = useCallback(() => {
+        setShowBalanceAlert(true);
+        setIsLlmActive(false); // Force stop any loading indicators
+    }, []);
+
     // Auto Save (Only if sessionId exists)
     useEffect(() => {
         if (!sessionId) return;
@@ -158,6 +169,7 @@ const ScenarioWorkstation: React.FC = () => {
     const sharedProps = {
         sessionId: sessionId || undefined, // undefined to child if null
         onRefreshSession: refreshSession,
+        onHandleInsufficientBalance: handleInsufficientBalance
     };
 
     // Render Status Bar Component
@@ -195,14 +207,42 @@ const ScenarioWorkstation: React.FC = () => {
     // 如果处于 Finalize 阶段，全屏渲染精修器，不显示侧边栏
     if (stage === 'finalize') {
         return (
-            <Step4Finalize 
-                topic={data.topic}
-                pages={data.pages}
-                onBackToCompose={() => setStage('compose')}
-                onUpdatePages={(newPages) => setData(prev => ({ ...prev, pages: newPages }))}
-                onLlmStatusChange={setIsLlmActive}
-                {...sharedProps}
-            />
+            <>
+                <Step4Finalize 
+                    topic={data.topic}
+                    pages={data.pages}
+                    onBackToCompose={() => setStage('compose')}
+                    onUpdatePages={(newPages) => setData(prev => ({ ...prev, pages: newPages }))}
+                    onLlmStatusChange={setIsLlmActive}
+                    {...sharedProps}
+                />
+                {/* Reusing the same Balance Alert Modal logic if needed in Finalize (not duplicating code, better to hoist modal outside conditional return but for now stick to simple structure) */}
+                {showBalanceAlert && (
+                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in-95">
+                         <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-red-100 p-6 text-center">
+                             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                 <ShieldExclamationIcon className="w-8 h-8 text-red-500" />
+                             </div>
+                             <h3 className="text-xl font-bold text-gray-800 mb-2">余额不足</h3>
+                             <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                                 您的账户余额已用尽，无法继续生成内容。<br/>请充值后重试。
+                             </p>
+                             <button 
+                                 onClick={() => { setShowBalanceAlert(false); if(onShowBilling) onShowBilling(); }}
+                                 className="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2"
+                             >
+                                 立即充值 <ArrowRightIcon className="w-4 h-4" />
+                             </button>
+                             <button 
+                                 onClick={() => setShowBalanceAlert(false)}
+                                 className="mt-3 text-xs text-gray-400 hover:text-gray-600 underline"
+                             >
+                                 稍后处理
+                             </button>
+                         </div>
+                     </div>
+                )}
+            </>
         );
     }
 
@@ -256,14 +296,41 @@ const ScenarioWorkstation: React.FC = () => {
                 currentSessionId={sessionId || undefined}
                 onSwitchSession={loadSession}
             />
+
+            {/* Balance Alert Modal */}
+            {showBalanceAlert && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-red-100 p-6 text-center">
+                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <ShieldExclamationIcon className="w-8 h-8 text-red-500" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">余额不足</h3>
+                        <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                            您的账户余额已耗尽，AI 服务暂停。<br/>请充值后继续使用。
+                        </p>
+                        <button 
+                            onClick={() => { setShowBalanceAlert(false); if(onShowBilling) onShowBilling(); }}
+                            className="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2"
+                        >
+                            立即充值 <ArrowRightIcon className="w-4 h-4" />
+                        </button>
+                        <button 
+                            onClick={() => setShowBalanceAlert(false)}
+                            className="mt-3 text-xs text-gray-400 hover:text-gray-600 underline"
+                        >
+                            稍后处理
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-export const ReportGenerator: React.FC = () => {
+export const ReportGenerator: React.FC<ReportGeneratorProps> = (props) => {
     return (
         <div className="h-full w-full">
-            <ScenarioWorkstation />
+            <ScenarioWorkstation {...props} />
         </div>
     );
 };

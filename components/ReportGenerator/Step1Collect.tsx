@@ -7,7 +7,7 @@ import {
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { searchSemanticSegments, getArticleHtml } from '../../api/intelligence';
-import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
+import { PPTStage, ChatMessage, PPTData, PPTPageData, SharedGeneratorProps } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
 import { InfoItem } from '../../types';
 import { marked } from 'marked';
@@ -262,7 +262,7 @@ const ReferenceReaderModal: React.FC<{ item: InfoItem; onClose: () => void }> = 
     );
 };
 
-interface CopilotSidebarProps {
+interface CopilotSidebarProps extends SharedGeneratorProps {
     stage: PPTStage;
     setStage: (s: PPTStage) => void;
     history: ChatMessage[];
@@ -274,21 +274,19 @@ interface CopilotSidebarProps {
     activePageIndex: number;
     setActivePageIndex: (n: number) => void;
     onReset: () => void;
-    sessionId?: string; 
     statusBar?: React.ReactNode; 
     sessionTitle?: string;
     onTitleChange?: (newTitle: string) => void;
     onSwitchSession?: (sessionId: string) => void;
     onEnsureSession?: () => Promise<string>;
     onToggleHistory?: () => void;
-    onRefreshSession?: () => void;
 }
 
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     stage, setStage, history, setHistory, data, setData, 
     isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset,
     sessionId, statusBar,
-    sessionTitle, onTitleChange, onSwitchSession, onEnsureSession, onToggleHistory, onRefreshSession
+    sessionTitle, onTitleChange, onSwitchSession, onEnsureSession, onToggleHistory, onRefreshSession, onHandleInsufficientBalance
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -509,16 +507,28 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 }
             }, () => {
                 if (onRefreshSession) onRefreshSession();
-            }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR); // Added AGENTS.REPORT_GENERATOR
+            }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR); 
             
             const finalOutline = tryParsePartialJson(accumulatedContent);
             if (finalOutline && finalOutline.pages) {
                 setData(prev => ({ ...prev, topic: finalOutline.title || prev.topic, outline: finalOutline }));
                 if (!isRefinement) setStage('outline');
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            setHistory(prev => [...prev, { role: 'assistant', content: "生成出错，请重试。" }]);
+            if (e.message === 'INSUFFICIENT_BALANCE') {
+                if (onHandleInsufficientBalance) onHandleInsufficientBalance();
+                setHistory(prev => {
+                    const h = [...prev];
+                    // Remove the empty assistant message or mark as error
+                    if (h.length > 0 && h[h.length-1].role === 'assistant' && !h[h.length-1].content) {
+                         h.pop(); // Remove pending bubble
+                    }
+                    return h;
+                });
+            } else {
+                setHistory(prev => [...prev, { role: 'assistant', content: "生成出错，请重试。" }]);
+            }
         } finally {
             setIsLlmActive(false);
         }
@@ -703,10 +713,17 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                    return h;
                 });
 
-            } catch (e) {
+            } catch (e: any) {
                 console.error(e);
-                setHistory(prev => [...prev, { role: 'assistant', content: `❌ 第 ${targetIdx + 1} 页生成失败，跳过。` }]);
-                 setData(prev => {
+                if (e.message === 'INSUFFICIENT_BALANCE') {
+                    if (onHandleInsufficientBalance) onHandleInsufficientBalance();
+                    // Stop queue
+                    setAutoGenMode(null);
+                } else {
+                    setHistory(prev => [...prev, { role: 'assistant', content: `❌ 第 ${targetIdx + 1} 页生成失败，跳过。` }]);
+                }
+                
+                setData(prev => {
                     const newPages = [...prev.pages];
                     newPages[targetIdx].isGenerating = false;
                     return { ...prev, pages: newPages };

@@ -31,3 +31,9 @@ export interface PPTData {
     outline: StratifyOutline | null;
     pages: PPTPageData[];
 }
+
+export interface SharedGeneratorProps {
+    sessionId?: string;
+    onRefreshSession?: () => void;
+    onHandleInsufficientBalance?: () => void;
+}

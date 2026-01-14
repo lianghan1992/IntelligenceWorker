@@ -150,7 +150,8 @@ const App: React.FC = () => {
       case 'events':
         return <IndustryEvents />;
       case 'ai':
-        return <ReportGenerator />;
+        // Pass the billing modal handler to ReportGenerator
+        return <ReportGenerator onShowBilling={() => setShowBillingModal(true)} />;
       case 'marketplace':
         return <AgentMarketplace />;
       case 'admin':

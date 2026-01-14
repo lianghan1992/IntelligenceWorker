@@ -76,6 +76,11 @@ export const streamChatCompletions = async (
             body: JSON.stringify({ ...params, stream: true }),
         });
 
+        // Specific handling for 402 Payment Required
+        if (response.status === 402) {
+            throw new Error("INSUFFICIENT_BALANCE");
+        }
+
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`API Error (${response.status}): ${errorText}`);
