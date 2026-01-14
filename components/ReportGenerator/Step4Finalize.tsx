@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTPageData, SharedGeneratorProps } from './types';
-import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../api/stratify'; 
+import { streamChatCompletions, getPromptDetail, generateBatchPdf, generatePdf } from '../../api/stratify'; 
 import { getWalletBalance } from '../../api/user'; // Import wallet balance check
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
@@ -86,7 +86,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
 }) => {
     const [pages, setPages] = useState<PPTPageData[]>(initialPages);
     const [activeIdx, setActiveIdx] = useState(0);
-    const [isExporting, setIsExporting] = useState(false);
+    const [isExportingSingle, setIsExportingSingle] = useState(false);
+    const [isExportingAll, setIsExportingAll] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(0.6); // Default scale
     const [showGuide, setShowGuide] = useState(true);
@@ -200,8 +201,21 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     const activePage = pages[activeIdx];
     const allRendered = pages.every(p => p.html && !p.isGenerating);
 
-    const handleExport = async () => {
-        setIsExporting(true);
+    const handleExportSingle = async () => {
+        if (!activePage?.html) return;
+        setIsExportingSingle(true);
+        try {
+            const blob = await generatePdf(activePage.html, `${topic}_page_${activeIdx + 1}`);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${topic}_page_${activeIdx + 1}.pdf`;
+            a.click();
+        } catch(e) { alert('导出失败'); } finally { setIsExportingSingle(false); }
+    };
+
+    const handleExportAll = async () => {
+        setIsExportingAll(true);
         try {
              const pdfPages = pages.map((p, idx) => ({
                 html: p.html || '',
@@ -213,7 +227,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
             a.href = url;
             a.download = `${topic}_presentation.pdf`;
             a.click();
-        } catch(e) { alert('导出失败'); } finally { setIsExporting(false); }
+        } catch(e) { alert('导出失败'); } finally { setIsExportingAll(false); }
     };
 
     const handlePageUpdate = (newHtml: string) => {
@@ -246,13 +260,23 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      <button onClick={onBackToCompose} className="px-5 py-2.5 rounded-xl border border-white/10 hover:bg-white/10 text-xs font-bold transition-all">
                         返回
                      </button>
-                     <button 
-                        onClick={handleExport}
-                        disabled={!allRendered || isExporting}
-                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-50 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                     >
-                         {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>} 导出单页PDF
-                     </button>
+                     <div className="flex bg-indigo-900/50 rounded-xl p-1 border border-white/10">
+                        <button 
+                            onClick={handleExportSingle}
+                            disabled={!activePage?.html || isExportingSingle}
+                            className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all hover:bg-indigo-600/50 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isExportingSingle ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>} 导出单页PDF
+                        </button>
+                        <div className="w-px bg-white/10 my-1"></div>
+                        <button 
+                            onClick={handleExportAll}
+                            disabled={!allRendered || isExportingAll}
+                            className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-600 hover:bg-indigo-500 shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:bg-indigo-800"
+                        >
+                            {isExportingAll ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>} 导出完整PDF
+                        </button>
+                     </div>
                  </div>
              </div>
 
