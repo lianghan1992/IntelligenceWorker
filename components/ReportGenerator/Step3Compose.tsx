@@ -7,7 +7,7 @@ import { getWalletBalance } from '../../api/user'; // Import wallet balance chec
 import { 
     SparklesIcon, DownloadIcon, RefreshIcon, ViewGridIcon, 
     PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon, CodeIcon,
-    PlayIcon, ServerIcon, ArrowRightIcon
+    PlayIcon, ServerIcon, ArrowRightIcon, CloseIcon, LightBulbIcon
 } from '../icons';
 import { Step2Outline } from './Step2Outline';
 import { tryParsePartialJson } from './Step1Collect'; 
@@ -163,6 +163,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [genModel, setGenModel] = useState<string>('');
+    const [showVisualEditorHint, setShowVisualEditorHint] = useState(false);
 
     const hasHtml = !!activePage?.html;
     const isGenerating = !!activePage?.isGenerating;
@@ -202,6 +203,9 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
 
     const handleEnterFinalize = () => {
         if (setStage) {
+            // Dismiss hint permanently on click
+            localStorage.setItem('has_seen_visual_editor_hint', 'true');
+            setShowVisualEditorHint(false);
             setStage('finalize');
         }
     };
@@ -210,6 +214,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         if (!activePage?.html) return;
         setIsExporting(true);
         try {
+            // Pass strict dimensions
             const blob = await generatePdf(activePage.html, `${data.topic}_page_${activePageIndex + 1}`, { width: 1600, height: 900 });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -228,7 +233,8 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             })).filter(item => item.html);
             
             if (pdfPages.length === 0) return;
-
+            
+            // Pass strict dimensions
             const blob = await generateBatchPdf(pdfPages, { width: 1600, height: 900 });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -236,6 +242,21 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             a.download = `${data.topic}_presentation.pdf`;
             a.click();
         } catch(e) { alert('导出失败'); } finally { setIsExporting(false); }
+    };
+
+    // --- Onboarding Hint Logic ---
+    useEffect(() => {
+        const hasReadyHtml = data.pages.some(p => !!p.html);
+        if (hasReadyHtml && !localStorage.getItem('has_seen_visual_editor_hint')) {
+            // Delay slightly to ensure UI is ready
+            const timer = setTimeout(() => setShowVisualEditorHint(true), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [data.pages]);
+
+    const handleDismissHint = () => {
+        setShowVisualEditorHint(false);
+        localStorage.setItem('has_seen_visual_editor_hint', 'true');
     };
 
     // Robust display content for streaming text
@@ -298,7 +319,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     }, [activePage?.html, activePage?.isGenerating]);
 
 
-    const hasReadyHtml = data.pages.some(p => !!p.html);
+    const hasReadyHtmlForButtons = data.pages.some(p => !!p.html);
 
     // --- Views ---
 
@@ -455,32 +476,86 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                             </div>
                         )}
 
-                        {hasReadyHtml && (
-                            <div className="flex items-center gap-2 border-l border-slate-200 pl-3 ml-2">
-                                 <button 
-                                    onClick={handleExportSingle}
-                                    disabled={!activePage?.html || isExporting}
-                                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
-                                    title="导出当前页 PDF"
-                                >
-                                    {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>}
-                                </button>
-                                <button 
-                                    onClick={handleExportAll}
-                                    disabled={isExporting}
-                                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
-                                    title="导出完整 PDF"
-                                >
-                                    {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DocumentTextIcon className="w-4 h-4"/>}
-                                </button>
+                        {hasReadyHtmlForButtons && (
+                            <div className="flex items-center gap-2 border-l border-slate-200 pl-3 ml-2 relative">
+                                 
+                                 {/* Export Buttons Group (Button + Text style) */}
+                                 <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
+                                     <button 
+                                        onClick={handleExportSingle}
+                                        disabled={!activePage?.html || isExporting}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm transition-all disabled:opacity-50"
+                                        title="导出当前页 PDF"
+                                    >
+                                        {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>}
+                                        <span>导出单页</span>
+                                    </button>
+                                    <div className="w-px bg-slate-300 my-1 mx-1"></div>
+                                    <button 
+                                        onClick={handleExportAll}
+                                        disabled={isExporting}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm transition-all disabled:opacity-50"
+                                        title="导出完整 PDF"
+                                    >
+                                        {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DocumentTextIcon className="w-3.5 h-3.5"/>}
+                                        <span>导出全部</span>
+                                    </button>
+                                 </div>
+
                                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                                <button 
-                                    onClick={handleEnterFinalize} 
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95 ml-2"
-                                >
-                                    <SparklesIcon className="w-3.5 h-3.5"/>
-                                    <span>可视化精修</span>
-                                </button>
+                                
+                                {/* Visual Editor Button with Hint */}
+                                <div className="relative">
+                                    <button 
+                                        onClick={handleEnterFinalize} 
+                                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95 ml-2"
+                                    >
+                                        <SparklesIcon className="w-3.5 h-3.5"/>
+                                        <span>可视化精修</span>
+                                    </button>
+
+                                    {/* First-time User Hint */}
+                                    {showVisualEditorHint && (
+                                        <div className="absolute top-full right-0 mt-3 z-50 w-64 animate-in fade-in slide-in-from-top-2 duration-500">
+                                            <div className="relative bg-slate-900 text-white p-4 rounded-xl shadow-2xl border border-slate-700">
+                                                {/* Arrow */}
+                                                <div className="absolute -top-1.5 right-6 w-3 h-3 bg-slate-900 rotate-45 border-l border-t border-slate-700"></div>
+                                                
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <h4 className="font-bold text-yellow-400 flex items-center gap-1.5 text-xs uppercase tracking-wide">
+                                                        <SparklesIcon className="w-3.5 h-3.5" /> 全新功能
+                                                    </h4>
+                                                    <button onClick={handleDismissHint} className="text-slate-400 hover:text-white transition-colors">
+                                                        <CloseIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                                
+                                                <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                                                    觉得排版不够完美？<br/>
+                                                    点击这里进入<strong>可视化精修</strong>模式，像编辑 PPT 一样自由拖拽、修改元素！
+                                                </p>
+                                                
+                                                <div className="flex justify-end">
+                                                    <div className="relative">
+                                                        <div className="absolute -left-8 top-1 w-6 h-6 animate-bounce">
+                                                            {/* Hand Cursor SVG */}
+                                                            <svg viewBox="0 0 24 24" fill="none" className="w-full h-full drop-shadow-md text-white">
+                                                                <path d="M7 19l2.5-8l3 3l2-6l2 0.5l-2 6l4 0.5L7 19z" fill="currentColor" />
+                                                                <path d="M7 19l-1.5-13l12 6.5l-5.5 2.5L7 19z" fill="white" stroke="black" strokeWidth="1.5" strokeLinejoin="round"/>
+                                                            </svg>
+                                                        </div>
+                                                        <button 
+                                                            onClick={handleDismissHint}
+                                                            className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1 rounded transition-colors"
+                                                        >
+                                                            知道了
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
