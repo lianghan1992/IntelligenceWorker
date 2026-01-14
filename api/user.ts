@@ -18,11 +18,13 @@ export const getUsers = async (params: any): Promise<PaginatedResponse<UserListI
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/users${query}`);
     return {
-        items: response.items,
-        total: response.total,
-        page: response.page,
-        limit: response.size,
-        totalPages: response.total_pages
+        items: response.items || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        // 兼容 limit (API Doc) 和 size (Old Code)
+        limit: response.limit || response.size || 20,
+        // 兼容 totalPages (API Doc) 和 total_pages (Old Code)
+        totalPages: response.totalPages || response.total_pages || 1
     };
 }
 
@@ -168,11 +170,13 @@ export const getAdminTransactions = async (params: any): Promise<PaginatedRespon
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/transactions${query}`);
     return {
-        items: response.items,
-        total: response.total,
-        page: response.page,
-        limit: response.size,
-        totalPages: response.total_pages
+        items: response.items || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        // 兼容 limit (API Doc) 和 size (Old Code)
+        limit: response.limit || response.size || 20,
+        // 兼容 totalPages (API Doc) 和 total_pages (Old Code)
+        totalPages: response.totalPages || response.total_pages || 1
     };
 };
 
@@ -188,11 +192,13 @@ export const getAdminOrders = async (params: any): Promise<PaginatedResponse<Pay
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/orders${query}`);
     return {
-        items: response.items,
-        total: response.total,
-        page: response.page,
-        limit: response.size,
-        totalPages: response.total_pages
+        items: response.items || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        // 兼容 limit (API Doc) 和 size (Old Code)
+        limit: response.limit || response.size || 20,
+        // 兼容 totalPages (API Doc) 和 total_pages (Old Code)
+        totalPages: response.totalPages || response.total_pages || 1
     };
 };
 
@@ -205,11 +211,11 @@ export const getAdminBills = async (params: any): Promise<PaginatedResponse<Bill
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/bills${query}`);
     return {
-        items: response.items,
-        total: response.total,
-        page: response.page,
-        limit: response.size,
-        totalPages: response.total_pages
+        items: response.items || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        limit: response.limit || response.size || 20,
+        totalPages: response.totalPages || response.total_pages || 1
     };
 };
 
@@ -227,11 +233,11 @@ export const getAdminUserBillSummary = async (params: any): Promise<PaginatedRes
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/bills/users/summary${query}`);
     return {
-        items: response.items,
-        total: response.total,
-        page: response.page,
-        limit: response.size,
-        totalPages: response.total_pages
+        items: response.items || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        limit: response.limit || response.size || 20,
+        totalPages: response.totalPages || response.total_pages || 1
     };
 };
 
