@@ -77,8 +77,9 @@ export const ArticleSelectionStep: React.FC<ArticleSelectionStepProps> = ({ onCo
                 page: pagination.page,
                 limit: pagination.limit,
                 source_id: filters.sourceId || undefined,
-                start_date: filters.dateStart ? new Date(filters.dateStart).toISOString() : undefined,
-                end_date: filters.dateEnd ? new Date(filters.dateEnd).toISOString() : undefined,
+                // FIX: Send YYYY-MM-DD string directly, do not convert to ISOString
+                start_date: filters.dateStart || undefined,
+                end_date: filters.dateEnd || undefined,
             });
             setArticles(res.items || []);
             setPagination(prev => ({
