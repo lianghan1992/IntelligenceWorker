@@ -37,10 +37,10 @@ interface ReferenceItem {
     details?: ReferenceDetail[];
     progress?: number; // 0-100
     logs?: string[]; // Process logs
+    tokens?: number; // Token count
 }
 
 // --- Helper: Token Estimation ---
-// 简单估算：中英文混合环境下，保守起见 1 字符 ≈ 1 Token (中文通常0.7-1.5, 英文0.3-0.5)
 const estimateTokens = (text: string): number => {
     return text.length;
 };
@@ -97,9 +97,7 @@ const isValidContent = (content: string): boolean => {
         "bilibili-error-img" // Specific site errors
     ];
     
-    // Check if content contains typical error page text
     if (errorKeywords.some(kw => content.includes(kw))) return false;
-    
     return true;
 };
 
@@ -121,6 +119,45 @@ const TechLoader: React.FC<{ logs: string[] }> = ({ logs }) => (
     </div>
 );
 
+// --- Component: Token Warning Modal (Centered) ---
+const TokenWarningModal: React.FC<{ 
+    isOpen: boolean; 
+    tokens: number; 
+    onConfirm: () => void; 
+    onCancel: () => void; 
+}> = ({ isOpen, tokens, onConfirm, onCancel }) => {
+    if (!isOpen) return null;
+    
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in-95">
+            <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-slate-200 p-6 text-center">
+                <div className="w-12 h-12 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-yellow-100">
+                    <ShieldExclamationIcon className="w-6 h-6 text-yellow-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800 mb-2">Token 消耗确认</h3>
+                <div className="text-sm text-gray-500 mb-6 leading-relaxed">
+                    <p>系统检测到该文档约包含 <strong className="text-indigo-600 font-mono text-base">{tokens.toLocaleString()}</strong> 个 Token。</p>
+                    <p className="mt-2 text-xs opacity-80">上传后将计入您的账户消耗，是否继续？</p>
+                </div>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={onCancel}
+                        className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                        取消
+                    </button>
+                    <button 
+                        onClick={onConfirm}
+                        className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors"
+                    >
+                        确定上传
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReference, currentReferences }) => {
     const [items, setItems] = useState<ReferenceItem[]>([]);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -130,6 +167,9 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
     
     // Processing State for Modal
     const [processingItemId, setProcessingItemId] = useState<string | null>(null);
+
+    // Upload Confirmation State
+    const [pendingUpload, setPendingUpload] = useState<{ file: File, id: string, text: string, tokens: number } | null>(null);
 
     // Config State
     const [config, setConfig] = useState(() => {
@@ -171,10 +211,9 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             status: 'processing', 
             details: [], 
             progress: 0, 
-            logs: ['初始化任务...'] 
+            logs: ['初始化任务...'],
+            tokens: 0
         }, ...prev]);
-        // Do NOT expand automatically, we show modal instead
-        // setExpandedItemId(id); 
         return id;
     };
 
@@ -210,7 +249,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         }
 
         const id = addReferenceItem('file', file.name);
-        setProcessingItemId(id); // Show modal
+        setProcessingItemId(id); // Show processing modal
 
         try {
             appendLog(id, `读取文件: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
@@ -233,44 +272,67 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                 throw new Error("文件内容为空或无法识别文本。");
             }
 
-            // 3. Token Estimation & Limit Check
+            // 3. Token Estimation
             const estimatedTokens = estimateTokens(text);
             appendLog(id, `Token 估算: 约 ${estimatedTokens} tokens`);
 
+            // 4. Limit Check
             if (estimatedTokens > MAX_TOKEN_LIMIT) {
                 throw new Error(`文档内容过长（约 ${estimatedTokens} Token），超过系统限制 (${MAX_TOKEN_LIMIT})。请拆分文件后上传。`);
             }
 
-            // 4. Cost Warning
-            // Hide modal temporarily to show confirm dialog cleanly? No, confirm blocks execution.
-            // We'll trust the user interaction.
-            const costWarning = `系统检测到该文档约包含 ${estimatedTokens.toLocaleString()} 个 Token。\n\n上传后将计入您的账户消耗，是否继续？`;
-            if (!window.confirm(costWarning)) {
-                updateItemState(id, { status: 'error' });
-                appendLog(id, '用户取消上传');
-                setTimeout(() => setProcessingItemId(null), 500);
-                return;
-            }
+            // 5. Setup for Confirmation (Suspend processing modal)
+            setProcessingItemId(null); // Hide progress modal temporarily
+            setPendingUpload({ file, id, text, tokens: estimatedTokens });
+            // Show confirmation modal via state (pendingUpload)
 
+        } catch (err: any) {
+            console.error(err);
+            updateItemState(id, { status: 'error' });
+            appendLog(id, `处理失败: ${err.message}`);
+            setProcessingItemId(null); // Ensure modal closes on error
+        } finally {
+             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const confirmUpload = async () => {
+        if (!pendingUpload) return;
+        const { id, file, text, tokens } = pendingUpload;
+        setPendingUpload(null);
+        setProcessingItemId(id); // Show progress again
+
+        try {
             const formattedContent = `\n\n--- 引用文档: ${file.name} ---\n${text}\n--- 文档结束 ---\n`;
             
             // Wait a bit to show progress
             await new Promise(r => setTimeout(r, 500));
             
+            // Update UI State
             updateItemState(id, { 
                 status: 'done', 
-                content: formattedContent, 
+                content: formattedContent, // We store it, but won't render it in the list to avoid crash
                 progress: 100, 
+                tokens: tokens,
                 details: [{ title: file.name, url: '#' }] 
             });
+
+            // Pass to Parent (Critical: Ensure LLM gets the content)
             onUpdateReference(formattedContent, file.name);
+
         } catch (err: any) {
-            console.error(err);
             updateItemState(id, { status: 'error' });
-            appendLog(id, `处理失败: ${err.message}`);
+            appendLog(id, `上传确认后处理失败: ${err.message}`);
         } finally {
-             setTimeout(() => setProcessingItemId(null), 1200); // Allow user to read error log if any
-             if (fileInputRef.current) fileInputRef.current.value = '';
+            setTimeout(() => setProcessingItemId(null), 800);
+        }
+    };
+
+    const cancelUpload = () => {
+        if (pendingUpload) {
+            updateItemState(pendingUpload.id, { status: 'error' });
+            appendLog(pendingUpload.id, '用户取消上传');
+            setPendingUpload(null);
         }
     };
 
@@ -283,7 +345,6 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             return;
         }
 
-        // Check Quota ONLY if NOT using custom key
         if (!isCustomKey) {
             const { allowed } = checkDailyQuota();
             if (!allowed) {
@@ -297,48 +358,36 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         setSearchKeyword('');
         
         const id = addReferenceItem('search', `${keyword}`);
-        setProcessingItemId(id); // Show progress modal
+        setProcessingItemId(id);
         
         try {
-            // Step 1: Call Google API
             appendLog(id, `连接 Google Search API...`);
             const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${config.apiKey}&cx=${config.cx}&q=${encodeURIComponent(keyword)}&num=10`; 
             
             const response = await fetch(searchUrl);
             
             if (!response.ok) {
-                if (response.status === 403 || response.status === 429) {
-                     throw new Error("API 配额已耗尽，请更换 Key 或等待恢复。");
-                }
-                if (response.status === 400) {
-                     throw new Error("配置无效: 请检查 API Key 和 CX ID 是否正确。");
-                }
+                if (response.status === 403 || response.status === 429) throw new Error("API 配额已耗尽，请更换 Key 或等待恢复。");
+                if (response.status === 400) throw new Error("配置无效: 请检查 API Key 和 CX ID 是否正确。");
                 throw new Error(`Search API Error: ${response.status} ${response.statusText}`);
             }
 
             const data = await response.json();
             const items = data.items || [];
-
-            if (items.length === 0) {
-                throw new Error("未找到相关结果");
-            }
+            if (items.length === 0) throw new Error("未找到相关结果");
 
             appendLog(id, `获取到 ${items.length} 条结果，开始抓取与过滤...`);
-            
-            // Only consume quota if using default key
             if (!isCustomKey) {
                 incrementDailyQuota(); 
                 setQuota(checkDailyQuota());
             }
 
-            // Step 2: Parallel Fetch Content via Jina & Filter
-            const topItems = items.slice(0, 6); // Try top 6
+            const topItems = items.slice(0, 6);
             let processedCount = 0;
             let totalTokensAccumulated = 0;
             
             const fetchPromises = topItems.map(async (item: any, idx: number) => {
                 try {
-                    // Check limit before fetching more
                     if (totalTokensAccumulated > MAX_TOKEN_LIMIT) return null;
 
                     appendLog(id, `正在读取 [${idx+1}]: ${item.title.slice(0, 15)}...`);
@@ -357,7 +406,6 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                     processedCount++;
                     updateItemState(id, { progress: 20 + Math.floor((processedCount / topItems.length) * 80) });
                     
-                    // Create Detail Object
                     return {
                         title: item.title,
                         url: item.link,
@@ -374,15 +422,11 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             const results = await Promise.all(fetchPromises);
             const validResults = results.filter(Boolean);
 
-            if (validResults.length === 0) {
-                 throw new Error("所有搜索结果均无法读取有效内容（可能存在反爬虫限制）。");
-            }
+            if (validResults.length === 0) throw new Error("所有搜索结果均无法读取有效内容（可能存在反爬虫限制）。");
 
-            // Construct Final Content
             const validContentStr = validResults.map(r => r?.markdown).join('\n\n---\n\n');
             const finalContent = `\n\n--- 联网搜索报告: ${keyword} ---\n${validContentStr}\n--- 搜索结束 ---\n`;
             
-            // Construct Details for UI
             const validDetails: ReferenceDetail[] = validResults.map(r => ({
                 title: r!.title,
                 url: r!.url,
@@ -391,23 +435,27 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             }));
 
             appendLog(id, `任务完成。已聚合 ${validResults.length} 篇有效内容。`);
-            updateItemState(id, { status: 'done', content: finalContent, progress: 100, details: validDetails });
+            updateItemState(id, { 
+                status: 'done', 
+                content: finalContent, 
+                progress: 100, 
+                details: validDetails,
+                tokens: totalTokensAccumulated
+            });
             onUpdateReference(finalContent, `Search: ${keyword}`);
 
         } catch (e: any) {
             console.error(e);
             updateItemState(id, { status: 'error' });
             appendLog(id, `错误: ${e.message}`);
-            // If error is config related, suggest opening config
             if (e.message.includes("配置无效") || e.message.includes("400")) {
                 setIsSearchOpen(true);
                 setIsConfigMode(true);
             }
         } finally {
-            // Close modal after delay to let user see "Done"
             setTimeout(() => {
                 setProcessingItemId(null);
-                setExpandedItemId(id); // Expand the item to show results
+                setExpandedItemId(id);
             }, 1200);
         }
     };
@@ -470,7 +518,13 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             const metaDetails = validResults.map(r => ({ title: r.title, url: r.url }));
             
             appendLog(id, `全部完成。`);
-            updateItemState(id, { status: 'done', content: combined, details: metaDetails, progress: 100 });
+            updateItemState(id, { 
+                status: 'done', 
+                content: combined, 
+                details: metaDetails, 
+                progress: 100,
+                tokens: totalTokens
+            });
             onUpdateReference(combined, "URL Import");
         } catch (e: any) {
             updateItemState(id, { status: 'error' });
@@ -593,10 +647,10 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                                             <span className={`font-bold text-sm truncate ${item.status === 'error' ? 'text-red-500 line-through' : 'text-slate-800'}`}>
                                                 {item.type === 'search' ? `搜索: ${item.name}` : item.name}
                                             </span>
-                                            {item.details && item.details.length > 0 && (
-                                                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded border border-green-200 font-mono font-bold">
-                                                    {item.details.length} refs
-                                                </span>
+                                            {item.tokens !== undefined && item.tokens > 0 && (
+                                                 <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
+                                                    ~{item.tokens.toLocaleString()} tok
+                                                 </span>
                                             )}
                                         </div>
                                         {item.status === 'processing' && (
@@ -643,29 +697,40 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                                                         </div>
                                                         <div className="flex-1 min-w-0 text-left">
                                                             <div className="flex justify-between items-start">
-                                                                <a 
-                                                                    href={detail.url} 
-                                                                    target="_blank" 
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-sm font-bold text-slate-800 hover:text-indigo-600 truncate block pr-2"
-                                                                    title={detail.title}
-                                                                >
-                                                                    {detail.title || detail.url}
-                                                                </a>
-                                                                <a 
-                                                                    href={detail.url} 
-                                                                    target="_blank" 
-                                                                    rel="noopener noreferrer"
-                                                                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600"
-                                                                >
-                                                                    <ExternalLinkIcon className="w-3.5 h-3.5" />
-                                                                </a>
+                                                                {item.type === 'file' ? (
+                                                                    <span className="text-sm font-bold text-slate-800 truncate block pr-2" title={detail.title}>
+                                                                        {detail.title} (本地文件)
+                                                                    </span>
+                                                                ) : (
+                                                                    <a 
+                                                                        href={detail.url} 
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-sm font-bold text-slate-800 hover:text-indigo-600 truncate block pr-2"
+                                                                        title={detail.title}
+                                                                    >
+                                                                        {detail.title || detail.url}
+                                                                    </a>
+                                                                )}
+                                                                
+                                                                {item.type !== 'file' && (
+                                                                    <a 
+                                                                        href={detail.url} 
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer"
+                                                                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600"
+                                                                    >
+                                                                        <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                                                    </a>
+                                                                )}
                                                             </div>
-                                                            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2 font-mono">
-                                                                <span className="max-w-[150px] truncate">{detail.source || new URL(detail.url).hostname}</span>
-                                                                <span className="text-slate-300">|</span>
-                                                                <span className="truncate opacity-70">{detail.url}</span>
-                                                            </div>
+                                                            {item.type !== 'file' && (
+                                                                <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2 font-mono">
+                                                                    <span className="max-w-[150px] truncate">{detail.source || new URL(detail.url).hostname}</span>
+                                                                    <span className="text-slate-300">|</span>
+                                                                    <span className="truncate opacity-70">{detail.url}</span>
+                                                                </div>
+                                                            )}
                                                             {detail.snippet && (
                                                                 <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed opacity-90 font-medium">
                                                                     {detail.snippet}
@@ -733,6 +798,14 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                     </div>
                 </div>
             )}
+
+            {/* Token Warning Modal */}
+            <TokenWarningModal 
+                isOpen={!!pendingUpload}
+                tokens={pendingUpload?.tokens || 0}
+                onConfirm={confirmUpload}
+                onCancel={cancelUpload}
+            />
 
             {/* Search Input Modal */}
             {isSearchOpen && (
