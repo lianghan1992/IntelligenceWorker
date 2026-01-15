@@ -43,7 +43,13 @@ const EDITOR_SCRIPT = `
     html, body { min-height: 100vh !important; margin: 0; background-color: #ffffff; }
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 2147483647 !important; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
-    *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
+    *[contenteditable="true"] { 
+        cursor: text !important; 
+        outline: 2px dashed #10b981 !important; 
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); 
+        user-select: text !important; 
+        -webkit-user-select: text !important;
+    }
     .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 1px solid #3b82f6; z-index: 2147483647; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
     .ai-r-nw { top: -5px; left: -5px; cursor: nw-resize; }
     .ai-r-n  { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
@@ -78,6 +84,9 @@ const EDITOR_SCRIPT = `
 
   function createResizers(el) {
       removeResizers();
+      // Don't add resizers if editing text
+      if (el.isContentEditable) return;
+      
       const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
       handles.forEach(h => {
           const div = document.createElement('div');
@@ -96,7 +105,7 @@ const EDITOR_SCRIPT = `
     if (e.target.isContentEditable) return;
     e.preventDefault(); e.stopPropagation();
     
-    // FIX: Allow clicking children. If clicking a new element (even if child of current), select it.
+    // Allow clicking children. If clicking a new element (even if child of current), select it.
     if (selectedEl === e.target) return;
 
     if (selectedEl && selectedEl !== e.target) {
@@ -166,19 +175,32 @@ const EDITOR_SCRIPT = `
       target.classList.remove('ai-editor-hover'); 
   });
 
+  // Double Click Text Editing
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault(); e.stopPropagation();
-     if (selectedEl && !e.target.classList.contains('ai-resizer') && !selectedEl.classList.contains('ai-img-wrapper')) {
-         removeResizers();
-         selectedEl.contentEditable = 'true';
-         selectedEl.focus();
+     
+     // FIX: Prefer e.target for double click to ensure we edit what is under cursor
+     // The previous logic prevented editing children of selected containers.
+     let target = e.target;
+     
+     // Handle img wrapper case (cannot edit wrapper)
+     if (target.classList.contains('ai-img-wrapper') || target.classList.contains('ai-resizer')) return;
+
+     if (!target.isContentEditable) {
+         removeResizers(); // Hide handles while editing
+         target.contentEditable = 'true';
+         target.focus();
+         
+         // Force select the target being edited if it wasn't selected
+         if (target !== selectedEl) selectElement(target);
+
          const onBlur = () => {
-             selectedEl.contentEditable = 'false';
-             selectedEl.removeEventListener('blur', onBlur);
-             createResizers(selectedEl);
+             target.contentEditable = 'false';
+             target.removeEventListener('blur', onBlur);
+             createResizers(target); // restore handles
              pushHistory(); 
          };
-         selectedEl.addEventListener('blur', onBlur);
+         target.addEventListener('blur', onBlur);
      }
   });
   
@@ -399,7 +421,7 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         updateStyle: (key, value) => sendCommand('UPDATE_STYLE', { [key]: value }),
         updateContent: (text) => sendCommand('UPDATE_CONTENT', text),
         updateAttribute: (key, value) => sendCommand('UPDATE_ATTRIBUTE', { key, val: value }),
-        insertElement: (type, src) => sendCommand('INSERT_ELEMENT', { type, src }),
+        insertElement: (type, value) => sendCommand('INSERT_ELEMENT', { type, [type === 'img' ? 'src' : 'value']: value }),
         updateTransform: (dx, dy, scaleVal) => sendCommand('UPDATE_TRANSFORM', { dx, dy, scale: scaleVal }),
         changeLayer: (direction) => sendCommand('LAYER', direction),
         duplicate: () => sendCommand('DUPLICATE'),

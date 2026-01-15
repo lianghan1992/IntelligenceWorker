@@ -6,14 +6,14 @@ import {
     LinkIcon, RefreshIcon,
     LayerIcon, DuplicateIcon, ArrowIcon,
     BoldIcon, ItalicIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon,
-    PlusIcon, DocumentTextIcon // Added DocumentTextIcon for Text Tool
+    PlusIcon, DocumentTextIcon 
 } from '../icons';
 
 export interface VisualCanvasHandle {
     updateStyle: (key: string, value: string | number) => void;
     updateContent: (text: string) => void;
     updateAttribute: (key: string, value: string) => void;
-    insertElement: (type: 'img' | 'text', value: string) => void; // Added 'text'
+    insertElement: (type: 'img' | 'text', value: string) => void;
     updateTransform: (dx: number, dy: number, scale?: number) => void;
     scaleGroup: (factor: number) => void;
     changeLayer: (direction: 'up' | 'down') => void;
@@ -33,7 +33,7 @@ export interface VisualCanvasProps {
     canvasSize: { width: number; height: number };
 }
 
-interface VisualEditorProps {
+export interface VisualEditorProps {
     initialHtml: string;
     onSave: (newHtml: string) => void;
     scale?: number;
@@ -42,51 +42,7 @@ interface VisualEditorProps {
     hideToolbar?: boolean;
 }
 
-// --- Long Press Button Component ---
-const RepeatingButton: React.FC<{
-    onClick: () => void;
-    className?: string;
-    children: React.ReactNode;
-    title?: string;
-}> = ({ onClick, className, children, title }) => {
-    const intervalRef = useRef<number | null>(null);
-    const timeoutRef = useRef<number | null>(null);
-    const clickRef = useRef(onClick);
-
-    useEffect(() => { clickRef.current = onClick; }, [onClick]);
-
-    const stop = useCallback(() => {
-        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-        window.removeEventListener('mouseup', stop);
-    }, []);
-
-    const start = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-        clickRef.current();
-        timeoutRef.current = window.setTimeout(() => {
-            intervalRef.current = window.setInterval(() => { clickRef.current(); }, 100);
-        }, 300);
-        window.addEventListener('mouseup', stop);
-    }, [stop]);
-    
-    useEffect(() => { return stop; }, [stop]);
-
-    return (
-        <button
-            className={className}
-            onMouseDown={start}
-            onMouseUp={stop}
-            onMouseLeave={stop}
-            onTouchStart={start}
-            onTouchEnd={stop}
-            title={title}
-        >
-            {children}
-        </button>
-    );
-};
-
-// --- Editor Interaction Script (Updated) ---
+// --- Editor Interaction Script ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
@@ -105,8 +61,6 @@ const EDITOR_SCRIPT = `
     html, body { min-height: 100vh !important; margin: 0; background-color: #ffffff; }
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 2147483647 !important; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
-    
-    /* Strong override for editable content */
     *[contenteditable="true"] { 
         cursor: text !important; 
         outline: 2px dashed #10b981 !important; 
@@ -114,7 +68,6 @@ const EDITOR_SCRIPT = `
         user-select: text !important; 
         -webkit-user-select: text !important;
     }
-    
     .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 1px solid #3b82f6; z-index: 2147483647; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
     .ai-r-nw { top: -5px; left: -5px; cursor: nw-resize; }
     .ai-r-n  { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
@@ -149,9 +102,7 @@ const EDITOR_SCRIPT = `
 
   function createResizers(el) {
       removeResizers();
-      // Don't add resizers if editing text
       if (el.isContentEditable) return;
-      
       const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
       handles.forEach(h => {
           const div = document.createElement('div');
@@ -165,16 +116,13 @@ const EDITOR_SCRIPT = `
       document.querySelectorAll('.ai-resizer').forEach(r => r.remove());
   }
 
-  // --- Resize Mouse Down ---
   document.addEventListener('mousedown', (e) => {
-      // 1. Resizing
       if (e.target.classList.contains('ai-resizer')) {
           e.preventDefault(); e.stopPropagation();
           isResizing = true;
           resizeHandle = e.target.dataset.handle;
           startX = e.clientX;
           startY = e.clientY;
-          
           if (selectedEl) {
               const rect = selectedEl.getBoundingClientRect();
               const comp = window.getComputedStyle(selectedEl);
@@ -183,26 +131,18 @@ const EDITOR_SCRIPT = `
           }
           return;
       }
-      
-      // 2. Dragging - CRITICAL FIX: Do NOT start drag if editing text
       if (selectedEl && e.target === selectedEl) {
-          if (selectedEl.isContentEditable) {
-              // Allow default behavior (text selection)
-              return;
-          }
-          
+          if (selectedEl.isContentEditable) return;
           isDragging = true;
           startX = e.clientX;
           startY = e.clientY;
           const t = getTransform(selectedEl);
           startTranslateX = t.x;
           startTranslateY = t.y;
-          // Don't prevent default here if we want to allow focus, but we do want to prevent text selection during drag
           e.preventDefault(); 
       }
   });
 
-  // --- Global Mouse Move ---
   window.addEventListener('mousemove', (e) => {
       const scale = window.visualEditorScale || 1;
       const dx = (e.clientX - startX) / scale;
@@ -210,21 +150,12 @@ const EDITOR_SCRIPT = `
 
       if (isResizing && selectedEl) {
           e.preventDefault();
-          
-          // Force layout properties to ensure resizing works even in Flex/Grid
           if (selectedEl.style.maxWidth) selectedEl.style.maxWidth = 'none';
           if (selectedEl.style.maxHeight) selectedEl.style.maxHeight = 'none';
-          // If in flex container, prevent shrinking
           selectedEl.style.flexShrink = '0';
           
-          if (resizeHandle.includes('e')) {
-               selectedEl.style.width = Math.max(10, startWidth + dx) + 'px';
-          }
-          if (resizeHandle.includes('s')) {
-               selectedEl.style.height = Math.max(10, startHeight + dy) + 'px';
-          }
-          // Simple logic for SE resizing. 
-          // Note: Full multi-directional resizing logic is complex, sticking to Width/Height for stability.
+          if (resizeHandle.includes('e')) selectedEl.style.width = Math.max(10, startWidth + dx) + 'px';
+          if (resizeHandle.includes('s')) selectedEl.style.height = Math.max(10, startHeight + dy) + 'px';
       }
 
       if (isDragging && selectedEl) {
@@ -233,41 +164,25 @@ const EDITOR_SCRIPT = `
           let currentScale = 1;
           const scaleMatch = currentStyle.match(/scale\\(([^)]+)\\)/);
           if (scaleMatch) currentScale = parseFloat(scaleMatch[1]);
-
           selectedEl.style.transform = \`translate(\${startTranslateX + dx}px, \${startTranslateY + dy}px) scale(\${currentScale})\`;
       }
   });
 
   window.addEventListener('mouseup', () => {
       if (isDragging || isResizing) {
-          isDragging = false;
-          isResizing = false;
-          pushHistory();
+          isDragging = false; isResizing = false; pushHistory();
       }
   });
 
   document.body.addEventListener('click', (e) => {
     if (e.target.classList.contains('ai-resizer')) return;
-    
-    // If editing text, clicking inside shouldn't deselect
-    if (selectedEl && selectedEl.contains(e.target) && selectedEl.isContentEditable) {
-        return;
-    }
-    
-    // Stop propagation so we select the specific child clicked
+    if (selectedEl && selectedEl.contains(e.target) && selectedEl.isContentEditable) return;
     e.stopPropagation();
 
-    // Clicking selected element does nothing (keeps selection)
     if (selectedEl === e.target) return;
-
-    // Deselect previous
-    if (selectedEl && selectedEl !== e.target) {
-        deselect();
-    }
+    if (selectedEl && selectedEl !== e.target) deselect();
     
     let target = e.target;
-    
-    // Auto-wrap IMG
     if (target.tagName === 'IMG') {
         if (target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
              target = target.parentElement;
@@ -275,20 +190,13 @@ const EDITOR_SCRIPT = `
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              const comp = window.getComputedStyle(target);
-             wrapper.style.cssText = comp.cssText; // Copy all styles
-             
-             // Ensure positioning works
+             wrapper.style.cssText = comp.cssText;
              wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
              wrapper.style.width = target.offsetWidth + 'px';
              wrapper.style.height = target.offsetHeight + 'px';
              wrapper.style.position = comp.position === 'static' ? 'relative' : comp.position;
-             
-             target.style.position = 'static';
-             target.style.transform = 'none';
-             target.style.width = '100%';
-             target.style.height = '100%';
-             target.style.margin = '0';
-             
+             target.style.position = 'static'; target.style.transform = 'none';
+             target.style.width = '100%'; target.style.height = '100%'; target.style.margin = '0';
              if (target.parentNode) {
                  target.parentNode.insertBefore(wrapper, target);
                  wrapper.appendChild(target);
@@ -297,56 +205,27 @@ const EDITOR_SCRIPT = `
              }
         }
     }
-    
-    // Deselect if background
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
-        deselect();
-        return;
+        deselect(); return;
     }
-    
     e.preventDefault(); 
     selectElement(target);
   }, true);
 
-  document.body.addEventListener('mouseover', (e) => {
-      if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
-      let target = e.target;
-      if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
-           target = target.parentElement;
-      }
-      target.classList.add('ai-editor-hover');
-  });
-  
-  document.body.addEventListener('mouseout', (e) => { 
-      let target = e.target;
-      if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
-           target = target.parentElement;
-      }
-      target.classList.remove('ai-editor-hover'); 
-  });
-
-  // Double Click Text Editing
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault(); e.stopPropagation();
-     
-     // Find the target for editing. If selectedEl is valid, use it.
-     let target = selectedEl || e.target;
-     
-     // Handle img wrapper case (cannot edit wrapper)
+     let target = e.target;
      if (target.classList.contains('ai-img-wrapper') || target.classList.contains('ai-resizer')) return;
 
      if (!target.isContentEditable) {
-         removeResizers(); // Hide handles while editing
+         removeResizers();
          target.contentEditable = 'true';
          target.focus();
-         
-         // Select logic when editing
          if (target !== selectedEl) selectElement(target);
-
          const onBlur = () => {
              target.contentEditable = 'false';
              target.removeEventListener('blur', onBlur);
-             createResizers(target); // restore handles
+             createResizers(target);
              pushHistory(); 
          };
          target.addEventListener('blur', onBlur);
@@ -358,17 +237,12 @@ const EDITOR_SCRIPT = `
       let hasImgChild = false;
       if (el.classList.contains('ai-img-wrapper')) {
           const img = el.querySelector('img');
-          if (img) {
-              imgSrc = img.getAttribute('src');
-              hasImgChild = true;
-          }
+          if (img) { imgSrc = img.getAttribute('src'); hasImgChild = true; }
       }
-      let contentText = el.innerText;
-
       window.parent.postMessage({ 
           type: 'SELECTED', 
           tagName: el.tagName,
-          content: contentText,
+          content: el.innerText,
           color: comp.color,
           fontSize: comp.fontSize,
           fontWeight: comp.fontWeight,
@@ -391,8 +265,7 @@ const EDITOR_SCRIPT = `
       selectedEl.classList.remove('ai-editor-hover');
       selectedEl.classList.add('ai-editor-selected');
       createResizers(selectedEl);
-      const comp = window.getComputedStyle(selectedEl);
-      sendSelection(selectedEl, comp);
+      sendSelection(selectedEl, window.getComputedStyle(selectedEl));
   }
 
   function deselect(temporary = false) {
@@ -407,27 +280,15 @@ const EDITOR_SCRIPT = `
       }
   }
 
-  // --- SCALE GROUP LOGIC ---
   function scaleElementRecursive(el, factor) {
       const style = window.getComputedStyle(el);
-      
-      // Font Size
       const fs = parseFloat(style.fontSize);
       if (fs) el.style.fontSize = (fs * factor) + 'px';
-      
-      // Padding
-      const pt = parseFloat(style.paddingTop); if(pt) el.style.paddingTop = (pt * factor) + 'px';
-      const pb = parseFloat(style.paddingBottom); if(pb) el.style.paddingBottom = (pb * factor) + 'px';
-      const pl = parseFloat(style.paddingLeft); if(pl) el.style.paddingLeft = (pl * factor) + 'px';
-      const pr = parseFloat(style.paddingRight); if(pr) el.style.paddingRight = (pr * factor) + 'px';
-
-      // Line Height (if px)
-      if (style.lineHeight.endsWith('px')) {
-          const lh = parseFloat(style.lineHeight);
-          if (lh) el.style.lineHeight = (lh * factor) + 'px';
-      }
-      
-      // Children
+      // Basic padding scaling
+      ['paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight'].forEach(p => {
+          const v = parseFloat(style[p]);
+          if(v) el.style[p] = (v * factor) + 'px';
+      });
       Array.from(el.children).forEach(child => scaleElementRecursive(child, factor));
   }
 
@@ -448,23 +309,18 @@ const EDITOR_SCRIPT = `
     }
 
     if (action === 'INSERT_ELEMENT') {
-        // ... (Insert Logic kept same) ...
         if (value.type === 'img') {
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
-             wrapper.style.position = 'absolute';
-             wrapper.style.left = '100px';
-             wrapper.style.top = '100px';
-             wrapper.style.zIndex = '50';
+             wrapper.style.position = 'absolute'; wrapper.style.left = '100px'; wrapper.style.top = '100px'; wrapper.style.zIndex = '50';
              const img = document.createElement('img');
              img.onload = function() {
                  let w = this.naturalWidth; let h = this.naturalHeight;
-                 if (w > 400) { const ratio = 400 / w; w = 400; h = h * ratio; }
+                 if (w > 400) { const r = 400 / w; w = 400; h = h * r; }
                  wrapper.style.width = w + 'px'; wrapper.style.height = h + 'px';
                  img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'; img.style.display = 'block';
                  wrapper.appendChild(img);
-                 const canvas = document.getElementById('canvas') || document.body;
-                 canvas.appendChild(wrapper);
+                 (document.getElementById('canvas') || document.body).appendChild(wrapper);
                  selectElement(wrapper);
                  pushHistory();
              }
@@ -472,18 +328,10 @@ const EDITOR_SCRIPT = `
         } else if (value.type === 'text') {
              const div = document.createElement('div');
              div.innerText = value.value || '双击编辑文本';
-             div.style.position = 'absolute';
-             div.style.left = '100px';
-             div.style.top = '100px';
-             div.style.fontSize = '24px';
-             div.style.fontWeight = 'bold';
-             div.style.color = '#333';
-             div.style.zIndex = '50';
-             // Default Tailwind-ish style
-             div.className = 'font-sans'; 
-             
-             const canvas = document.getElementById('canvas') || document.body;
-             canvas.appendChild(div);
+             div.style.position = 'absolute'; div.style.left = '100px'; div.style.top = '100px';
+             div.style.fontSize = '24px'; div.style.fontWeight = 'bold'; div.style.color = '#333'; div.style.zIndex = '50';
+             div.className = 'font-sans';
+             (document.getElementById('canvas') || document.body).appendChild(div);
              selectElement(div);
              pushHistory();
         }
@@ -492,16 +340,8 @@ const EDITOR_SCRIPT = `
     
     if (!selectedEl) return;
     
-    if (action === 'SCALE_GROUP') {
-        // New: Scale tree
-        const factor = value; // 1.1 or 0.9
-        scaleElementRecursive(selectedEl, factor);
-        pushHistory();
-    }
-    else if (action === 'UPDATE_CONTENT') { 
-        selectedEl.innerText = value; 
-        pushHistory(); 
-    }
+    if (action === 'SCALE_GROUP') { scaleElementRecursive(selectedEl, value); pushHistory(); }
+    else if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushHistory(); }
     else if (action === 'UPDATE_STYLE') { 
         Object.entries(value).forEach(([k, v]) => {
             const prop = k.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
@@ -513,51 +353,39 @@ const EDITOR_SCRIPT = `
         if (value.key === 'src' && selectedEl.classList.contains('ai-img-wrapper')) {
             const img = selectedEl.querySelector('img');
             if (img) img.src = value.val;
-        } else {
-            selectedEl.setAttribute(value.key, value.val); 
-        }
+        } else { selectedEl.setAttribute(value.key, value.val); }
         pushHistory(); 
     }
-    else if (action === 'DELETE') { 
-        selectedEl.remove(); 
-        deselect(); 
-        pushHistory(); 
-    } 
+    else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); } 
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
-        // ... (duplicate logic same)
+        const top = parseFloat(getComputedStyle(clone).top) || 0;
+        const left = parseFloat(getComputedStyle(clone).left) || 0;
+        clone.style.top = (top + 20) + 'px'; clone.style.left = (left + 20) + 'px';
         selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
         selectElement(clone);
         pushHistory();
     }
     else if (action === 'LAYER') {
-        // ... (layer logic same)
-        const style = window.getComputedStyle(selectedEl);
-        const currentZ = parseInt(style.zIndex) || 0;
-        const newZ = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
-        selectedEl.style.setProperty('z-index', newZ.toString(), 'important');
-        if (style.position === 'static') selectedEl.style.setProperty('position', 'relative', 'important');
+        const z = parseInt(getComputedStyle(selectedEl).zIndex) || 0;
+        selectedEl.style.setProperty('z-index', (value === 'up' ? z + 1 : Math.max(0, z - 1)).toString(), 'important');
+        if (getComputedStyle(selectedEl).position === 'static') selectedEl.style.setProperty('position', 'relative', 'important');
         pushHistory();
     }
     else if (action === 'UPDATE_TRANSFORM') {
-        // ... (transform logic same)
-        const currentTransform = selectedEl.style.transform || '';
-        let currentScale = 1; let currentX = 0; let currentY = 0;
-        const scaleMatch = currentTransform.match(/scale\\(([^)]+)\\)/);
+        const t = getTransform(selectedEl);
+        const newX = t.x + (value.dx || 0);
+        const newY = t.y + (value.dy || 0);
+        const currentStyle = selectedEl.style.transform || '';
+        let currentScale = 1;
+        const scaleMatch = currentStyle.match(/scale\\(([^)]+)\\)/);
         if (scaleMatch) currentScale = parseFloat(scaleMatch[1]);
-        const translateMatch = currentTransform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
-        if (translateMatch) { currentX = parseFloat(translateMatch[1]); currentY = parseFloat(translateMatch[2]); }
-        
-        const newX = currentX + (value.dx || 0);
-        const newY = currentY + (value.dy || 0);
         const newScale = value.scale !== undefined ? value.scale : currentScale;
         selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) scale(\${newScale})\`;
         selectElement(selectedEl);
         pushHistory();
     }
-    else if (action === 'DESELECT_FORCE') {
-        deselect();
-    }
+    else if (action === 'DESELECT_FORCE') { deselect(); }
   });
 })();
 </script>
@@ -567,9 +395,7 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
-    const [selectedElement, setSelectedElement] = useState<any>(null);
 
-    // Expose methods to parent
     useImperativeHandle(ref, () => ({
         updateStyle: (key, value) => sendCommand('UPDATE_STYLE', { [key]: value }),
         updateContent: (text) => sendCommand('UPDATE_CONTENT', text),
@@ -580,18 +406,15 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         duplicate: () => sendCommand('DUPLICATE'),
         deleteElement: () => sendCommand('DELETE'),
         deselect: () => sendCommand('DESELECT_FORCE'),
-        scaleGroup: (factor) => sendCommand('SCALE_GROUP', factor), // New
+        scaleGroup: (factor) => sendCommand('SCALE_GROUP', factor),
         getCanvasNode: () => {
             const doc = iframeRef.current?.contentDocument;
-            if (!doc) return null;
-            return doc.getElementById('canvas') || doc.body;
+            return doc ? (doc.getElementById('canvas') || doc.body) : null;
         }
     }));
 
-    // Initial Load & External Updates
     useEffect(() => {
         if (isInternalUpdate.current) { isInternalUpdate.current = false; return; }
-
         const iframe = iframeRef.current;
         if (iframe) {
             const doc = iframe.contentDocument;
@@ -608,15 +431,12 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         }
     }, [initialHtml]);
 
-    // Handle Messages from Iframe
     useEffect(() => {
         const handler = (e: MessageEvent) => {
             if (e.data.type === 'SELECTED') {
-                setSelectedElement(e.data);
                 if (onSelectionChange) onSelectionChange(e.data);
             }
             else if (e.data.type === 'DESELECT') {
-                setSelectedElement(null);
                 if (onSelectionChange) onSelectionChange(null);
             }
             else if (e.data.type === 'HISTORY_UPDATE') {
@@ -629,14 +449,12 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         return () => window.removeEventListener('message', handler);
     }, [onSave, onSelectionChange]);
 
-    // Update Scale inside iframe
     useEffect(() => {
         if (iframeRef.current?.contentWindow) {
             iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
         }
     }, [scale]);
 
-    // Update Canvas Size in Iframe
     useEffect(() => {
         const doc = iframeRef.current?.contentDocument;
         if (doc) {
@@ -646,24 +464,15 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
                 style.id = 'dynamic-canvas-size';
                 doc.head.appendChild(style);
             }
-            style.innerHTML = `
-                #canvas { 
-                    width: ${canvasSize.width}px !important; 
-                    height: ${canvasSize.height}px !important;
-                    max-width: none !important;
-                    max-height: none !important;
-                }
-            `;
+            style.innerHTML = `#canvas { width: ${canvasSize.width}px !important; height: ${canvasSize.height}px !important; max-width: none !important; max-height: none !important; }`;
         }
     }, [canvasSize]);
 
-    // --- Zoom Interaction ---
     const handleWheel = useCallback((e: React.WheelEvent) => {
         if (e.altKey && onScaleChange) {
             e.preventDefault();
-            const delta = -e.deltaY * 0.001; // Scale factor
-            const newScale = Math.min(Math.max(0.1, scale + delta), 3);
-            onScaleChange(newScale);
+            const delta = -e.deltaY * 0.001;
+            onScaleChange(Math.min(Math.max(0.1, scale + delta), 3));
         }
     }, [scale, onScaleChange]);
 
@@ -673,16 +482,13 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
 
     return (
         <div className="flex w-full h-full bg-[#0f172a] overflow-hidden relative">
-            {/* Scrollable Canvas Wrapper */}
             <div 
                 ref={containerRef}
                 className="flex-1 relative overflow-auto flex items-center justify-center p-10 no-scrollbar"
                 onWheel={handleWheel}
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-                 <style>{`
-                    .no-scrollbar::-webkit-scrollbar { display: none; }
-                `}</style>
+                 <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
                  <div 
                     style={{ 
                         width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, 
@@ -701,267 +507,112 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
 });
 VisualCanvas.displayName = 'VisualCanvas';
 
-export const VisualEditor: React.FC<VisualEditorProps> = ({ 
-    initialHtml, 
-    onSave, 
-    scale: externalScale = 1,
-    onScaleChange,
-    canvasSize = { width: 1600, height: 900 },
-    hideToolbar = false
-}) => {
-    const [internalScale, setInternalScale] = useState(externalScale);
-    const [selectedElement, setSelectedElement] = useState<any>(null);
+// --- Visual Editor Wrapper ---
+export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave, scale: initialScale = 0.8, onScaleChange, canvasSize = {width:1600, height:900}, hideToolbar }) => {
     const editorRef = useRef<VisualCanvasHandle>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const scale = onScaleChange ? externalScale : internalScale;
+    const [selection, setSelection] = useState<any>(null);
+    const [scale, setScale] = useState(initialScale);
     
-    const handleScaleChange = (newScale: number) => {
-        if (onScaleChange) {
-            onScaleChange(newScale);
-        } else {
-            setInternalScale(newScale);
-        }
-    };
-
+    // Sync scale state if prop changes
     useEffect(() => {
-        if (!onScaleChange) {
-            setInternalScale(externalScale);
-        }
-    }, [externalScale, onScaleChange]);
-
-    const handleUpdateStyle = (key: string, value: string | number) => {
-        editorRef.current?.updateStyle(key, value);
+        if (initialScale !== undefined) setScale(initialScale);
+    }, [initialScale]);
+    
+    const handleScaleChange = (s: number) => {
+        setScale(s);
+        if (onScaleChange) onScaleChange(s);
     };
 
-    const handleInsertText = () => {
-        editorRef.current?.insertElement('text', '点击编辑文本');
-    };
-
-    const handleInsertImage = () => {
-        const url = prompt("请输入图片 URL:");
-        if (url) {
-            editorRef.current?.insertElement('img', url);
-        }
-    };
-
-    const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    editorRef.current?.insertElement('img', event.target.result as string);
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
-    const handleImageChange = () => {
-        const currentSrc = selectedElement?.src || "";
-        const url = prompt("请输入图片 URL:", currentSrc);
-        if (url !== null) {
-            editorRef.current?.updateAttribute('src', url);
-        }
-    };
-
-    const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV','LI'].includes(selectedElement.tagName));
-    const isImg = selectedElement && (selectedElement.tagName === 'IMG' || (selectedElement.tagName === 'DIV' && selectedElement.hasImgChild));
-    const isBold = selectedElement && (selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700);
-    const isItalic = selectedElement && selectedElement.fontStyle === 'italic';
-    const align = selectedElement?.textAlign || 'left';
+    const isText = selection && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selection.tagName));
+    const isImg = selection && (selection.tagName === 'IMG' || (selection.tagName === 'DIV' && selection.hasImgChild));
+    const isBold = selection && (selection.fontWeight === 'bold' || parseInt(selection.fontWeight) >= 700);
+    const isItalic = selection && selection.fontStyle === 'italic';
+    const align = selection?.textAlign || 'left';
     
     const parseVal = (val: string) => parseInt(val) || 0;
     const parseFontSize = (val: string) => parseInt(val) || 16;
-
+    
     const Toolbar = () => (
-        <div className={`flex items-center gap-1.5 py-1 ${selectedElement ? 'overflow-x-auto no-scrollbar w-full' : 'overflow-visible'}`}>
-             {/* Insert Tools */}
-            <div className="flex items-center gap-2 flex-shrink-0 mr-2 border-r border-slate-200 pr-2">
-                 <button onClick={handleInsertText} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm">
-                     <DocumentTextIcon className="w-3.5 h-3.5"/> 插入文本
-                 </button>
-                 
-                 <div className="relative group">
-                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
-                         <PhotoIcon className="w-3.5 h-3.5"/> 插入图片
-                     </button>
-                     <div className="absolute top-full left-0 mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
-                         <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 font-medium items-center"><LinkIcon className="w-3.5 h-3.5"/> 网络图片</button>
-                         <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer font-medium items-center">
-                             <PhotoIcon className="w-3.5 h-3.5"/> 本地上传
-                             <input 
-                                 ref={fileInputRef}
-                                 type="file" 
-                                 accept="image/*" 
-                                 onChange={handleInsertUpload} 
-                                 className="hidden" 
-                             />
-                         </label>
-                     </div>
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur shadow-xl border border-slate-200 rounded-2xl p-1.5 flex items-center gap-2 animate-in fade-in zoom-in-95 z-50">
+            {/* Type Badge */}
+            <div className="px-2 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase rounded-lg border border-indigo-100">
+                {isImg ? 'IMAGE' : selection.tagName}
+            </div>
+
+            {isText && (
+                <div className="flex items-center gap-1 border-r border-slate-200 pr-2">
+                    <button onClick={() => editorRef.current?.updateStyle('fontSize', `${parseFontSize(selection.fontSize) - 2}px`)} className="p-1 hover:bg-slate-100 rounded text-xs font-bold text-slate-500">-</button>
+                    <span className="text-xs font-mono font-bold w-6 text-center">{parseFontSize(selection.fontSize)}</span>
+                    <button onClick={() => editorRef.current?.updateStyle('fontSize', `${parseFontSize(selection.fontSize) + 2}px`)} className="p-1 hover:bg-slate-100 rounded text-xs font-bold text-slate-500">+</button>
+                    
+                    <button onClick={() => editorRef.current?.updateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1 rounded ${isBold ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
+                    <button onClick={() => editorRef.current?.updateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1 rounded ${isItalic ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
+                    
+                    <div className="flex gap-0.5 bg-slate-50 rounded p-0.5 ml-1">
+                        <button onClick={() => editorRef.current?.updateStyle('textAlign', 'left')} className={`p-0.5 rounded ${align === 'left' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><AlignLeftIcon className="w-3 h-3"/></button>
+                        <button onClick={() => editorRef.current?.updateStyle('textAlign', 'center')} className={`p-0.5 rounded ${align === 'center' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><AlignCenterIcon className="w-3 h-3"/></button>
+                        <button onClick={() => editorRef.current?.updateStyle('textAlign', 'right')} className={`p-0.5 rounded ${align === 'right' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><AlignRightIcon className="w-3 h-3"/></button>
+                    </div>
+
+                    <div className="relative w-5 h-5 ml-1 rounded-full border border-slate-200 overflow-hidden cursor-pointer" title="文字颜色">
+                        <div className="absolute inset-0" style={{backgroundColor: selection.color || '#000'}}></div>
+                        <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => editorRef.current?.updateStyle('color', e.target.value)} />
+                    </div>
+                </div>
+            )}
+
+            {isImg && (
+                <div className="flex items-center gap-1 border-r border-slate-200 pr-2">
+                    <button onClick={() => { const url = prompt("输入新图片地址:", selection.src); if(url) editorRef.current?.updateAttribute('src', url); }} className="flex items-center gap-1 px-2 py-1 bg-slate-50 hover:bg-slate-100 rounded text-[10px] font-bold text-slate-600">
+                        <RefreshIcon className="w-3 h-3"/> 换图
+                    </button>
+                </div>
+            )}
+
+            {/* Layout */}
+            <div className="flex items-center gap-1 border-r border-slate-200 pr-2">
+                 <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-bold text-slate-300">BG</span>
+                    <div className="relative w-5 h-5 rounded border border-slate-200 overflow-hidden cursor-pointer">
+                        <div className="absolute inset-0" style={{backgroundColor: selection.backgroundColor || 'transparent'}}></div>
+                        <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => editorRef.current?.updateStyle('backgroundColor', e.target.value)} />
+                    </div>
+                 </div>
+                 <div className="flex items-center gap-1 ml-1">
+                    <span className="text-[9px] font-bold text-slate-300">R</span>
+                    <input type="number" value={parseVal(selection.borderRadius)} onChange={(e) => editorRef.current?.updateStyle('borderRadius', `${e.target.value}px`)} className="w-8 bg-slate-50 border border-slate-200 rounded px-1 text-xs text-center outline-none" />
                  </div>
             </div>
 
-            {selectedElement ? (
-                <>
-                    {/* Element Type */}
-                    <div className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold uppercase border border-indigo-100 mr-2 flex-shrink-0">
-                        {isImg ? 'IMAGE' : selectedElement.tagName}
-                    </div>
-
-                    {/* Scale Group (New Feature) */}
-                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 flex-shrink-0 mr-1">
-                        <button 
-                            onClick={() => editorRef.current?.scaleGroup(0.9)} 
-                            className="p-1 hover:bg-white rounded text-slate-500 hover:text-indigo-600 transition-colors text-[10px] font-bold w-6 text-center"
-                            title="整体缩小 (文字/间距)"
-                        >
-                            A-
-                        </button>
-                        <span className="text-[9px] text-slate-400 font-bold px-1 select-none">整体缩放</span>
-                        <button 
-                            onClick={() => editorRef.current?.scaleGroup(1.1)} 
-                            className="p-1 hover:bg-white rounded text-slate-500 hover:text-indigo-600 transition-colors text-[10px] font-bold w-6 text-center"
-                            title="整体放大 (文字/间距)"
-                        >
-                            A+
-                        </button>
-                    </div>
-
-                    {/* Typography */}
-                    {isText && (
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 flex-shrink-0">
-                             <div className="flex items-center bg-white border border-slate-200 rounded px-1 h-7">
-                                <RepeatingButton 
-                                    onClick={() => handleUpdateStyle('fontSize', `${Math.max(1, parseFontSize(selectedElement.fontSize) - 1)}px`)}
-                                    className="w-6 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-r border-slate-100 font-bold text-xs"
-                                >-</RepeatingButton>
-                                <input 
-                                    type="number" 
-                                    value={parseFontSize(selectedElement.fontSize)} 
-                                    onChange={(e) => handleUpdateStyle('fontSize', `${e.target.value}px`)}
-                                    className="w-8 text-xs font-bold text-slate-700 outline-none text-center h-full appearance-none bg-transparent"
-                                />
-                                <RepeatingButton 
-                                    onClick={() => handleUpdateStyle('fontSize', `${parseFontSize(selectedElement.fontSize) + 1}px`)}
-                                    className="w-6 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-100 font-bold text-xs"
-                                >+</RepeatingButton>
-                            </div>
-                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                            <button onClick={() => handleUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
-                            <button onClick={() => handleUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1 rounded hover:bg-white ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
-                            
-                            <div className="flex gap-0.5 border border-slate-200 rounded bg-white ml-1">
-                                <button onClick={() => handleUpdateStyle('textAlign', 'left')} className={`p-1 hover:text-indigo-600 ${align === 'left' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignLeftIcon className="w-3.5 h-3.5"/></button>
-                                <button onClick={() => handleUpdateStyle('textAlign', 'center')} className={`p-1 hover:text-indigo-600 ${align === 'center' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignCenterIcon className="w-3.5 h-3.5"/></button>
-                                <button onClick={() => handleUpdateStyle('textAlign', 'right')} className={`p-1 hover:text-indigo-600 ${align === 'right' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignRightIcon className="w-3.5 h-3.5"/></button>
-                            </div>
-                            
-                             <div className="relative w-6 h-6 ml-1 cursor-pointer border border-slate-200 rounded overflow-hidden shadow-sm" title="文字颜色">
-                                 <div className="absolute inset-0" style={{backgroundColor: selectedElement.color || '#000'}}></div>
-                                 <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('color', e.target.value)} />
-                             </div>
-                        </div>
-                    )}
-                    
-                    {/* Image Actions */}
-                    {isImg && (
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
-                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm transition-colors">
-                                <RefreshIcon className="w-3 h-3"/> 换图
-                             </button>
-                        </div>
-                    )}
-
-                    {/* Dimensions & Background Group */}
-                    <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
-                        <div className="flex items-center gap-1">
-                            <span className="text-[9px] font-bold text-slate-400">W</span>
-                            <input type="number" value={parseVal(selectedElement.width)} onChange={(e) => editorRef.current?.updateStyle('width', `${e.target.value}px`)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <span className="text-[9px] font-bold text-slate-400">H</span>
-                            <input type="number" value={parseVal(selectedElement.height)} onChange={(e) => editorRef.current?.updateStyle('height', `${e.target.value}px`)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
-                        </div>
-                        
-                        <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                        
-                        <div className="relative w-6 h-6 cursor-pointer border border-slate-200 rounded overflow-hidden shadow-sm" title="背景颜色">
-                             <div className="absolute inset-0" style={{backgroundColor: selectedElement.backgroundColor || 'transparent'}}></div>
-                             <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => editorRef.current?.updateStyle('backgroundColor', e.target.value)} />
-                         </div>
-                         <div className="flex items-center gap-1">
-                            <span className="text-[9px] font-bold text-slate-400">R</span>
-                            <input type="number" value={parseVal(selectedElement.borderRadius)} onChange={(e) => editorRef.current?.updateStyle('borderRadius', `${e.target.value}px`)} className="w-8 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
-                         </div>
-                         
-                         <div className="flex items-center gap-1" title="不透明度">
-                            <span className="text-[9px] font-bold text-slate-400">O</span>
-                            <input type="number" min="0" max="1" step="0.1" value={selectedElement.opacity !== undefined ? selectedElement.opacity : 1} onChange={(e) => editorRef.current?.updateStyle('opacity', e.target.value)} className="w-8 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
-                         </div>
-                    </div>
-
-                    {/* Actions Group */}
-                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
-                         <button onClick={() => editorRef.current?.changeLayer('up')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
-                         <button onClick={() => editorRef.current?.changeLayer('down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
-                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                         <button onClick={() => editorRef.current?.duplicate()} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
-                         <button onClick={() => { editorRef.current?.deleteElement(); setSelectedElement(null); }} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
-                    </div>
-
-                    {/* Transform Nudge Group */}
-                    <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
-                        <RepeatingButton onClick={() => editorRef.current?.updateTransform(-5, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded active:bg-blue-100 transition-colors"><ArrowIcon className="w-3 h-3 rotate-180"/></RepeatingButton>
-                        <div className="flex flex-col gap-0.5">
-                             <RepeatingButton onClick={() => editorRef.current?.updateTransform(0, -5)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded active:bg-blue-100 transition-colors"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></RepeatingButton>
-                             <RepeatingButton onClick={() => editorRef.current?.updateTransform(0, 5)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded active:bg-blue-100 transition-colors"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></RepeatingButton>
-                        </div>
-                        <RepeatingButton onClick={() => editorRef.current?.updateTransform(5, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded active:bg-blue-100 transition-colors"><ArrowIcon className="w-3 h-3"/></RepeatingButton>
-                    </div>
-                </>
-            ) : (
-                <div className="text-xs text-slate-400 italic px-2">选择元素进行编辑</div>
-            )}
+            {/* Actions */}
+            <div className="flex items-center gap-1">
+                 <button onClick={() => editorRef.current?.changeLayer('up')} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="上移"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
+                 <button onClick={() => editorRef.current?.changeLayer('down')} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="下移"><LayerIcon className="w-3.5 h-3.5"/></button>
+                 <button onClick={() => editorRef.current?.duplicate()} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
+                 <button onClick={() => { editorRef.current?.deleteElement(); setSelection(null); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
+            </div>
+            
+            <button onClick={() => { editorRef.current?.deselect(); setSelection(null); }} className="ml-1 p-1 text-slate-300 hover:text-slate-500"><CloseIcon className="w-3.5 h-3.5"/></button>
         </div>
     );
 
     return (
-        <div className="flex flex-col w-full h-full bg-transparent relative">
-             {/* Toolbar - Only visible if not hidden */}
-             {!hideToolbar && (
-                 <div className="h-14 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">
-                    <div className="flex items-center gap-2 flex-1 min-w-0 relative">
-                        <Toolbar />
-                    </div>
-                    {/* Zoom Controls */}
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">
-                            Zoom: {Math.round(scale * 100)}%
-                        </span>
-                        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-                            <button onClick={() => handleScaleChange(Math.max(0.1, scale - 0.1))} className="w-7 h-7 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-sm transition-colors">-</button>
-                            <button onClick={() => handleScaleChange(Math.min(3, scale + 0.1))} className="w-7 h-7 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-sm transition-colors">+</button>
-                        </div>
-                    </div>
-                 </div>
-             )}
-
-             <div className="flex-1 relative overflow-hidden flex">
-                <VisualCanvas 
-                    ref={editorRef}
-                    initialHtml={initialHtml}
-                    onSave={onSave}
-                    scale={scale}
-                    onScaleChange={handleScaleChange}
-                    onSelectionChange={setSelectedElement}
-                    canvasSize={canvasSize}
-                />
-             </div>
+        <div className="w-full h-full relative group">
+            <VisualCanvas 
+                ref={editorRef}
+                initialHtml={initialHtml}
+                onSave={onSave}
+                scale={scale}
+                onScaleChange={handleScaleChange}
+                onSelectionChange={setSelection}
+                canvasSize={canvasSize}
+            />
+            {selection && !hideToolbar && <Toolbar />}
+            
+            {/* Scale Indicator if hovering */}
+            <div className="absolute bottom-4 left-4 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                {Math.round(scale * 100)}%
+            </div>
         </div>
     );
 };
-
-export default VisualEditor;
