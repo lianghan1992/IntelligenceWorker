@@ -42,7 +42,7 @@ const EDITOR_SCRIPT = `
   
   // Resizing Coords
   let startWidth = 0, startHeight = 0;
-  let startLeft = 0, startTop = 0; // Not used for transform-based move but good for calc reference
+  let startLeft = 0, startTop = 0; 
   let originalRect = null;
 
   window.visualEditorScale = 1;
@@ -56,8 +56,8 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { 
         outline: 2px solid #3b82f6 !important; 
         outline-offset: 0px; 
-        z-index: 1000 !important;
-        position: relative; /* Ensure z-index works */
+        /* REMOVED z-index: 1000 to allow seeing layer changes */
+        position: relative; /* Ensure it creates a stacking context contextually */
     }
     
     /* Hover Effect */
@@ -87,7 +87,7 @@ const EDITOR_SCRIPT = `
         height: 10px; 
         background: white; 
         border: 1px solid #3b82f6; 
-        z-index: 2001 !important; 
+        z-index: 2147483647 !important; /* Resizers always on top */
         box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
         border-radius: 2px;
     }
@@ -129,7 +129,6 @@ const EDITOR_SCRIPT = `
              sendSelection(selectedEl, comp);
         }
         
-        // Cleanup markers before saving HTML
         const wasSelected = selectedEl;
         const wasEditing = isEditing;
         
@@ -192,12 +191,10 @@ const EDITOR_SCRIPT = `
       startTranslateX = transform.x;
       startTranslateY = transform.y;
       
-      // Ensure element is ready for resizing (convert to block-ish if needed)
       if (style.display === 'inline') {
           selectedEl.style.display = 'inline-block';
       }
       
-      // Lock dimensions if they are auto
       if (style.width === 'auto') selectedEl.style.width = rect.width + 'px';
       if (style.height === 'auto') selectedEl.style.height = rect.height + 'px';
   }
@@ -208,7 +205,7 @@ const EDITOR_SCRIPT = `
       isEditing = true;
       el.contentEditable = 'true';
       el.classList.add('ai-editor-editing');
-      removeResizers(); // Hide handles to clear view
+      removeResizers(); 
       el.focus();
   }
 
@@ -218,31 +215,23 @@ const EDITOR_SCRIPT = `
       isEditing = false;
       selectedEl.contentEditable = 'false';
       selectedEl.classList.remove('ai-editor-editing');
-      createResizers(selectedEl); // Bring back handles
+      createResizers(selectedEl); 
       pushHistory();
   }
 
   // --- Global Event Listeners ---
 
   document.addEventListener('mousedown', (e) => {
-      // 1. If Resizing, handled by handle listener
       if (isResizing) return;
 
-      // 2. If Editing...
       if (isEditing) {
-          // If clicking inside the editing element, allow default behavior (cursor placement)
           if (selectedEl && selectedEl.contains(e.target)) {
               return;
           }
-          // If clicking outside, finish editing
           exitEditMode();
       }
 
-      // 3. Selection / Dragging Start
       if (selectedEl && selectedEl.contains(e.target)) {
-          // Prevent drag if this is a click on a child that might want focus? 
-          // For now, parent wins.
-          
           isDragging = true;
           startX = e.clientX;
           startY = e.clientY;
@@ -259,11 +248,10 @@ const EDITOR_SCRIPT = `
       const dx = (e.clientX - startX) / scale;
       const dy = (e.clientY - startY) / scale;
 
-      // --- RESIZING LOGIC (8-Way Free Ratio) ---
+      // --- RESIZING LOGIC ---
       if (isResizing && selectedEl) {
           e.preventDefault();
           
-          // Disable constraints
           selectedEl.style.maxWidth = 'none';
           selectedEl.style.maxHeight = 'none';
           selectedEl.style.flexShrink = '0';
@@ -273,17 +261,13 @@ const EDITOR_SCRIPT = `
           let newTx = startTranslateX;
           let newTy = startTranslateY;
 
-          // Width Changes
           if (resizeHandle.includes('e')) {
                newW = Math.max(10, startWidth + dx);
           } else if (resizeHandle.includes('w')) {
                newW = Math.max(10, startWidth - dx);
                newTx = startTranslateX + dx; 
-               // Note: This simple translation update relies on transform origin being top-left logic usually, 
-               // or simply shifting the element to visually compensate for width growth to the left.
           }
 
-          // Height Changes
           if (resizeHandle.includes('s')) {
                newH = Math.max(10, startHeight + dy);
           } else if (resizeHandle.includes('n')) {
@@ -291,12 +275,9 @@ const EDITOR_SCRIPT = `
                newTy = startTranslateY + dy;
           }
 
-          // Apply Dimensions
           selectedEl.style.width = newW + 'px';
           selectedEl.style.height = newH + 'px';
           
-          // Apply Position Compensation (if dragging Left or Top handles)
-          // Only if element uses transform for positioning
           if (resizeHandle.includes('w') || resizeHandle.includes('n')) {
               selectedEl.style.transform = \`translate(\${newTx}px, \${newTy}px)\`;
           }
@@ -322,32 +303,25 @@ const EDITOR_SCRIPT = `
 
   // --- Selection & Double Click ---
   document.body.addEventListener('click', (e) => {
-    // Ignore if handling resizer
     if (e.target.classList.contains('ai-resizer')) return;
-    
-    // Ignore if currently editing
     if (isEditing) {
         e.stopPropagation();
         return;
     }
-
     e.stopPropagation();
 
-    // Deselect if background
     if (e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas') {
         deselect();
         return;
     }
     
-    // Select clicked element
-    // Logic: If IMG, ensure wrapper.
     let target = e.target;
     
     if (target.tagName === 'IMG') {
         if (target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
              target = target.parentElement;
         } else {
-             // Create Wrapper on first click
+             // Create Wrapper
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              
@@ -355,12 +329,10 @@ const EDITOR_SCRIPT = `
              const w = target.offsetWidth;
              const h = target.offsetHeight;
 
-             wrapper.style.cssText = comp.cssText; // Copy styles
+             wrapper.style.cssText = comp.cssText;
              wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
              wrapper.style.width = w + 'px';
              wrapper.style.height = h + 'px';
-             // Reset transform on wrapper if needed, or handle initially. 
-             // Simplified: Just wrap in place.
              
              target.style.width = '100%';
              target.style.height = '100%';
@@ -385,7 +357,6 @@ const EDITOR_SCRIPT = `
 
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault(); e.stopPropagation();
-     
      if (selectedEl && !selectedEl.classList.contains('ai-img-wrapper')) {
          enterEditMode(selectedEl);
      }
@@ -458,7 +429,6 @@ const EDITOR_SCRIPT = `
   function deselect(temporary = false) {
       if (selectedEl) {
          if (isEditing) exitEditMode();
-         
          selectedEl.classList.remove('ai-editor-selected');
          removeResizers();
          if (!temporary) {
@@ -466,6 +436,36 @@ const EDITOR_SCRIPT = `
              window.parent.postMessage({ type: 'DESELECT' }, '*');
          }
       }
+  }
+
+  // --- Recursive Scale Logic (FIXED) ---
+  function scaleElementRecursive(el, factor) {
+      if (!el || el.nodeType !== 1) return;
+      const style = window.getComputedStyle(el);
+      
+      const scaleProp = (prop) => {
+          const val = style.getPropertyValue(prop);
+          if (val && val.endsWith('px')) {
+              const num = parseFloat(val);
+              if (!isNaN(num) && num !== 0) {
+                   el.style.setProperty(prop, (num * factor) + 'px');
+              }
+          }
+      };
+
+      scaleProp('font-size');
+      scaleProp('line-height');
+      scaleProp('padding-top');
+      scaleProp('padding-bottom');
+      scaleProp('padding-left');
+      scaleProp('padding-right');
+      scaleProp('margin-top');
+      scaleProp('margin-bottom');
+      scaleProp('margin-left');
+      scaleProp('margin-right');
+      scaleProp('gap');
+
+      Array.from(el.children).forEach(child => scaleElementRecursive(child, factor));
   }
 
   // --- Message Listener ---
@@ -525,27 +525,53 @@ const EDITOR_SCRIPT = `
     
     if (!selectedEl) return;
     
-    if (action === 'UPDATE_STYLE') { 
+    if (action === 'SCALE_GROUP') {
+        const factor = value;
+        scaleElementRecursive(selectedEl, factor);
+        pushHistory();
+    }
+    else if (action === 'UPDATE_STYLE') { 
         Object.entries(value).forEach(([k, v]) => {
             const prop = k.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
             selectedEl.style.setProperty(prop, String(v), 'important');
         });
         pushHistory(); 
     }
+    else if (action === 'LAYER') {
+        const style = window.getComputedStyle(selectedEl);
+        const val = parseInt(style.zIndex);
+        const currentZ = isNaN(val) ? 0 : val;
+        const newZ = value === 'up' ? currentZ + 1 : currentZ - 1;
+        
+        selectedEl.style.setProperty('z-index', newZ.toString(), 'important');
+        
+        if (style.position === 'static') {
+             selectedEl.style.setProperty('position', 'relative', 'important');
+        }
+        pushHistory();
+    }
     else if (action === 'UPDATE_TRANSFORM') {
          const t = getTransform(selectedEl);
-         const s = window.getComputedStyle(selectedEl);
-         const currentScale = parseFloat(s.transform.split(',')[3]) || 1; // Approx scale from matrix
-         
          const nx = t.x + (value.dx || 0);
          const ny = t.y + (value.dy || 0);
-         // Note: Scaling transform is complex with matrix. Sticking to translate.
          selectedEl.style.transform = \`translate(\${nx}px, \${ny}px)\`;
          pushHistory();
     }
     else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); }
     else if (action === 'DESELECT_FORCE') { deselect(); }
-    // ... duplicate, layer logic same as before ...
+    else if (action === 'DUPLICATE') {
+        const clone = selectedEl.cloneNode(true);
+        const currentTransform = clone.style.transform || '';
+        const match = currentTransform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
+        if (match) {
+             const x = parseFloat(match[1]) + 20;
+             const y = parseFloat(match[2]) + 20;
+             clone.style.transform = \`translate(\${x}px, \${y}px)\`;
+        }
+        selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
+        selectElement(clone);
+        pushHistory();
+    }
   });
 })();
 </script>
