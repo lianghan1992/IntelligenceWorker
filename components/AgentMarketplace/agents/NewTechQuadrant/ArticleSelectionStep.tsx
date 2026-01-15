@@ -11,11 +11,12 @@ import {
 interface ArticleSelectionStepProps {
     onConfirm: (articles: ArticlePublic[]) => void;
     onClose: () => void;
+    resetTrigger?: number;
 }
 
 const STORAGE_KEY = 'auto_insight_analyzed_articles';
 
-export const ArticleSelectionStep: React.FC<ArticleSelectionStepProps> = ({ onConfirm, onClose }) => {
+export const ArticleSelectionStep: React.FC<ArticleSelectionStepProps> = ({ onConfirm, onClose, resetTrigger }) => {
     // Data States
     const [articles, setArticles] = useState<ArticlePublic[]>([]);
     const [sources, setSources] = useState<SpiderSource[]>([]);
@@ -43,6 +44,15 @@ export const ArticleSelectionStep: React.FC<ArticleSelectionStepProps> = ({ onCo
         // Load Cache
         loadAnalyzedCache();
     }, []);
+
+    // Listen to reset trigger
+    useEffect(() => {
+        if (resetTrigger && resetTrigger > 0) {
+            setSelectedIds(new Set());
+            // Reload to refresh analyzed status visual if needed
+            loadArticles();
+        }
+    }, [resetTrigger]);
 
     // Load Articles when filters/page change
     useEffect(() => {
@@ -127,6 +137,7 @@ export const ArticleSelectionStep: React.FC<ArticleSelectionStepProps> = ({ onCo
         // 1. Update Cache
         const newAnalyzed = new Set(analyzedIds);
         selected.forEach(a => newAnalyzed.add(a.id));
+        setAnalyzedIds(newAnalyzed); // Immediately update local state
         localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(newAnalyzed)));
         
         // 2. Proceed

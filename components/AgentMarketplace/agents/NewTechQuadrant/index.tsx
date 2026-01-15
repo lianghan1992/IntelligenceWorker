@@ -95,6 +95,9 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [techList, setTechList] = useState<TechItem[]>([]);
     const [isExtracting, setIsExtracting] = useState(false);
     
+    // Reset trigger for the modal internal state
+    const [resetTrigger, setResetTrigger] = useState(0);
+    
     // Store all prompts for this scenario
     const [prompts, setPrompts] = useState<StratifyPrompt[]>([]);
 
@@ -212,7 +215,13 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 articles={selectedArticles}
                 techList={techList}
                 setTechList={setTechList}
-                onOpenSelection={() => setIsSelectionModalOpen(true)} // Re-open modal
+                onOpenSelection={() => {
+                    // Reset everything when opening modal to start fresh
+                    setTechList([]); 
+                    setSelectedArticles([]);
+                    setResetTrigger(Date.now()); // Trigger modal reset
+                    setIsSelectionModalOpen(true);
+                }} 
                 isExtracting={isExtracting}
                 prompts={prompts}
             />
@@ -226,6 +235,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                       <ArticleSelectionStep 
                           onConfirm={handleArticlesConfirmed} 
                           onClose={() => setIsSelectionModalOpen(false)}
+                          resetTrigger={resetTrigger}
                       />
                  </div>
             </div>
