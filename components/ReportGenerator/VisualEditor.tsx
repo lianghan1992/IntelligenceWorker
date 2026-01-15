@@ -40,7 +40,7 @@ interface VisualEditorProps {
     hideToolbar?: boolean;
 }
 
-// --- Long Press Button Component ---
+// --- Long Press Button Component (Fixed) ---
 const RepeatingButton: React.FC<{
     onClick: () => void;
     className?: string;
@@ -49,20 +49,47 @@ const RepeatingButton: React.FC<{
 }> = ({ onClick, className, children, title }) => {
     const intervalRef = useRef<number | null>(null);
     const timeoutRef = useRef<number | null>(null);
+    const clickRef = useRef(onClick);
 
-    const start = () => {
-        onClick(); // Trigger once immediately
+    // Keep ref current
+    useEffect(() => {
+        clickRef.current = onClick;
+    }, [onClick]);
+
+    const stop = useCallback(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+        // Remove global listener
+        window.removeEventListener('mouseup', stop);
+    }, []);
+
+    const start = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+        // e.preventDefault(); // Optional: prevent text selection
+        
+        // Immediate trigger
+        clickRef.current();
+
+        // Setup repeat
         timeoutRef.current = window.setTimeout(() => {
-            intervalRef.current = window.setInterval(onClick, 100); // Repeat every 100ms
-        }, 300); // Wait 300ms before starting repeat
-    };
+            intervalRef.current = window.setInterval(() => {
+                clickRef.current();
+            }, 100);
+        }, 300);
 
-    const stop = () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        timeoutRef.current = null;
-        intervalRef.current = null;
-    };
+        // Attach global mouseup to catch release outside component
+        window.addEventListener('mouseup', stop);
+    }, [stop]);
+    
+    // Cleanup on unmount
+    useEffect(() => {
+        return stop;
+    }, [stop]);
 
     return (
         <button
@@ -70,8 +97,8 @@ const RepeatingButton: React.FC<{
             onMouseDown={start}
             onMouseUp={stop}
             onMouseLeave={stop}
-            onTouchStart={(e) => { e.preventDefault(); start(); }} // Prevent ghost clicks
-            onTouchEnd={(e) => { e.preventDefault(); stop(); }}
+            onTouchStart={start}
+            onTouchEnd={stop}
             title={title}
         >
             {children}
@@ -646,6 +673,28 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
 
     const Toolbar = () => (
         <div className={`flex items-center gap-1.5 py-1 ${selectedElement ? 'overflow-x-auto no-scrollbar w-full' : 'overflow-visible'}`}>
+             {/* Insert Tools (Always Visible) */}
+            <div className="flex items-center gap-2 flex-shrink-0 mr-2 border-r border-slate-200 pr-2">
+                 <div className="relative group">
+                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
+                         <PhotoIcon className="w-3.5 h-3.5"/> 插入图片
+                     </button>
+                     <div className="absolute top-full left-0 mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
+                         <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 font-medium items-center"><LinkIcon className="w-3.5 h-3.5"/> 网络图片</button>
+                         <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer font-medium items-center">
+                             <PhotoIcon className="w-3.5 h-3.5"/> 本地上传
+                             <input 
+                                 ref={fileInputRef}
+                                 type="file" 
+                                 accept="image/*" 
+                                 onChange={handleInsertUpload} 
+                                 className="hidden" 
+                             />
+                         </label>
+                     </div>
+                 </div>
+            </div>
+
             {selectedElement ? (
                 <>
                     {/* Element Type Badge */}
@@ -747,28 +796,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
                     </div>
                 </>
             ) : (
-                /* Insert Tools (No Selection) */
-                <div className="flex items-center gap-2">
-                     <span className="text-xs font-bold text-slate-400 mr-2">插入:</span>
-                     <div className="relative group">
-                         <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
-                             <PhotoIcon className="w-3.5 h-3.5"/> 图片
-                         </button>
-                         <div className="absolute top-full left-0 mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
-                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 font-medium items-center"><LinkIcon className="w-3.5 h-3.5"/> 网络图片</button>
-                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer font-medium items-center">
-                                 <PhotoIcon className="w-3.5 h-3.5"/> 本地上传
-                                 <input 
-                                     ref={fileInputRef}
-                                     type="file" 
-                                     accept="image/*" 
-                                     onChange={handleInsertUpload} 
-                                     className="hidden" 
-                                 />
-                             </label>
-                         </div>
-                     </div>
-                </div>
+                <div className="text-xs text-slate-400 italic px-2">选择元素进行编辑</div>
             )}
         </div>
     );

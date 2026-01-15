@@ -44,6 +44,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [scale, setScale] = useState(0.8);
+    const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
     
     const activeItem = techList.find(t => t.id === activeTechId);
 
@@ -84,12 +85,28 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
          }
     };
     
+    const handleCopyContent = (e: React.MouseEvent, content: string, label: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!content) return;
+        navigator.clipboard.writeText(content);
+        setCopyFeedback(`已复制${label}`);
+        setTimeout(() => setCopyFeedback(null), 2000);
+    };
+    
     // Calculate stats
     const selectedCount = techList.filter(t => t.isSelected).length;
     const processingCount = techList.filter(t => ['analyzing', 'generating_html'].includes(t.analysisState)).length;
 
     return (
-        <div className="flex h-full overflow-hidden">
+        <div className="flex h-full overflow-hidden relative">
+            {/* Copy Feedback Toast */}
+            {copyFeedback && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-full shadow-lg animate-in fade-in slide-in-from-top-2">
+                    {copyFeedback}
+                </div>
+            )}
+
             {/* Left Sidebar: Extraction List & Controls */}
             <div className="w-[450px] bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10 shadow-sm">
                 
@@ -194,9 +211,23 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                             {item.sourceArticleTitle && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded truncate max-w-[120px]" title={item.sourceArticleTitle}>源: {item.sourceArticleTitle}</span>}
                                         </div>
 
-                                        <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2 select-text">
-                                            <div className="mb-1"><span className="font-bold text-slate-700">技术描述:</span> {item.description}</div>
-                                            <div><span className="font-bold text-slate-700">行业应用:</span> {item.status}</div>
+                                        <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2">
+                                            <div 
+                                                className="mb-1 line-clamp-2 hover:line-clamp-none transition-all cursor-text"
+                                                title="双击复制内容"
+                                                onDoubleClick={(e) => handleCopyContent(e, item.description, '技术描述')}
+                                            >
+                                                <span className="font-bold text-slate-700 select-none mr-1">技术描述:</span>
+                                                {item.description}
+                                            </div>
+                                            <div 
+                                                className="line-clamp-2 hover:line-clamp-none transition-all cursor-text"
+                                                title="双击复制内容"
+                                                onDoubleClick={(e) => handleCopyContent(e, item.status, '行业应用')}
+                                            >
+                                                <span className="font-bold text-slate-700 select-none mr-1">行业应用:</span>
+                                                {item.status}
+                                            </div>
                                         </div>
                                         
                                         {/* Status Bar */}

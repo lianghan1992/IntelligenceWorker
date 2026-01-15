@@ -211,6 +211,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 
                 const queryText = `${item.name} ${item.description}`;
                 let retrievedInfo = "暂无详细资料。";
+                let retrievedCount = 0;
                 
                 try {
                     const searchRes = await searchSemanticSegments({
@@ -220,9 +221,13 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         similarity_threshold: 0.35
                     });
                     if (searchRes.items && searchRes.items.length > 0) {
+                        retrievedCount = searchRes.items.length;
                         retrievedInfo = searchRes.items.map((r, i) => `[资料${i+1}] ${r.title}: ${r.content}`).join('\n\n');
                     }
                 } catch(e) { console.warn("RAG failed", e); }
+                
+                // Update log with RAG count
+                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), `RAG 检索完成: 找到 ${retrievedCount} 条相关资料`] } : t));
 
                 // --- Step 2.2: Generate Markdown Report ---
                 setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), 'AI 正在撰写报告...'] } : t));
