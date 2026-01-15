@@ -43,11 +43,13 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
     isExtracting, isGenerating, onStartGeneration, prompts 
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
-    const [scale, setScale] = useState(1.0);
+    const [scale, setScale] = useState(1.0); // Default 1.0, but useEffect will adjust
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
     
-    const containerRef = useRef<HTMLDivElement>(null);
+    // Ref for the container to calculate scale
+    const editorContainerRef = useRef<HTMLDivElement>(null);
+    
     const activeItem = techList.find(t => t.id === activeTechId);
 
     // Auto-select first item
@@ -57,26 +59,44 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
         }
     }, [techList, activeTechId]);
 
-    // Auto-fit scale when entering view
+    // Auto-fit scale logic
     useEffect(() => {
-        if (activeItem?.analysisState === 'done' && containerRef.current) {
-            // Give a small timeout to allow layout to settle
-            setTimeout(() => {
-                if (!containerRef.current) return;
-                const { clientWidth, clientHeight } = containerRef.current;
-                const padding = 80; // Safety padding
-                const targetWidth = 1600;
-                const targetHeight = 900;
+        const calculateScale = () => {
+            if (activeItem?.analysisState === 'done' && editorContainerRef.current) {
+                const { clientWidth, clientHeight } = editorContainerRef.current;
                 
-                const wRatio = (clientWidth - padding) / targetWidth;
-                const hRatio = (clientHeight - padding) / targetHeight;
-                // Default to fit, but max 1.0 (100%)
-                const fitScale = Math.min(wRatio, hRatio);
+                // Canvas base dimensions
+                const BASE_WIDTH = 1600;
+                const BASE_HEIGHT = 900;
                 
-                // Ensure reasonable bounds
-                setScale(Math.max(0.2, fitScale)); 
-            }, 100);
-        }
+                // Reserve space for padding (p-10 = 40px * 2 = 80px) and VisualEditor Toolbar (approx 60px)
+                // VisualEditor structure: Toolbar (h-14 = 56px) + Canvas
+                const availableWidth = clientWidth - 80; 
+                const availableHeight = clientHeight - 56 - 80; 
+                
+                if (availableWidth > 0 && availableHeight > 0) {
+                    const wRatio = availableWidth / BASE_WIDTH;
+                    const hRatio = availableHeight / BASE_HEIGHT;
+                    // Fit completely visible with small margin
+                    const fitScale = Math.min(wRatio, hRatio) * 0.95;
+                    setScale(Math.max(0.1, fitScale));
+                }
+            }
+        };
+
+        // Initial calc
+        calculateScale();
+        
+        // Recalc on resize
+        window.addEventListener('resize', calculateScale);
+        
+        // Double check after render (sometimes layout shifts)
+        const timer = setTimeout(calculateScale, 100);
+        
+        return () => {
+            window.removeEventListener('resize', calculateScale);
+            clearTimeout(timer);
+        };
     }, [activeItem?.analysisState, activeItem?.id]);
 
     const handleToggleSelection = (id: string) => {
@@ -292,9 +312,9 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                          */}
                          
                          {activeItem.analysisState === 'done' && activeItem.htmlContent ? (
-                             <div className="flex flex-col h-full">
+                             <div className="flex flex-col h-full w-full">
                                  {/* Toolbar (Dark) */}
-                                 <div className="h-14 px-6 bg-[#1e293b] border-b border-slate-700 flex justify-between items-center shadow-sm z-20">
+                                 <div className="h-14 px-6 bg-[#1e293b] border-b border-slate-700 flex justify-between items-center shadow-sm z-20 flex-shrink-0">
                                      <div className="flex items-center gap-2 text-white font-bold">
                                          <CheckCircleIcon className="w-5 h-5 text-green-400" />
                                          {activeItem.name} - 分析报告
@@ -311,8 +331,8 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                      </div>
                                  </div>
                                  
-                                 {/* Editor Area */}
-                                 <div className="flex-1 bg-[#0f172a] relative overflow-hidden" ref={containerRef}>
+                                 {/* Editor Area - Fit to Container */}
+                                 <div className="flex-1 bg-[#0f172a] relative overflow-hidden w-full" ref={editorContainerRef}>
                                      <div className="w-full h-full flex items-center justify-center">
                                          <VisualEditor 
                                              initialHtml={activeItem.htmlContent}
