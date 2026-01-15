@@ -40,7 +40,7 @@ const EDITOR_SCRIPT = `
   
   // Resizing state
   let startWidth = 0, startHeight = 0;
-  let startLeft = 0, startTop = 0;
+  let startLeft = 0, startTop = 0; // For absolute positioning calculations (if needed) or transform calc
 
   window.visualEditorScale = 1;
 
@@ -52,10 +52,14 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { 
         outline: 2px solid #3b82f6 !important; 
         outline-offset: 0px; 
-        cursor: move !important; 
         position: relative; 
         z-index: 1000 !important;
         box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); 
+    }
+    
+    /* Cursor depends on state */
+    .ai-editor-selected:not([contenteditable="true"]) {
+        cursor: move !important;
     }
     
     .ai-editor-hover:not(.ai-editor-selected) { 
@@ -75,32 +79,30 @@ const EDITOR_SCRIPT = `
     /* Resizer Handles */
     .ai-resizer { 
         position: absolute; 
-        width: 12px; 
-        height: 12px; 
+        width: 10px; 
+        height: 10px; 
         background: white; 
-        border: 2px solid #3b82f6; 
-        z-index: 2000 !important; 
-        border-radius: 50%; 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
-        transition: transform 0.1s;
+        border: 1px solid #3b82f6; 
+        z-index: 2001 !important; 
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2); 
     }
-    .ai-resizer:hover { transform: scale(1.2); }
+    .ai-resizer:hover { background: #eff6ff; transform: scale(1.2); }
     
     .ai-r-nw { top: -6px; left: -6px; cursor: nw-resize; }
-    .ai-r-n  { top: -6px; left: 50%; margin-left: -6px; cursor: n-resize; }
+    .ai-r-n  { top: -6px; left: 50%; margin-left: -5px; cursor: n-resize; }
     .ai-r-ne { top: -6px; right: -6px; cursor: ne-resize; }
-    .ai-r-e  { top: 50%; right: -6px; margin-top: -6px; cursor: e-resize; }
+    .ai-r-e  { top: 50%; right: -6px; margin-top: -5px; cursor: e-resize; }
     .ai-r-se { bottom: -6px; right: -6px; cursor: se-resize; }
-    .ai-r-s  { bottom: -6px; left: 50%; margin-left: -6px; cursor: s-resize; }
+    .ai-r-s  { bottom: -6px; left: 50%; margin-left: -5px; cursor: s-resize; }
     .ai-r-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
-    .ai-r-w  { top: 50%; left: -6px; margin-top: -6px; cursor: w-resize; }
+    .ai-r-w  { top: 50%; left: -6px; margin-top: -5px; cursor: w-resize; }
   \`;
   document.head.appendChild(style);
 
   function getTransform(el) {
       const style = window.getComputedStyle(el);
       const matrix = new WebKitCSSMatrix(style.transform);
-      return { x: matrix.m41, y: matrix.m42 }; 
+      return { x: matrix.m41, y: matrix.m42, scaleX: matrix.a, scaleY: matrix.d }; 
   }
 
   function pushHistory() {
@@ -150,24 +152,34 @@ const EDITOR_SCRIPT = `
       startWidth = parseFloat(style.width) || rect.width;
       startHeight = parseFloat(style.height) || rect.height;
       
+      const t = getTransform(selectedEl);
+      startTranslateX = t.x;
+      startTranslateY = t.y;
+      
       // Force inline elements to behave like blocks for resizing
       if (style.display === 'inline') {
           selectedEl.style.display = 'inline-block';
       }
+      
+      // Ensure we have a defined width/height to start with if auto
+      if (style.width === 'auto') selectedEl.style.width = rect.width + 'px';
+      if (style.height === 'auto') selectedEl.style.height = rect.height + 'px';
   }
 
   // --- Global Mouse Down ---
   document.addEventListener('mousedown', (e) => {
       if (isResizing) return;
       
-      // Check if clicking inside current selected element
+      // 1. Text Editing Fix: If clicking into an editable element, DO NOT prevent default.
+      // This allows the browser to place the caret and handle selection naturally.
+      if (selectedEl && selectedEl.contains(e.target) && selectedEl.isContentEditable) {
+          return; 
+      }
+      
+      // Check if clicking inside current selected element to start Drag
       if (selectedEl && selectedEl.contains(e.target)) {
-          // If content editable, let default browser behavior happen (text selection)
-          if (selectedEl.isContentEditable) {
-              return; 
-          }
+          // If content editable, we already returned above.
           
-          // Start dragging
           isDragging = true;
           startX = e.clientX;
           startY = e.clientY;
@@ -192,14 +204,38 @@ const EDITOR_SCRIPT = `
           selectedEl.style.maxHeight = 'none';
           selectedEl.style.flexShrink = '0';
           
+          let newW = startWidth;
+          let newH = startHeight;
+          let newX = startTranslateX;
+          let newY = startTranslateY;
+
+          // East / West (Width)
           if (resizeHandle.includes('e')) {
-               selectedEl.style.width = Math.max(10, startWidth + dx) + 'px';
+               newW = Math.max(10, startWidth + dx);
+          } else if (resizeHandle.includes('w')) {
+               newW = Math.max(10, startWidth - dx);
+               newX = startTranslateX + dx;
           }
+
+          // South / North (Height)
           if (resizeHandle.includes('s')) {
-               selectedEl.style.height = Math.max(10, startHeight + dy) + 'px';
+               newH = Math.max(10, startHeight + dy);
+          } else if (resizeHandle.includes('n')) {
+               newH = Math.max(10, startHeight - dy);
+               newY = startTranslateY + dy;
           }
-          // Note: Advanced resizing (NW, W, etc.) requires position manipulation which is complex with Transforms. 
-          // Sticking to Width/Height (E/S/SE) is safer for this lightweight editor.
+
+          // Apply dimensions
+          if (resizeHandle.includes('w') || resizeHandle.includes('e')) selectedEl.style.width = newW + 'px';
+          if (resizeHandle.includes('n') || resizeHandle.includes('s')) selectedEl.style.height = newH + 'px';
+          
+          // Apply position adjustment for N/W resizing (requires Transform)
+          // Note: This assumes the element uses transform for positioning.
+          // If it uses top/left, we would update those instead.
+          // For this editor, we primarily drive dragging via Transform.
+          if (resizeHandle.includes('w') || resizeHandle.includes('n')) {
+              selectedEl.style.transform = \`translate(\${newX}px, \${newY}px)\`;
+          }
       }
 
       if (isDragging && selectedEl) {
@@ -243,7 +279,7 @@ const EDITOR_SCRIPT = `
         if (selectedEl) deselect();
         
         let target = e.target;
-        // Auto-wrap IMG logic (unchanged)
+        // Auto-wrap IMG logic
         if (target.tagName === 'IMG') {
             if (target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
                  target = target.parentElement;
@@ -306,11 +342,8 @@ const EDITOR_SCRIPT = `
      if (!target.isContentEditable) {
          removeResizers(); // Hide handles while editing
          target.contentEditable = 'true';
-         target.focus();
+         target.focus(); // CRITICAL FIX: Explicitly focus
          
-         // Select all text for convenience (optional)
-         // document.execCommand('selectAll', false, null);
-
          const onBlur = () => {
              target.contentEditable = 'false';
              target.removeEventListener('blur', onBlur);
