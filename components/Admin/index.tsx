@@ -1,15 +1,15 @@
 
-
 import React, { useState } from 'react';
 import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
 import { IntelligenceDashboard } from './IntelligenceDashboard';
-import { UserManagement } from './User/index'; // Updated import
-import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon } from '../icons';
+import { UserManagement } from './User/index'; 
+import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, PuzzleIcon } from '../icons';
 import { CompetitivenessManager } from './CompetitivenessManager';
 import { MarkdownToHtmlManager } from './MarkdownToHtmlManager';
 import { DeepInsightManager } from './DeepInsight/index';
 import { StratifyAiManager } from './StratifyAI/index';
+import { HtmlDesign } from './ComponentPreview/HtmlDesign';
 
 const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'users', label: '用户', icon: UsersIcon },
@@ -19,6 +19,7 @@ const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'stratify_ai', label: 'AI报告', icon: SparklesIcon },
     { view: 'deep_insight', label: '深度洞察', icon: ViewGridIcon },
     { view: 'markdown2html', label: 'Markdown', icon: DocumentTextIcon },
+    { view: 'html_design', label: '组件预览', icon: PuzzleIcon },
 ];
 
 export const AdminPage: React.FC = () => {
@@ -27,7 +28,7 @@ export const AdminPage: React.FC = () => {
     const renderView = () => {
         switch (view) {
             case 'users':
-                return <UserManagement />; // Updated Component
+                return <UserManagement />; 
             case 'events':
                 return <LivestreamTaskManager />;
             case 'intelligence':
@@ -40,6 +41,8 @@ export const AdminPage: React.FC = () => {
                 return <MarkdownToHtmlManager />;
             case 'deep_insight':
                 return <DeepInsightManager />;
+            case 'html_design':
+                return <HtmlDesign />;
             default:
                 return <UserManagement />;
         }
