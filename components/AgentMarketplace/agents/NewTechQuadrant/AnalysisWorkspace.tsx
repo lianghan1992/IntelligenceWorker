@@ -6,7 +6,7 @@ import {
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
     CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
     DownloadIcon, PencilIcon, LinkIcon, SparklesIcon, TrendingUpIcon,
-    PlusIcon, ChartIcon
+    PlusIcon, ChartIcon, CloseIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import { VisualEditor } from '../../../ReportGenerator/VisualEditor'; 
@@ -19,6 +19,7 @@ interface AnalysisWorkspaceProps {
     isExtracting: boolean;
     isGenerating: boolean;
     onStartGeneration: () => void;
+    onRedo?: (id: string, instruction: string) => Promise<void>; // Added onRedo prop
     prompts?: StratifyPrompt[];
 }
 
@@ -38,16 +39,80 @@ const cleanUrl = (url?: string) => {
     return clean;
 };
 
+// --- Redo Modal Component ---
+const RedoModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onConfirm: (instruction: string) => void;
+    isLoading: boolean;
+}> = ({ isOpen, onClose, onConfirm, isLoading }) => {
+    const [instruction, setInstruction] = useState('');
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in-95">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <SparklesIcon className="w-5 h-5 text-purple-600" />
+                        AI 重绘 / 修改
+                    </h3>
+                    <button onClick={onClose} disabled={isLoading} className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200 transition-colors">
+                        <CloseIcon className="w-5 h-5" />
+                    </button>
+                </div>
+                
+                <div className="p-6">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">修改建议</label>
+                    <textarea 
+                        value={instruction}
+                        onChange={(e) => setInstruction(e.target.value)}
+                        placeholder="例如：请把背景改为深蓝色科技风格；或者字体调大一点；或者把第二象限的图表换成流程图..."
+                        className="w-full h-32 p-3 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-none shadow-sm placeholder:text-slate-400"
+                        autoFocus
+                    />
+                    
+                    <div className="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                        提示：AI 将基于现有 HTML 结构和您的建议重新生成代码。
+                    </div>
+                </div>
+
+                <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3">
+                    <button 
+                        onClick={onClose} 
+                        disabled={isLoading}
+                        className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-bold transition-colors"
+                    >
+                        取消
+                    </button>
+                    <button 
+                        onClick={() => onConfirm(instruction)} 
+                        disabled={isLoading || !instruction.trim()}
+                        className="px-6 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {isLoading ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <SparklesIcon className="w-4 h-4"/>}
+                        开始重绘
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ 
     articles, techList, setTechList, onOpenSelection, 
-    isExtracting, isGenerating, onStartGeneration, prompts 
+    isExtracting, isGenerating, onStartGeneration, onRedo, prompts 
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
-    const [scale, setScale] = useState(1.0); // Default 1.0, but useEffect will adjust
+    const [scale, setScale] = useState(1.0); 
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
     
-    // Ref for the container to calculate scale
+    // Redo State
+    const [isRedoModalOpen, setIsRedoModalOpen] = useState(false);
+    const [isRedoing, setIsRedoing] = useState(false);
+    
     const editorContainerRef = useRef<HTMLDivElement>(null);
     
     const activeItem = techList.find(t => t.id === activeTechId);
@@ -64,35 +129,22 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
         const calculateScale = () => {
             if (activeItem?.analysisState === 'done' && editorContainerRef.current) {
                 const { clientWidth, clientHeight } = editorContainerRef.current;
-                
-                // Canvas base dimensions
                 const BASE_WIDTH = 1600;
                 const BASE_HEIGHT = 900;
-                
-                // Reserve space for padding (p-10 = 40px * 2 = 80px) and VisualEditor Toolbar (approx 60px)
-                // VisualEditor structure: Toolbar (h-14 = 56px) + Canvas
                 const availableWidth = clientWidth - 80; 
                 const availableHeight = clientHeight - 56 - 80; 
                 
                 if (availableWidth > 0 && availableHeight > 0) {
                     const wRatio = availableWidth / BASE_WIDTH;
                     const hRatio = availableHeight / BASE_HEIGHT;
-                    // Fit completely visible with small margin
                     const fitScale = Math.min(wRatio, hRatio) * 0.95;
                     setScale(Math.max(0.1, fitScale));
                 }
             }
         };
-
-        // Initial calc
         calculateScale();
-        
-        // Recalc on resize
         window.addEventListener('resize', calculateScale);
-        
-        // Double check after render (sometimes layout shifts)
         const timer = setTimeout(calculateScale, 100);
-        
         return () => {
             window.removeEventListener('resize', calculateScale);
             clearTimeout(timer);
@@ -132,6 +184,19 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
              }
          }
     };
+
+    const handleRedoConfirm = async (instruction: string) => {
+        if (!activeTechId || !onRedo) return;
+        setIsRedoing(true);
+        try {
+            await onRedo(activeTechId, instruction);
+            setIsRedoModalOpen(false);
+        } catch (e) {
+            alert('重绘请求失败');
+        } finally {
+            setIsRedoing(false);
+        }
+    };
     
     const handleCopyContent = (e: React.MouseEvent, content: string, label: string) => {
         e.stopPropagation();
@@ -142,23 +207,19 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
         setTimeout(() => setCopyFeedback(null), 2000);
     };
     
-    // Calculate stats
     const selectedCount = techList.filter(t => t.isSelected).length;
     const processingCount = techList.filter(t => ['analyzing', 'generating_html'].includes(t.analysisState)).length;
 
     return (
         <div className="flex h-full overflow-hidden relative">
-            {/* Copy Feedback Toast */}
             {copyFeedback && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-full shadow-lg animate-in fade-in slide-in-from-top-2">
                     {copyFeedback}
                 </div>
             )}
 
-            {/* Left Sidebar: Extraction List & Controls */}
+            {/* Left Sidebar */}
             <div className="w-[450px] bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10 shadow-sm">
-                
-                {/* Header Actions */}
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-slate-700 flex items-center gap-2">
@@ -174,7 +235,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                         </button>
                     </div>
 
-                    {/* Progress Bar (Extraction) */}
                     {isExtracting && (
                         <div className="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100 animate-pulse">
                             <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 mb-1">
@@ -187,7 +247,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                         </div>
                     )}
 
-                    {/* Bulk Actions */}
                     <div className="flex items-center justify-between">
                          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-500 hover:text-slate-800">
                              <input 
@@ -210,7 +269,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                     </div>
                 </div>
 
-                {/* List Content */}
                 <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar bg-slate-50/30">
                     {techList.length === 0 ? (
                         <div className="text-center py-20 text-slate-400 text-sm">
@@ -278,7 +336,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                             </div>
                                         </div>
                                         
-                                        {/* Status Bar */}
                                         <div className="pt-1 border-t border-slate-50 flex items-center justify-between text-[10px]">
                                              <div className="font-mono flex items-center gap-1.5">
                                                 {item.analysisState === 'idle' && <span className="text-slate-400">待分析</span>}
@@ -297,7 +354,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                 </div>
             </div>
 
-            {/* Right Workspace (Dark Themed) */}
+            {/* Right Workspace */}
             <div className="flex-1 bg-[#0f172a] relative overflow-hidden flex flex-col">
                 {!activeItem ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
@@ -306,11 +363,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                     </div>
                 ) : (
                     <>
-                         {/* View Logic: 
-                            1. Idle/Processing -> Show Logs or Info
-                            2. Done -> Show Visual Editor 
-                         */}
-                         
                          {activeItem.analysisState === 'done' && activeItem.htmlContent ? (
                              <div className="flex flex-col h-full w-full">
                                  {/* Toolbar (Dark) */}
@@ -320,6 +372,12 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                          {activeItem.name} - 分析报告
                                      </div>
                                      <div className="flex items-center gap-3">
+                                         <button 
+                                            onClick={() => setIsRedoModalOpen(true)}
+                                            className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
+                                         >
+                                             <SparklesIcon className="w-3.5 h-3.5" /> AI 重绘
+                                         </button>
                                          <button 
                                              onClick={handleDownload}
                                              disabled={isDownloading}
@@ -331,7 +389,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                      </div>
                                  </div>
                                  
-                                 {/* Editor Area - Fit to Container */}
+                                 {/* Editor Area */}
                                  <div className="flex-1 bg-[#0f172a] relative overflow-hidden w-full" ref={editorContainerRef}>
                                      <div className="w-full h-full flex items-center justify-center">
                                          <VisualEditor 
@@ -404,6 +462,13 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                     </>
                 )}
             </div>
+
+            <RedoModal 
+                isOpen={isRedoModalOpen} 
+                onClose={() => setIsRedoModalOpen(false)}
+                onConfirm={handleRedoConfirm}
+                isLoading={isRedoing}
+            />
         </div>
     );
 };

@@ -6,14 +6,14 @@ import {
     LinkIcon, RefreshIcon,
     LayerIcon, DuplicateIcon, ArrowIcon,
     BoldIcon, ItalicIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon,
-    PlusIcon, DocumentTextIcon // Added DocumentTextIcon for Text Tool
+    PlusIcon, DocumentTextIcon 
 } from '../icons';
 
 export interface VisualCanvasHandle {
     updateStyle: (key: string, value: string | number) => void;
     updateContent: (text: string) => void;
     updateAttribute: (key: string, value: string) => void;
-    insertElement: (type: 'img' | 'text', value: string) => void; // Added 'text'
+    insertElement: (type: 'img' | 'text', value: string) => void;
     updateTransform: (dx: number, dy: number, scale?: number) => void;
     scaleGroup: (factor: number) => void;
     changeLayer: (direction: 'up' | 'down') => void;
@@ -86,7 +86,7 @@ const RepeatingButton: React.FC<{
     );
 };
 
-// --- Editor Interaction Script (Updated) ---
+// --- Editor Interaction Script ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
@@ -184,7 +184,7 @@ const EDITOR_SCRIPT = `
           return;
       }
       
-      // 2. Dragging - CRITICAL FIX: Do NOT start drag if editing text
+      // 2. Dragging
       if (selectedEl && e.target === selectedEl) {
           if (selectedEl.isContentEditable) {
               // Allow default behavior (text selection)
@@ -197,7 +197,6 @@ const EDITOR_SCRIPT = `
           const t = getTransform(selectedEl);
           startTranslateX = t.x;
           startTranslateY = t.y;
-          // Don't prevent default here if we want to allow focus, but we do want to prevent text selection during drag
           e.preventDefault(); 
       }
   });
@@ -223,8 +222,6 @@ const EDITOR_SCRIPT = `
           if (resizeHandle.includes('s')) {
                selectedEl.style.height = Math.max(10, startHeight + dy) + 'px';
           }
-          // Simple logic for SE resizing. 
-          // Note: Full multi-directional resizing logic is complex, sticking to Width/Height for stability.
       }
 
       if (isDragging && selectedEl) {
@@ -254,13 +251,11 @@ const EDITOR_SCRIPT = `
         return;
     }
     
-    // Stop propagation so we select the specific child clicked
     e.stopPropagation();
 
-    // Clicking selected element does nothing (keeps selection)
+    // Clicking selected element does nothing
     if (selectedEl === e.target) return;
 
-    // Deselect previous
     if (selectedEl && selectedEl !== e.target) {
         deselect();
     }
@@ -275,9 +270,8 @@ const EDITOR_SCRIPT = `
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              const comp = window.getComputedStyle(target);
-             wrapper.style.cssText = comp.cssText; // Copy all styles
+             wrapper.style.cssText = comp.cssText;
              
-             // Ensure positioning works
              wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
              wrapper.style.width = target.offsetWidth + 'px';
              wrapper.style.height = target.offsetHeight + 'px';
@@ -298,7 +292,6 @@ const EDITOR_SCRIPT = `
         }
     }
     
-    // Deselect if background
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect();
         return;
@@ -329,10 +322,8 @@ const EDITOR_SCRIPT = `
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault(); e.stopPropagation();
      
-     // Find the target for editing. If selectedEl is valid, use it.
      let target = selectedEl || e.target;
      
-     // Handle img wrapper case (cannot edit wrapper)
      if (target.classList.contains('ai-img-wrapper') || target.classList.contains('ai-resizer')) return;
 
      if (!target.isContentEditable) {
@@ -340,7 +331,6 @@ const EDITOR_SCRIPT = `
          target.contentEditable = 'true';
          target.focus();
          
-         // Select logic when editing
          if (target !== selectedEl) selectElement(target);
 
          const onBlur = () => {
@@ -407,27 +397,20 @@ const EDITOR_SCRIPT = `
       }
   }
 
-  // --- SCALE GROUP LOGIC ---
   function scaleElementRecursive(el, factor) {
       const style = window.getComputedStyle(el);
-      
-      // Font Size
       const fs = parseFloat(style.fontSize);
       if (fs) el.style.fontSize = (fs * factor) + 'px';
       
-      // Padding
       const pt = parseFloat(style.paddingTop); if(pt) el.style.paddingTop = (pt * factor) + 'px';
       const pb = parseFloat(style.paddingBottom); if(pb) el.style.paddingBottom = (pb * factor) + 'px';
       const pl = parseFloat(style.paddingLeft); if(pl) el.style.paddingLeft = (pl * factor) + 'px';
       const pr = parseFloat(style.paddingRight); if(pr) el.style.paddingRight = (pr * factor) + 'px';
 
-      // Line Height (if px)
       if (style.lineHeight.endsWith('px')) {
           const lh = parseFloat(style.lineHeight);
           if (lh) el.style.lineHeight = (lh * factor) + 'px';
       }
-      
-      // Children
       Array.from(el.children).forEach(child => scaleElementRecursive(child, factor));
   }
 
@@ -448,7 +431,6 @@ const EDITOR_SCRIPT = `
     }
 
     if (action === 'INSERT_ELEMENT') {
-        // ... (Insert Logic kept same) ...
         if (value.type === 'img') {
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
@@ -479,9 +461,7 @@ const EDITOR_SCRIPT = `
              div.style.fontWeight = 'bold';
              div.style.color = '#333';
              div.style.zIndex = '50';
-             // Default Tailwind-ish style
              div.className = 'font-sans'; 
-             
              const canvas = document.getElementById('canvas') || document.body;
              canvas.appendChild(div);
              selectElement(div);
@@ -493,9 +473,7 @@ const EDITOR_SCRIPT = `
     if (!selectedEl) return;
     
     if (action === 'SCALE_GROUP') {
-        // New: Scale tree
-        const factor = value; // 1.1 or 0.9
-        scaleElementRecursive(selectedEl, factor);
+        scaleElementRecursive(selectedEl, value);
         pushHistory();
     }
     else if (action === 'UPDATE_CONTENT') { 
@@ -525,13 +503,25 @@ const EDITOR_SCRIPT = `
     } 
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
-        // ... (duplicate logic same)
+        const currentTransform = clone.style.transform || '';
+        const match = currentTransform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
+        if (match) {
+             const x = parseFloat(match[1]) + 20;
+             const y = parseFloat(match[2]) + 20;
+             const scaleMatch = currentTransform.match(/scale\\(([^)]+)\\)/);
+             const scalePart = scaleMatch ? \`scale(\${scaleMatch[1]})\` : '';
+             clone.style.transform = \`translate(\${x}px, \${y}px) \${scalePart}\`;
+        } else {
+             const top = parseFloat(clone.style.top) || 0;
+             const left = parseFloat(clone.style.left) || 0;
+             clone.style.top = (top + 20) + 'px';
+             clone.style.left = (left + 20) + 'px';
+        }
         selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
         selectElement(clone);
         pushHistory();
     }
     else if (action === 'LAYER') {
-        // ... (layer logic same)
         const style = window.getComputedStyle(selectedEl);
         const currentZ = parseInt(style.zIndex) || 0;
         const newZ = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
@@ -540,7 +530,6 @@ const EDITOR_SCRIPT = `
         pushHistory();
     }
     else if (action === 'UPDATE_TRANSFORM') {
-        // ... (transform logic same)
         const currentTransform = selectedEl.style.transform || '';
         let currentScale = 1; let currentX = 0; let currentY = 0;
         const scaleMatch = currentTransform.match(/scale\\(([^)]+)\\)/);
@@ -580,7 +569,7 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         duplicate: () => sendCommand('DUPLICATE'),
         deleteElement: () => sendCommand('DELETE'),
         deselect: () => sendCommand('DESELECT_FORCE'),
-        scaleGroup: (factor) => sendCommand('SCALE_GROUP', factor), // New
+        scaleGroup: (factor) => sendCommand('SCALE_GROUP', factor),
         getCanvasNode: () => {
             const doc = iframeRef.current?.contentDocument;
             if (!doc) return null;
@@ -729,6 +718,24 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
             setInternalScale(externalScale);
         }
     }, [externalScale, onScaleChange]);
+
+    // --- Key Events ---
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Prevent deleting when typing in input/textarea (outside iframe)
+            const activeTag = document.activeElement?.tagName;
+            if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedElement) {
+                    editorRef.current?.deleteElement();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedElement]);
 
     const handleUpdateStyle = (key: string, value: string | number) => {
         editorRef.current?.updateStyle(key, value);
