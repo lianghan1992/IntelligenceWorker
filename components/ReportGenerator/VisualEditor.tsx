@@ -11,7 +11,7 @@ import {
 export interface VisualCanvasHandle {
     updateStyle: (key: string, value: string | number) => void;
     updateContent: (text: string) => void;
-    updateAttribute: (key, value) => void;
+    updateAttribute: (key: string, value: string) => void;
     insertElement: (type: 'img', value: string) => void;
     updateTransform: (dx: number, dy: number, scale?: number) => void;
     changeLayer: (direction: 'up' | 'down') => void;
