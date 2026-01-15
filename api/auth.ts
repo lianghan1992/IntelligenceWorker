@@ -43,4 +43,21 @@ export const register = (username: string, email: string, password: string): Pro
     });
 };
 
+export const requestPasswordRecovery = (email: string): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>(`${USER_SERVICE_PATH}/password-recovery`, {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim() }),
+    });
+};
+
+export const resetPassword = (token: string, new_password: string): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>(`${USER_SERVICE_PATH}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ 
+            token: token.trim(), 
+            new_password: new_password.trim() 
+        }),
+    });
+};
+
 export const getMe = (): Promise<User> => apiFetch<User>(`${USER_SERVICE_PATH}/me`);

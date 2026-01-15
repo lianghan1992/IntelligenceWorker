@@ -5,6 +5,7 @@ import { AuthModal } from './components/HomePage/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage/index';
 import { BillingModal } from './components/UserProfile/BillingModal';
+import { UserProfileModal } from './components/UserProfile/UserProfileModal';
 import { User, View, SystemSource } from './types';
 import { getUserSubscribedSources, getMe } from './api';
 
@@ -45,13 +46,13 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>('cockpit'); 
   
   // ⚡️ PERFORMANCE: Only show loading if we have a token but NO cached user
-  // This prevents the "spinner" on refresh if we already know who the user is.
   const hasToken = !!localStorage.getItem('accessToken');
   const [isLoading, setIsLoading] = useState(hasToken && !user);
   
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showBillingModal, setShowBillingModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   
   const [subscriptions, setSubscriptions] = useState<SystemSource[]>([]);
 
@@ -180,6 +181,7 @@ const App: React.FC = () => {
             onUpgrade={() => setShowPricingModal(true)}
             onLogout={handleLogout}
             onShowBilling={() => setShowBillingModal(true)}
+            onShowProfile={() => setShowProfileModal(true)}
         />
         <main className="flex-1 min-h-0">
           <Suspense fallback={<PageLoader />}>
@@ -188,6 +190,7 @@ const App: React.FC = () => {
         </main>
         {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
         {showBillingModal && user && <BillingModal user={user} onClose={() => setShowBillingModal(false)} />}
+        {showProfileModal && user && <UserProfileModal user={user} onClose={() => setShowProfileModal(false)} />}
     </div>
   );
 };

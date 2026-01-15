@@ -21,7 +21,8 @@ interface HeaderProps {
     onNavigate: (view: View) => void;
     onUpgrade: () => void;
     onLogout: () => void;
-    onShowBilling: () => void; // New prop
+    onShowBilling: () => void;
+    onShowProfile?: () => void; // New prop for profile modal
     user: User;
 }
 
@@ -58,7 +59,7 @@ const NavItem: React.FC<{
 );
 
 
-export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, onLogout, onShowBilling, user }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, onLogout, onShowBilling, onShowProfile, user }) => {
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -121,8 +122,15 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                                             <p className="text-sm font-bold text-slate-800 truncate">{user.email}</p>
                                         </div>
                                         <div className="py-1">
-                                            <a href="#" className="block px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">个人资料</a>
-                                            <a href="#" className="block px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">偏好设置</a>
+                                            <button 
+                                                onClick={() => {
+                                                    setIsUserMenuOpen(false);
+                                                    if (onShowProfile) onShowProfile();
+                                                }}
+                                                className="block w-full text-left px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                                            >
+                                                个人资料
+                                            </button>
                                             <button 
                                                 onClick={() => {
                                                     setIsUserMenuOpen(false);
@@ -186,7 +194,6 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                             </button>
                         ))}
                     </nav>
-                    {/* Upgrade button removed from mobile menu */}
                 </div>
             )}
         </header>

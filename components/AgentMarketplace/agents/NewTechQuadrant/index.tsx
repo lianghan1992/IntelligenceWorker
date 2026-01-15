@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { ArticleSelectionStep } from './ArticleSelectionStep';
 import { AnalysisWorkspace } from './AnalysisWorkspace';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
-import { getPrompts } from '../../../../api/stratify';
-import { chatGemini, searchSemanticSegments } from '../../../../api/intelligence';
+import { getPrompts, streamChatCompletions } from '../../../../api/stratify';
+import { searchSemanticSegments } from '../../../../api/intelligence';
 
 export interface TechItem {
     id: string;
@@ -19,16 +19,17 @@ export interface TechItem {
     // Analysis State
     analysisState: 'idle' | 'analyzing' | 'review' | 'generating_html' | 'done' | 'error';
     markdownContent?: string;
+    markdownDetail?: string; // For streaming display
     htmlContent?: string;
+    htmlCode?: string; // For streaming display
     logs?: string[];
 }
 
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
+const TARGET_MODEL = 'zhipu@glm-4.5-flash';
 
 export const AVAILABLE_MODELS = [
-    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
-    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
-    { label: 'Gemini 3.0 Flash', value: 'gemini-3-flash-preview' },
+    { label: 'GLM-4.5 Flash (Zhipu)', value: TARGET_MODEL },
 ];
 
 export interface ModelConfig {
@@ -159,9 +160,9 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     // Model Selection State (Granular)
     const [modelConfig, setModelConfig] = useState<ModelConfig>({
-        extraction: 'gemini-2.5-flash',
-        analysis: 'gemini-2.5-pro',
-        html: 'gemini-2.5-flash' // Flash is usually good enough for HTML and faster
+        extraction: TARGET_MODEL,
+        analysis: TARGET_MODEL,
+        html: TARGET_MODEL
     });
 
     useEffect(() => {
@@ -174,6 +175,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         if (savedConfigStr) {
             try {
                 const saved = JSON.parse(savedConfigStr);
+                // Force update to target model if needed, or respect saved but prefer target for now
+                // Given the requirement, we force usage logic below, UI config is just for display/future
                 setModelConfig(prev => ({ ...prev, ...saved }));
             } catch (e) {}
         }
@@ -185,6 +188,24 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             localStorage.setItem('ntq_model_config', JSON.stringify(next));
             return next;
         });
+    };
+
+    // Unified LLM Call Helper
+    const callLlm = async (messages: any[], onChunk?: (text: string) => void): Promise<string> => {
+        let fullText = "";
+        await streamChatCompletions({
+            model: TARGET_MODEL,
+            messages: messages,
+            stream: true,
+            enable_billing: false, // Explicitly disable billing
+            temperature: 0.1 // Low temp for analysis tasks
+        }, (data) => {
+            if (data.content) {
+                fullText += data.content;
+                if (onChunk) onChunk(data.content);
+            }
+        });
+        return fullText;
     };
 
     // --- Phase 1: Extraction ---
@@ -211,28 +232,24 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
 
                 try {
-                    // Use Extraction Model
-                    const response = await chatGemini([{ role: 'user', content: fullPrompt }], modelConfig.extraction);
+                    // Use Extraction Model via Wrapper
+                    const text = await callLlm([{ role: 'user', content: fullPrompt }]);
+                    const items = extractJsonArray(text);
                     
-                    if (response && response.choices && response.choices.length > 0) {
-                        const text = response.choices[0].message.content;
-                        const items = extractJsonArray(text);
+                    if (items && Array.isArray(items)) {
+                        const newItems: TechItem[] = items.map((item: any) => ({
+                            id: crypto.randomUUID(),
+                            name: item.name || '未知技术',
+                            field: item.field || '其他',
+                            description: item.description || '无描述',
+                            status: item.status || '未知',
+                            original_url: item.original_url || article.original_url || '',
+                            sourceArticleTitle: article.title,
+                            isSelected: true, // Default selected for next step
+                            analysisState: 'idle'
+                        }));
                         
-                        if (items && Array.isArray(items)) {
-                            const newItems: TechItem[] = items.map((item: any) => ({
-                                id: crypto.randomUUID(),
-                                name: item.name || '未知技术',
-                                field: item.field || '其他',
-                                description: item.description || '无描述',
-                                status: item.status || '未知',
-                                original_url: item.original_url || article.original_url || '',
-                                sourceArticleTitle: article.title,
-                                isSelected: true, // Default selected for next step
-                                analysisState: 'idle'
-                            }));
-                            
-                            setTechList(prev => [...prev, ...newItems]);
-                        }
+                        setTechList(prev => [...prev, ...newItems]);
                     }
                 } catch (err) {
                     console.error(`Failed to extract from article: ${article.title}`, err);
@@ -315,9 +332,15 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     .replace('{{ tech_info }}', item.description)
                     .replace('{{ retrieved_info }}', retrievedInfo);
 
-                // Use Analysis Model
-                const reportRes = await chatGemini([{ role: 'user', content: filledReportPrompt }], modelConfig.analysis);
-                const reportMd = reportRes?.choices?.[0]?.message?.content;
+                // Use Analysis Model with Streaming
+                let accumulatedMarkdown = "";
+                const reportMd = await callLlm(
+                    [{ role: 'user', content: filledReportPrompt }],
+                    (chunk) => {
+                        accumulatedMarkdown += chunk;
+                        setTechList(prev => prev.map(t => t.id === item.id ? { ...t, markdownDetail: accumulatedMarkdown } : t));
+                    }
+                );
                 
                 if (!reportMd) throw new Error("报告生成返回空");
                 
@@ -332,9 +355,15 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 // --- Step 2.3: Generate HTML ---
                 const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', reportMd);
                 
-                // Use HTML Model
-                const htmlRes = await chatGemini([{ role: 'user', content: filledHtmlPrompt }], modelConfig.html);
-                const rawHtml = htmlRes?.choices?.[0]?.message?.content;
+                // Use HTML Model with Streaming
+                let accumulatedHtmlCode = "";
+                const rawHtml = await callLlm(
+                    [{ role: 'user', content: filledHtmlPrompt }],
+                    (chunk) => {
+                        accumulatedHtmlCode += chunk;
+                        setTechList(prev => prev.map(t => t.id === item.id ? { ...t, htmlCode: accumulatedHtmlCode } : t));
+                    }
+                );
                 
                 if (!rawHtml) throw new Error("HTML 生成返回空");
                 
@@ -378,15 +407,22 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setTechList(prev => prev.map(t => t.id === item.id ? { 
             ...t, 
             analysisState: 'generating_html', 
+            htmlCode: '', // Clear previous code
             logs: [...(t.logs||[]), '正在重新生成 HTML...'] 
         } : t));
 
         try {
             const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', item.markdownContent);
             
-            // Use HTML Model
-            const htmlRes = await chatGemini([{ role: 'user', content: filledHtmlPrompt }], modelConfig.html);
-            const rawHtml = htmlRes?.choices?.[0]?.message?.content;
+            // Use HTML Model with Streaming
+            let accumulatedHtmlCode = "";
+            const rawHtml = await callLlm(
+                [{ role: 'user', content: filledHtmlPrompt }],
+                (chunk) => {
+                    accumulatedHtmlCode += chunk;
+                    setTechList(prev => prev.map(t => t.id === item.id ? { ...t, htmlCode: accumulatedHtmlCode } : t));
+                }
+            );
             
             if (!rawHtml) throw new Error("HTML 生成返回空");
             
