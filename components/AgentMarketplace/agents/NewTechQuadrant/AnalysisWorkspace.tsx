@@ -207,7 +207,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
             // 2. Fill Placeholder
             const finalPrompt = htmlPrompt.content.replace('{{ markdown_content }}', contentToConvert);
 
-            // 3. Call LLM
+            // 3. Call LLM (Updated to gemini-2.5-pro)
             const response = await chatGemini([
                 { role: 'user', content: finalPrompt }
             ], 'gemini-2.5-pro');
@@ -240,7 +240,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
         }
     };
     
-    // Download PDF
+    // Download PDF with fixed dimensions
     const handleDownload = async () => {
          if (activeItem?.htmlContent) {
              try {
