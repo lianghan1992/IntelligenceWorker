@@ -479,13 +479,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                                 分析完成
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                 {/* Scale Controls */}
-                                                <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-                                                    <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="w-6 h-6 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-xs transition-colors">-</button>
-                                                    <span className="text-xs font-bold text-slate-600 w-8 text-center flex items-center justify-center select-none">{Math.round(scale * 100)}%</span>
-                                                    <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="w-6 h-6 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-xs transition-colors">+</button>
-                                                </div>
-
                                                 <button 
                                                     onClick={handleDownload}
                                                     className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2"
@@ -505,7 +498,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                                         scale={scale}
                                                         onScaleChange={setScale}
                                                         canvasSize={{ width: 1600, height: 900 }}
-                                                        hideToolbar={true}
                                                     />
                                                 )}
                                             </div>
