@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TechItem } from './index';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { 
@@ -43,9 +43,11 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
     isExtracting, isGenerating, onStartGeneration, prompts 
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
-    const [scale, setScale] = useState(0.8);
+    const [scale, setScale] = useState(1.0);
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+    const [isDownloading, setIsDownloading] = useState(false);
     
+    const containerRef = useRef<HTMLDivElement>(null);
     const activeItem = techList.find(t => t.id === activeTechId);
 
     // Auto-select first item
@@ -54,6 +56,28 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
             setActiveTechId(techList[0].id);
         }
     }, [techList, activeTechId]);
+
+    // Auto-fit scale when entering view
+    useEffect(() => {
+        if (activeItem?.analysisState === 'done' && containerRef.current) {
+            // Give a small timeout to allow layout to settle
+            setTimeout(() => {
+                if (!containerRef.current) return;
+                const { clientWidth, clientHeight } = containerRef.current;
+                const padding = 80; // Safety padding
+                const targetWidth = 1600;
+                const targetHeight = 900;
+                
+                const wRatio = (clientWidth - padding) / targetWidth;
+                const hRatio = (clientHeight - padding) / targetHeight;
+                // Default to fit, but max 1.0 (100%)
+                const fitScale = Math.min(wRatio, hRatio);
+                
+                // Ensure reasonable bounds
+                setScale(Math.max(0.2, fitScale)); 
+            }, 100);
+        }
+    }, [activeItem?.analysisState, activeItem?.id]);
 
     const handleToggleSelection = (id: string) => {
         setTechList(prev => prev.map(t => t.id === id ? { ...t, isSelected: !t.isSelected } : t));
@@ -72,6 +96,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
     
     const handleDownload = async () => {
          if (activeItem?.htmlContent) {
+             setIsDownloading(true);
              try {
                  const blob = await generatePdf(activeItem.htmlContent, activeItem.name, { width: 1600, height: 900 });
                  const url = window.URL.createObjectURL(blob);
@@ -79,8 +104,11 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                  a.href = url;
                  a.download = `${activeItem.name}_report.pdf`;
                  a.click();
+                 window.URL.revokeObjectURL(url);
              } catch(e) {
                  alert('PDF 生成失败');
+             } finally {
+                 setIsDownloading(false);
              }
          }
     };
@@ -274,15 +302,17 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                      <div className="flex items-center gap-3">
                                          <button 
                                              onClick={handleDownload}
-                                             className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-500 transition-colors flex items-center gap-2 shadow-sm"
+                                             disabled={isDownloading}
+                                             className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-500 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                          >
-                                             <DownloadIcon className="w-3.5 h-3.5" /> 导出 PDF
+                                             {isDownloading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <DownloadIcon className="w-3.5 h-3.5" />} 
+                                             {isDownloading ? '导出中...' : '导出 PDF'}
                                          </button>
                                      </div>
                                  </div>
                                  
                                  {/* Editor Area */}
-                                 <div className="flex-1 bg-[#0f172a] relative overflow-hidden">
+                                 <div className="flex-1 bg-[#0f172a] relative overflow-hidden" ref={containerRef}>
                                      <div className="w-full h-full flex items-center justify-center">
                                          <VisualEditor 
                                              initialHtml={activeItem.htmlContent}
