@@ -1,19 +1,20 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import mammoth from 'mammoth';
 import { 
     CloudIcon, SearchIcon, LinkIcon, CloseIcon, CheckIcon, 
     TrashIcon, RefreshIcon, GlobeIcon, ExternalLinkIcon, ChevronDownIcon,
-    LightningBoltIcon, ServerIcon, DatabaseIcon, ClockIcon, GearIcon,
-    ShieldExclamationIcon, ShieldCheckIcon
+    LightningBoltIcon, ShieldExclamationIcon, ShieldCheckIcon, GearIcon, ServerIcon
 } from '../icons';
 import { fetchJinaReader } from '../../api/intelligence';
 
 // --- Constants ---
 const DEFAULT_GOOGLE_KEY = 'AIzaSyBHC1sLIvdoVZIT0JrfPbP7d8KhcIb3738';
-const DEFAULT_GOOGLE_CX = '33dd9593bf20144a8'; // Provided default
+const DEFAULT_GOOGLE_CX = '33dd9593bf20144a8'; 
 const STORAGE_KEY_LIMIT = 'auto_insight_search_usage';
 const STORAGE_KEY_CONFIG = 'auto_insight_search_config';
 const DAILY_LIMIT = 5;
+const MAX_TOKEN_LIMIT = 200000; // 20万 Token 限制
 
 interface KnowledgeToolsProps {
     onUpdateReference: (content: string, sourceName: string) => void;
@@ -37,6 +38,12 @@ interface ReferenceItem {
     progress?: number; // 0-100
     logs?: string[]; // Process logs
 }
+
+// --- Helper: Token Estimation ---
+// 简单估算：中英文混合环境下，保守起见 1 字符 ≈ 1 Token (中文通常0.7-1.5, 英文0.3-0.5)
+const estimateTokens = (text: string): number => {
+    return text.length;
+};
 
 // --- Helper: Daily Limit Check ---
 const checkDailyQuota = (): { allowed: boolean; remaining: number } => {
@@ -190,12 +197,61 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         if (!files || files.length === 0) return;
 
         const file = files[0];
+        const fileName = file.name.toLowerCase();
+
+        // 1. Check Format (Frontend Guard)
+        const allowedExtensions = ['.txt', '.md', '.csv', '.doc', '.docx'];
+        const isAllowed = allowedExtensions.some(ext => fileName.endsWith(ext));
+        
+        if (!isAllowed) {
+            alert('暂不支持该文件格式。目前仅支持文本文件 (.txt, .md, .csv) 和 Word 文档 (.doc, .docx)。PDF 请使用“深度洞察”功能进行解析。');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
         const id = addReferenceItem('file', file.name);
         setProcessingItemId(id); // Show modal
 
         try {
             appendLog(id, `读取文件: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
-            const text = await file.text();
+            let text = '';
+
+            // 2. Parse Content based on type
+            if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+                appendLog(id, '正在解析 Word 文档结构...');
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                text = result.value;
+                if (result.messages && result.messages.length > 0) {
+                    appendLog(id, `解析警告: ${result.messages[0].message}`);
+                }
+            } else {
+                text = await file.text();
+            }
+
+            if (!text.trim()) {
+                throw new Error("文件内容为空或无法识别文本。");
+            }
+
+            // 3. Token Estimation & Limit Check
+            const estimatedTokens = estimateTokens(text);
+            appendLog(id, `Token 估算: 约 ${estimatedTokens} tokens`);
+
+            if (estimatedTokens > MAX_TOKEN_LIMIT) {
+                throw new Error(`文档内容过长（约 ${estimatedTokens} Token），超过系统限制 (${MAX_TOKEN_LIMIT})。请拆分文件后上传。`);
+            }
+
+            // 4. Cost Warning
+            // Hide modal temporarily to show confirm dialog cleanly? No, confirm blocks execution.
+            // We'll trust the user interaction.
+            const costWarning = `系统检测到该文档约包含 ${estimatedTokens.toLocaleString()} 个 Token。\n\n上传后将计入您的账户消耗，是否继续？`;
+            if (!window.confirm(costWarning)) {
+                updateItemState(id, { status: 'error' });
+                appendLog(id, '用户取消上传');
+                setTimeout(() => setProcessingItemId(null), 500);
+                return;
+            }
+
             const formattedContent = `\n\n--- 引用文档: ${file.name} ---\n${text}\n--- 文档结束 ---\n`;
             
             // Wait a bit to show progress
@@ -208,15 +264,14 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                 details: [{ title: file.name, url: '#' }] 
             });
             onUpdateReference(formattedContent, file.name);
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
             updateItemState(id, { status: 'error' });
-            appendLog(id, '文件读取失败');
+            appendLog(id, `处理失败: ${err.message}`);
         } finally {
-             setTimeout(() => setProcessingItemId(null), 800);
+             setTimeout(() => setProcessingItemId(null), 1200); // Allow user to read error log if any
+             if (fileInputRef.current) fileInputRef.current.value = '';
         }
-        
-        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     // --- 2. Google Search Logic ---
@@ -279,9 +334,13 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             // Step 2: Parallel Fetch Content via Jina & Filter
             const topItems = items.slice(0, 6); // Try top 6
             let processedCount = 0;
+            let totalTokensAccumulated = 0;
             
             const fetchPromises = topItems.map(async (item: any, idx: number) => {
                 try {
+                    // Check limit before fetching more
+                    if (totalTokensAccumulated > MAX_TOKEN_LIMIT) return null;
+
                     appendLog(id, `正在读取 [${idx+1}]: ${item.title.slice(0, 15)}...`);
                     const content = await fetchJinaReader(item.link);
                     
@@ -292,6 +351,9 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                          return null;
                     }
                     
+                    const itemTokens = estimateTokens(content);
+                    totalTokensAccumulated += itemTokens;
+
                     processedCount++;
                     updateItemState(id, { progress: 20 + Math.floor((processedCount / topItems.length) * 80) });
                     
@@ -362,6 +424,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
 
         try {
             let processed = 0;
+            let totalTokens = 0;
             appendLog(id, `开始解析 ${urls.length} 个目标 URL...`);
 
             const results = await Promise.all(urls.map(async (url) => {
@@ -372,6 +435,12 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                         appendLog(id, `⚠️ 内容无效/无法访问: ${url}`);
                         processed++;
                         return null;
+                    }
+
+                    totalTokens += estimateTokens(content);
+                    if (totalTokens > MAX_TOKEN_LIMIT) {
+                         appendLog(id, `⚠️ 累计 Token 超限，停止解析: ${url}`);
+                         return null;
                     }
 
                     // Extract title
@@ -470,16 +539,24 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                     </div>
                     <div className="z-10">
                         <h4 className="font-bold text-slate-700 text-sm">上传参考文档</h4>
-                        <p className="text-xs text-slate-400 mt-1">支持 .md, .txt, .csv, .pdf</p>
+                        <p className="text-xs text-slate-400 mt-1">Word, Markdown, CSV</p>
                     </div>
                     <input 
                         type="file" 
                         ref={fileInputRef} 
                         onChange={handleFileUpload} 
                         className="hidden" 
-                        accept=".md,.txt,.csv,.json,.pdf"
+                        accept=".txt,.md,.csv,.doc,.docx"
                     />
                 </button>
+            </div>
+            
+            {/* Info Tip about Tokens */}
+             <div className="mb-4 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg p-3 text-xs flex items-start gap-2">
+                 <ShieldExclamationIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                 <div>
+                    <strong>Token 计费提示：</strong> 上传大量文本内容将消耗您的 Token 额度。建议将长文档拆分，或仅上传关键章节。单次上传限制在 20 万字符以内。不支持 PDF，请转换为 Word 或 TXT 上传。
+                 </div>
             </div>
 
             {/* Status List (Enhanced) */}

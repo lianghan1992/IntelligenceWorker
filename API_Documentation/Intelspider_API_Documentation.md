@@ -799,11 +799,18 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/html/batch/generate \
 ```
 
 ### 生成文章 PDF
-- 接口介绍：将文章的 HTML 内容转换为 PDF 并下载。如果 HTML 不存在，会尝试实时生成。
+- 接口介绍：将文章的 HTML 内容转换为 PDF 并下载。如果 HTML 不存在，会尝试实时生成。允许通过参数自定义生成尺寸。
 - 接口方法：`POST /api/intelspider/articles/{article_id}/pdf`
+- 参数说明（Query Parameters）：
+  - `width`: 整数，可选。指定浏览器视窗宽度及 PDF 宽度 (单位: px)。若不传，则自动适应内容宽度。
+  - `height`: 整数，可选。指定浏览器视窗高度及 PDF 高度 (单位: px)。若不传，则自动适应内容高度。
 - curl 示例：
 ```bash
+# 默认自适应模式
 curl -sS -X POST -o article.pdf http://127.0.0.1:7657/api/intelspider/articles/article-uuid-1/pdf
+
+# 指定尺寸模式 (例如指定 1920x1080)
+curl -sS -X POST -o article_fixed.pdf "http://127.0.0.1:7657/api/intelspider/articles/article-uuid-1/pdf?width=1920&height=1080"
 ```
 - 返回：二进制 PDF 文件流。
 
@@ -1017,5 +1024,52 @@ curl -sS http://127.0.0.1:7657/api/intelspider/llm/tasks/task-uuid-1
 curl -sS -O http://127.0.0.1:7657/api/intelspider/llm/tasks/task-uuid-1/download
 ```
 - 返回：CSV 文件流。
+
+---
+
+## Gemini Cookie 聊天接口
+
+### Chat Completions
+- 接口介绍：基于 Gemini Cookie 封装的 OpenAI 兼容对话接口。
+- 接口方法：`POST /api/intelspider/gemini/chat/completions`
+- 字段说明（Body）：
+  - `model`: 字符串，模型名称（如 "gemini-2.5-flash"）。
+  - `messages`: 列表，对话历史，包含 `role` 和 `content`。
+  - `stream`: 布尔值，是否流式输出（当前仅支持非流式，stream=true 也会返回一次性结果）。
+- curl 示例：
+```bash
+curl -sS -X POST http://127.0.0.1:7657/api/intelspider/gemini/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {"role": "user", "content": "Hello"}
+    ]
+  }'
+```
+- 返回示例：
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "gemini-2.5-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0
+  }
+}
+```
 
 

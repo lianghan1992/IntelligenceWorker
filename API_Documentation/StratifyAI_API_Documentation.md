@@ -45,7 +45,7 @@ StratifyAI 服务提供智能体场景管理、提示词管理、任务执行以
   "enable_billing": true, // (可选) 是否计费。默认为 true。若为 false，则不扣费也不记录 usage 统计。
   "temperature": 0.7,   // 温度系数 (0-2)
   "top_p": 1.0,         // 核采样
-  "max_tokens": 2000,   // 最大输出 Token 数
+  "max_tokens": 65535,   // 最大输出 Token 数
   "presence_penalty": 0,
   "frequency_penalty": 0
 }
