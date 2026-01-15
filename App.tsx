@@ -32,14 +32,22 @@ const PageLoader = () => (
 );
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<View>('cockpit'); // Default view updated to 'cockpit'
+  // ⚡️ PERFORMANCE: Initialize user from local cache immediately
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+        const cachedUser = localStorage.getItem('user_cache');
+        return cachedUser ? JSON.parse(cachedUser) : null;
+    } catch (e) {
+        return null;
+    }
+  });
+
+  const [view, setView] = useState<View>('cockpit'); 
   
-  // ⚡️ PERFORMANCE OPTIMIZATION: Optimistic Initialization
-  // Initialize isLoading based on whether we potentially have a session (token exists).
-  // If no token (New User), start as FALSE to render HomePage immediately (Zero Wait Time).
-  // If token exists (Returning User), start as TRUE to verify session.
-  const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('accessToken'));
+  // ⚡️ PERFORMANCE: Only show loading if we have a token but NO cached user
+  // This prevents the "spinner" on refresh if we already know who the user is.
+  const hasToken = !!localStorage.getItem('accessToken');
+  const [isLoading, setIsLoading] = useState(hasToken && !user);
   
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
@@ -67,19 +75,20 @@ const App: React.FC = () => {
 
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
+    localStorage.setItem('user_cache', JSON.stringify(loggedInUser)); // Cache user
     setShowAuthModal(false);
-    setView('cockpit'); // Navigate to cockpit after login
+    setView('cockpit'); 
   }, []);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('accessToken');
+    localStorage.removeItem('user_cache'); // Clear cache
     setUser(null);
     setView('cockpit');
   }, []);
 
   const loadInitialData = useCallback(async () => {
     if (!user) return;
-    // Don't set full page loading for background data fetch
     try {
         const subs = await getUserSubscribedSources();
         setSubscriptions(subs);
@@ -88,24 +97,27 @@ const App: React.FC = () => {
     }
   }, [user]);
 
+  // Silent Auth Verification
   useEffect(() => {
     const checkUser = async () => {
       const token = localStorage.getItem('accessToken');
       
-      // If no token, we are already in "not loading" state (from useState init).
-      // Just ensure we are explicitly set to false to be safe.
       if (!token) {
           setIsLoading(false);
           return;
       }
 
-      // If token exists, verify it
       try {
+        // Run verification in background
         const userData = await getMe();
         setUser(userData);
+        // Update cache with fresh data
+        localStorage.setItem('user_cache', JSON.stringify(userData));
       } catch (e) {
         console.error("Failed to verify token:", e);
+        // Only verify failed (401), we log out
         localStorage.removeItem('accessToken');
+        localStorage.removeItem('user_cache');
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -124,7 +136,6 @@ const App: React.FC = () => {
       setView(newView);
   };
   
-  // Show loading spinner ONLY if we are verifying a session
   if (isLoading) {
     return <PageLoader />;
   }
@@ -150,7 +161,6 @@ const App: React.FC = () => {
       case 'events':
         return <IndustryEvents />;
       case 'ai':
-        // Pass the billing modal handler to ReportGenerator
         return <ReportGenerator onShowBilling={() => setShowBillingModal(true)} />;
       case 'marketplace':
         return <AgentMarketplace />;

@@ -39,6 +39,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
         try {
             const { accessToken, user } = await login(loginForm.email, loginForm.password);
             localStorage.setItem('accessToken', accessToken);
+            // Cache user data for instant load on refresh
+            localStorage.setItem('user_cache', JSON.stringify(user));
             onLoginSuccess(user);
         } catch (err: any) {
             setError(err.message || '登录失败，请检查您的凭据。');
@@ -56,6 +58,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
             // After successful registration, attempt to log in automatically
             const { accessToken, user } = await login(registerForm.email, registerForm.password);
             localStorage.setItem('accessToken', accessToken);
+            // Cache user data for instant load on refresh
+            localStorage.setItem('user_cache', JSON.stringify(user));
             onLoginSuccess(user);
         } catch (err: any) {
             setError(err.message || '注册失败，请稍后重试。');
