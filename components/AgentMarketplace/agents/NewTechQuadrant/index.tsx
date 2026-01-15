@@ -13,8 +13,11 @@ export interface TechItem {
     description: string;
     status: string;
     original_url?: string;
+    sourceArticleTitle?: string; // Track source for clarity
+    // Selection state for generation phase
+    isSelected: boolean;
     // Analysis State
-    analysisState: 'idle' | 'analyzing' | 'review' | 'generating_html' | 'done';
+    analysisState: 'idle' | 'analyzing' | 'review' | 'generating_html' | 'done' | 'error';
     markdownContent?: string;
     htmlContent?: string;
     logs?: string[];
@@ -22,7 +25,7 @@ export interface TechItem {
 
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
 
-// Helper: Robustly extract JSON array from text that might contain extra markdown or text
+// Helper: Robustly extract JSON array from text
 const extractJsonArray = (text: string): any[] | null => {
     if (!text) return null;
     
@@ -90,93 +93,67 @@ const extractJsonArray = (text: string): any[] | null => {
 };
 
 const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-    const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(true); // Default open to start
+    const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(true); 
     const [selectedArticles, setSelectedArticles] = useState<ArticlePublic[]>([]);
+    
     const [techList, setTechList] = useState<TechItem[]>([]);
+    
     const [isExtracting, setIsExtracting] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
     
-    // Reset trigger for the modal internal state
     const [resetTrigger, setResetTrigger] = useState(0);
-    
-    // Store all prompts for this scenario
     const [prompts, setPrompts] = useState<StratifyPrompt[]>([]);
 
-    // Pre-load prompts when component mounts
     useEffect(() => {
         getPrompts({ scenario_id: SCENARIO_ID })
             .then(setPrompts)
             .catch(err => console.error("Failed to load scenario prompts", err));
     }, []);
 
+    // --- Phase 1: Extraction ---
+    // User selected articles, now we process them one by one to find new tech.
     const handleArticlesConfirmed = (articles: ArticlePublic[]) => {
-        // If we are re-selecting, we might want to append or replace. 
-        // For simplicity, we restart analysis for new items or replace list.
-        // Current logic: Replace selected articles and start analysis on them.
         setSelectedArticles(articles);
         setIsSelectionModalOpen(false);
-        performAnalysis(articles);
+        performExtraction(articles);
     };
 
-    const performAnalysis = async (articles: ArticlePublic[]) => {
+    const performExtraction = async (articles: ArticlePublic[]) => {
         setIsExtracting(true);
-        // Note: Currently we reset list on new analysis. 
-        // To support appending, we would need to merge with existing techList.
-        setTechList([]); 
-
+        // We append to existing list or clear? 
+        // Requirement says: "Append to recognition list"
+        // But for a new batch flow, user might expect clean slate if they clicked "back to select" and then "confirm".
+        // Let's rely on user manually clearing if they want, or we can clear if it's a fresh start.
+        // For now, let's keep existing items and append new ones, handling duplicates maybe?
+        // Actually, simplicity: if modal opened via "Reset", list was cleared. If via "Add", append.
+        // Assuming "Confirm" from modal implies processing these specific new articles.
+        
         try {
-            // 1. Get prompt from pre-loaded state
-            const targetPrompt = prompts.find(p => p.name === '新技术识别提示词');
-            
-            if (!targetPrompt || !targetPrompt.content) {
-                console.error("Prompt '新技术识别提示词' not found in loaded prompts.");
-                alert("未找到分析提示词，请联系管理员配置。");
+            const extractPrompt = prompts.find(p => p.name === '新技术识别提示词');
+            if (!extractPrompt || !extractPrompt.content) {
+                alert("未找到'新技术识别提示词'，请联系管理员。");
                 setIsExtracting(false);
                 return;
             }
 
-            // 2. Iterate through articles and analyze
             for (const article of articles) {
+                // 1. Prepare Content
+                const contentSnippet = article.content.slice(0, 3000); // Limit context window
+                const articleContext = `标题: ${article.title}\nURL: ${article.original_url || ''}\n发布时间: ${article.publish_date}\n\n正文:\n${contentSnippet}`;
+                
+                // 2. Fill Prompt
+                // The prompt expects CSV content usually, but we adapted it for single article text in previous logic? 
+                // Let's check prompt variable. If it doesn't have variable, we append.
+                // Assuming standard prompt structure where we append content.
+                const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
+
                 try {
-                    let contentToAnalyze = article.content;
-
-                    // --- RAG Step: Retrieve Context ---
-                    // Use title + start of content as query
-                    const queryText = `${article.title} ${contentToAnalyze.slice(0, 100)}`;
-                    let retrievedInfo = "暂无相关背景资料。";
+                    // 3. Call LLM (gemini-2.5-flash for speed)
+                    const response = await chatGemini([{ role: 'user', content: fullPrompt }], 'gemini-2.5-flash');
                     
-                    try {
-                        const searchRes = await searchSemanticSegments({
-                            query_text: queryText,
-                            page: 1,
-                            page_size: 5, // Top 5 chunks
-                            similarity_threshold: 0.35
-                        });
-                        
-                        if (searchRes.items && searchRes.items.length > 0) {
-                            retrievedInfo = searchRes.items
-                                .map((item, idx) => `[资料${idx+1}] ${item.title}: ${item.content.slice(0, 200)}...`)
-                                .join('\n\n');
-                        }
-                    } catch (searchErr) {
-                        console.warn("Vector search failed, proceeding without context", searchErr);
-                    }
-                    
-                    // Replace placeholders
-                    const articleContext = `标题: ${article.title}\nURL: ${article.original_url || ''}\n内容: ${contentToAnalyze}`;
-                    
-                    let filledPrompt = targetPrompt.content.replace('{{ article_content }}', articleContext);
-                    filledPrompt = filledPrompt.replace('{{ retrieved_info }}', retrievedInfo); 
-
-                    // Call LLM
-                    const response = await chatGemini([
-                        { role: 'user', content: filledPrompt }
-                    ]);
-
                     if (response && response.choices && response.choices.length > 0) {
-                        const responseText = response.choices[0].message.content;
-                        
-                        // Use robust extractor
-                        const items = extractJsonArray(responseText);
+                        const text = response.choices[0].message.content;
+                        const items = extractJsonArray(text);
                         
                         if (items && Array.isArray(items)) {
                             const newItems: TechItem[] = items.map((item: any) => ({
@@ -185,29 +162,130 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                 field: item.field || '其他',
                                 description: item.description || '无描述',
                                 status: item.status || '未知',
-                                original_url: item.original_url || article.original_url || '', 
+                                original_url: item.original_url || article.original_url || '',
+                                sourceArticleTitle: article.title,
+                                isSelected: true, // Default selected for next step
                                 analysisState: 'idle'
                             }));
                             
                             setTechList(prev => [...prev, ...newItems]);
-                        } else {
-                            console.warn("Failed to extract JSON array from response:", responseText);
                         }
                     }
-
                 } catch (err) {
-                    console.error(`Failed to analyze article ${article.id}`, err);
-                    // Continue to next article
+                    console.error(`Failed to extract from article: ${article.title}`, err);
                 }
             }
-
         } catch (e) {
-            console.error("Analysis workflow failed", e);
-            alert("分析过程中发生错误");
+            console.error("Extraction workflow error", e);
+            alert("提取过程发生错误");
         } finally {
             setIsExtracting(false);
         }
     };
+
+    // --- Phase 2: Generation ---
+    // User selected items from TechList, now we generate deep analysis for them sequentially.
+    const startGeneration = async () => {
+        const selectedItems = techList.filter(t => t.isSelected && t.analysisState !== 'done' && t.analysisState !== 'generating_html');
+        if (selectedItems.length === 0) {
+            alert("请先选择需要分析的技术点（已完成的项目将被跳过）");
+            return;
+        }
+
+        setIsGenerating(true);
+
+        const reportPrompt = prompts.find(p => p.name === '新技术四象限编写');
+        const htmlPrompt = prompts.find(p => p.name === '新技术四象限html生成');
+
+        if (!reportPrompt || !htmlPrompt) {
+            alert("缺少必要的提示词配置 (编写/HTML生成)");
+            setIsGenerating(false);
+            return;
+        }
+
+        for (const item of selectedItems) {
+            // Update UI to show analyzing
+            setTechList(prev => prev.map(t => t.id === item.id ? { ...t, analysisState: 'analyzing', logs: ['开始深度分析...'] } : t));
+
+            try {
+                // --- Step 2.1: RAG Search ---
+                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), '正在检索背景资料...'] } : t));
+                
+                const queryText = `${item.name} ${item.description}`;
+                let retrievedInfo = "暂无详细资料。";
+                
+                try {
+                    const searchRes = await searchSemanticSegments({
+                        query_text: queryText,
+                        page: 1,
+                        page_size: 5,
+                        similarity_threshold: 0.35
+                    });
+                    if (searchRes.items && searchRes.items.length > 0) {
+                        retrievedInfo = searchRes.items.map((r, i) => `[资料${i+1}] ${r.title}: ${r.content}`).join('\n\n');
+                    }
+                } catch(e) { console.warn("RAG failed", e); }
+
+                // --- Step 2.2: Generate Markdown Report ---
+                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), 'AI 正在撰写报告...'] } : t));
+                
+                let filledReportPrompt = reportPrompt.content
+                    .replace('{{ tech_name }}', item.name)
+                    .replace('{{ tech_info }}', item.description)
+                    .replace('{{ retrieved_info }}', retrievedInfo);
+
+                // Use Pro model for better reasoning
+                const reportRes = await chatGemini([{ role: 'user', content: filledReportPrompt }], 'gemini-2.5-pro');
+                const reportMd = reportRes?.choices?.[0]?.message?.content;
+                
+                if (!reportMd) throw new Error("报告生成返回空");
+                
+                // Transition to review/html generation state (automatic)
+                setTechList(prev => prev.map(t => t.id === item.id ? { 
+                    ...t, 
+                    markdownContent: reportMd,
+                    analysisState: 'generating_html',
+                    logs: [...(t.logs||[]), '报告撰写完成，正在生成可视化 HTML...']
+                } : t));
+
+                // --- Step 2.3: Generate HTML ---
+                const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', reportMd);
+                
+                const htmlRes = await chatGemini([{ role: 'user', content: filledHtmlPrompt }], 'gemini-2.5-pro');
+                const rawHtml = htmlRes?.choices?.[0]?.message?.content;
+                
+                if (!rawHtml) throw new Error("HTML 生成返回空");
+                
+                // Extract clean HTML
+                let cleanHtml = rawHtml;
+                const match = rawHtml.match(/```html([\s\S]*?)```/);
+                if (match) cleanHtml = match[1];
+                else {
+                     const startIdx = rawHtml.indexOf('<!DOCTYPE html>');
+                     if (startIdx !== -1) cleanHtml = rawHtml.substring(startIdx);
+                }
+
+                // Finalize
+                setTechList(prev => prev.map(t => t.id === item.id ? { 
+                    ...t, 
+                    htmlContent: cleanHtml,
+                    analysisState: 'done',
+                    logs: [...(t.logs||[]), '全流程完成']
+                } : t));
+
+            } catch (err: any) {
+                console.error(`Error processing item ${item.name}`, err);
+                setTechList(prev => prev.map(t => t.id === item.id ? { 
+                    ...t, 
+                    analysisState: 'error',
+                    logs: [...(t.logs||[]), `错误: ${err.message}`]
+                } : t));
+            }
+        }
+
+        setIsGenerating(false);
+    };
+
 
     return (
         <div className="h-full flex flex-col bg-[#f8fafc] relative">
@@ -216,20 +294,21 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 techList={techList}
                 setTechList={setTechList}
                 onOpenSelection={() => {
-                    // Reset everything when opening modal to start fresh
-                    setTechList([]); 
-                    setSelectedArticles([]);
-                    setResetTrigger(Date.now()); // Trigger modal reset
+                    // Logic: Do not reset list if user just wants to add more.
+                    // But if they want a clean start, they can use a "Clear" button inside modal.
+                    // Here we just open modal.
                     setIsSelectionModalOpen(true);
                 }} 
                 isExtracting={isExtracting}
+                isGenerating={isGenerating}
+                onStartGeneration={startGeneration}
                 prompts={prompts}
             />
 
-            {/* Persistent Modal Wrapper */}
+            {/* Selection Modal */}
             <div 
                 className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isSelectionModalOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-                style={{ display: isSelectionModalOpen ? 'flex' : 'none' }} // Use display to preserve React state
+                style={{ display: isSelectionModalOpen ? 'flex' : 'none' }}
             >
                  <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95">
                       <ArticleSelectionStep 

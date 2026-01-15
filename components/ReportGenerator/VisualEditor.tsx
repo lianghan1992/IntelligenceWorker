@@ -11,7 +11,7 @@ import {
 export interface VisualCanvasHandle {
     updateStyle: (key: string, value: string | number) => void;
     updateContent: (text: string) => void;
-    updateAttribute: (key: string, value: string) => void;
+    updateAttribute: (key, value) => void;
     insertElement: (type: 'img', value: string) => void;
     updateTransform: (dx: number, dy: number, scale?: number) => void;
     changeLayer: (direction: 'up' | 'down') => void;
@@ -40,18 +40,55 @@ interface VisualEditorProps {
     hideToolbar?: boolean;
 }
 
+// --- Long Press Button Component ---
+const RepeatingButton: React.FC<{
+    onClick: () => void;
+    className?: string;
+    children: React.ReactNode;
+    title?: string;
+}> = ({ onClick, className, children, title }) => {
+    const intervalRef = useRef<number | null>(null);
+    const timeoutRef = useRef<number | null>(null);
+
+    const start = () => {
+        onClick(); // Trigger once immediately
+        timeoutRef.current = window.setTimeout(() => {
+            intervalRef.current = window.setInterval(onClick, 100); // Repeat every 100ms
+        }, 300); // Wait 300ms before starting repeat
+    };
+
+    const stop = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        timeoutRef.current = null;
+        intervalRef.current = null;
+    };
+
+    return (
+        <button
+            className={className}
+            onMouseDown={start}
+            onMouseUp={stop}
+            onMouseLeave={stop}
+            onTouchStart={(e) => { e.preventDefault(); start(); }} // Prevent ghost clicks
+            onTouchEnd={(e) => { e.preventDefault(); stop(); }}
+            title={title}
+        >
+            {children}
+        </button>
+    );
+};
+
+
 // --- Editor Interaction Script ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
   let selectedEl = null;
   let isDragging = false;
-  let isResizing = false;
-  let resizeHandle = null;
-  let startX, startY;
-  let initialTransformX = 0, initialTransformY = 0;
-  let initialWidth = 0, initialHeight = 0;
-  
+  let startX = 0, startY = 0;
+  let startTranslateX = 0, startTranslateY = 0;
+
   window.visualEditorScale = 1;
 
   const style = document.createElement('style');
@@ -60,17 +97,21 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 2147483647 !important; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
-    .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 1px solid #3b82f6; z-index: 2147483647; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-    .ai-r-nw { top: -5px; left: -5px; cursor: nw-resize; }
-    .ai-r-n  { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
-    .ai-r-ne { top: -5px; right: -5px; cursor: ne-resize; }
-    .ai-r-e  { top: 50%; right: -5px; margin-top: -5px; cursor: e-resize; }
-    .ai-r-se { bottom: -5px; right: -5px; cursor: se-resize; }
-    .ai-r-s  { bottom: -5px; left: 50%; margin-left: -5px; cursor: s-resize; }
-    .ai-r-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
-    .ai-r-w  { top: 50%; left: -5px; margin-top: -5px; cursor: w-resize; }
+    /* Hide resizers for now to simplify drag logic fix */
   \`;
   document.head.appendChild(style);
+
+  function getTransform(el) {
+      const style = window.getComputedStyle(el);
+      const matrix = new WebKitCSSMatrix(style.transform);
+      return { x: matrix.m41, y: matrix.m42, scale: 1 }; // Simplifying scale extraction
+  }
+
+  function setTransform(el, x, y, scale) {
+      // Preserve existing scale if possible, but for simple drag just translate
+      // A more robust regex might be needed to preserve other transform props
+      el.style.transform = \`translate(\${x}px, \${y}px) scale(\${scale})\`;
+  }
 
   function pushHistory() {
       setTimeout(() => {
@@ -81,7 +122,7 @@ const EDITOR_SCRIPT = `
         
         // Save current selection to restore after getting HTML
         const wasSelected = selectedEl;
-        deselect(true); // Temp deselect to clean HTML
+        deselect(true); 
         
         const cleanHtml = document.documentElement.outerHTML;
         
@@ -92,27 +133,52 @@ const EDITOR_SCRIPT = `
       }, 20);
   }
 
-  function createResizers(el) {
-      removeResizers();
-      const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
-      handles.forEach(h => {
-          const div = document.createElement('div');
-          div.className = 'ai-resizer ai-r-' + h;
-          div.dataset.handle = h;
-          el.appendChild(div);
-      });
-  }
+  document.body.addEventListener('mousedown', (e) => {
+      if (selectedEl && e.target === selectedEl && !selectedEl.isContentEditable) {
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          const t = getTransform(selectedEl);
+          startTranslateX = t.x;
+          startTranslateY = t.y;
+          // e.preventDefault(); // Prevent text selection but allow focus
+      }
+  });
 
-  function removeResizers() {
-      document.querySelectorAll('.ai-resizer').forEach(r => r.remove());
-  }
+  window.addEventListener('mousemove', (e) => {
+      if (isDragging && selectedEl) {
+          e.preventDefault();
+          const scale = window.visualEditorScale || 1;
+          const dx = (e.clientX - startX) / scale;
+          const dy = (e.clientY - startY) / scale;
+          
+          // Apply transform
+          // Note: We need to retrieve current scale to preserve it. 
+          // For now hardcoding scale preservation is tricky without parsing.
+          // Assuming scale 1 for drag unless we parse it.
+          const currentStyle = selectedEl.style.transform || '';
+          let currentScale = 1;
+          const scaleMatch = currentStyle.match(/scale\\(([^)]+)\\)/);
+          if (scaleMatch) currentScale = parseFloat(scaleMatch[1]);
+
+          selectedEl.style.transform = \`translate(\${startTranslateX + dx}px, \${startTranslateY + dy}px) scale(\${currentScale})\`;
+      }
+  });
+
+  window.addEventListener('mouseup', () => {
+      if (isDragging) {
+          isDragging = false;
+          pushHistory();
+      }
+  });
 
   document.body.addEventListener('click', (e) => {
-    if (e.target.classList.contains('ai-resizer')) return;
+    if (isDragging) return; // Don't select on drag end
     if (e.target.isContentEditable) return;
-    e.preventDefault(); e.stopPropagation();
     
-    // FIX: Allow clicking children. If clicking a new element (even if child of current), select it.
+    // e.preventDefault(); 
+    // e.stopPropagation();
+    
     if (selectedEl === e.target) return;
 
     if (selectedEl && selectedEl !== e.target) {
@@ -166,7 +232,7 @@ const EDITOR_SCRIPT = `
   }, true);
 
   document.body.addEventListener('mouseover', (e) => {
-      if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
+      if (e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
       let target = e.target;
       if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
            target = target.parentElement;
@@ -183,15 +249,12 @@ const EDITOR_SCRIPT = `
   });
 
   document.body.addEventListener('dblclick', (e) => {
-     e.preventDefault(); e.stopPropagation();
-     if (selectedEl && !e.target.classList.contains('ai-resizer') && !selectedEl.classList.contains('ai-img-wrapper')) {
-         removeResizers();
+     if (selectedEl && !selectedEl.classList.contains('ai-img-wrapper')) {
          selectedEl.contentEditable = 'true';
          selectedEl.focus();
          const onBlur = () => {
              selectedEl.contentEditable = 'false';
              selectedEl.removeEventListener('blur', onBlur);
-             createResizers(selectedEl);
              pushHistory(); 
          };
          selectedEl.addEventListener('blur', onBlur);
@@ -236,7 +299,6 @@ const EDITOR_SCRIPT = `
       selectedEl = el;
       selectedEl.classList.remove('ai-editor-hover');
       selectedEl.classList.add('ai-editor-selected');
-      createResizers(selectedEl);
       
       const comp = window.getComputedStyle(selectedEl);
       sendSelection(selectedEl, comp);
@@ -246,7 +308,6 @@ const EDITOR_SCRIPT = `
       if (selectedEl) {
          selectedEl.classList.remove('ai-editor-selected');
          selectedEl.contentEditable = 'false';
-         removeResizers();
          if (!temporary) {
              selectedEl = null;
              window.parent.postMessage({ type: 'DESELECT' }, '*');
@@ -263,7 +324,6 @@ const EDITOR_SCRIPT = `
         if (selectedEl) deselect(true);
         const editables = document.querySelectorAll('*[contenteditable]');
         editables.forEach(el => el.removeAttribute('contenteditable'));
-        removeResizers();
         const cleanHtml = document.documentElement.outerHTML;
         if (wasSelected) selectElement(wasSelected);
         window.parent.postMessage({ type: 'HTML_RESULT', html: cleanHtml }, '*');
@@ -312,7 +372,6 @@ const EDITOR_SCRIPT = `
         pushHistory(); 
     }
     else if (action === 'UPDATE_STYLE') { 
-        // FIX: Use setProperty with 'important' to override Tailwind utility classes
         Object.entries(value).forEach(([k, v]) => {
             const prop = k.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
             selectedEl.style.setProperty(prop, String(v), 'important');
@@ -357,11 +416,7 @@ const EDITOR_SCRIPT = `
         const style = window.getComputedStyle(selectedEl);
         const currentZ = parseInt(style.zIndex) || 0;
         const newZ = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
-        
-        // FIX: Force set Z-Index
         selectedEl.style.setProperty('z-index', newZ.toString(), 'important');
-        
-        // FIX: Ensure positioning allows z-index
         if (style.position === 'static') {
             selectedEl.style.setProperty('position', 'relative', 'important');
         }
@@ -392,12 +447,6 @@ const EDITOR_SCRIPT = `
     }
     else if (action === 'DESELECT_FORCE') {
         deselect();
-    }
-  });
-
-  window.addEventListener('mouseup', () => {
-    if (isDragging || isResizing) {
-        isDragging = false; isResizing = false; pushHistory();
     }
   });
 })();
@@ -623,20 +672,20 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
                     {isText && (
                         <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 flex-shrink-0">
                              <div className="flex items-center bg-white border border-slate-200 rounded px-1 h-7">
-                                <button 
-                                    onClick={() => handleUpdateStyle('fontSize', `${Math.max(1, parseFontSize(selectedElement.fontSize) - 2)}px`)}
+                                <RepeatingButton 
+                                    onClick={() => handleUpdateStyle('fontSize', `${Math.max(1, parseFontSize(selectedElement.fontSize) - 1)}px`)}
                                     className="w-6 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-r border-slate-100 font-bold text-xs"
-                                >-</button>
+                                >-</RepeatingButton>
                                 <input 
                                     type="number" 
                                     value={parseFontSize(selectedElement.fontSize)} 
                                     onChange={(e) => handleUpdateStyle('fontSize', `${e.target.value}px`)}
                                     className="w-8 text-xs font-bold text-slate-700 outline-none text-center h-full appearance-none bg-transparent"
                                 />
-                                <button 
-                                    onClick={() => handleUpdateStyle('fontSize', `${parseFontSize(selectedElement.fontSize) + 2}px`)}
+                                <RepeatingButton 
+                                    onClick={() => handleUpdateStyle('fontSize', `${parseFontSize(selectedElement.fontSize) + 1}px`)}
                                     className="w-6 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-100 font-bold text-xs"
-                                >+</button>
+                                >+</RepeatingButton>
                             </div>
                             <div className="w-px h-4 bg-slate-200 mx-1"></div>
                             <button onClick={() => handleUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
@@ -702,14 +751,14 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
                          <button onClick={() => { editorRef.current?.deleteElement(); setSelectedElement(null); }} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
                     </div>
 
-                    {/* Transform Nudge Group */}
+                    {/* Transform Nudge Group - Uses RepeatingButton */}
                     <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
-                        <button onClick={() => editorRef.current?.updateTransform(-10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
+                        <RepeatingButton onClick={() => editorRef.current?.updateTransform(-5, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded active:bg-blue-100 transition-colors"><ArrowIcon className="w-3 h-3 rotate-180"/></RepeatingButton>
                         <div className="flex flex-col gap-0.5">
-                             <button onClick={() => editorRef.current?.updateTransform(0, -10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
-                             <button onClick={() => editorRef.current?.updateTransform(0, 10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></button>
+                             <RepeatingButton onClick={() => editorRef.current?.updateTransform(0, -5)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded active:bg-blue-100 transition-colors"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></RepeatingButton>
+                             <RepeatingButton onClick={() => editorRef.current?.updateTransform(0, 5)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded active:bg-blue-100 transition-colors"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></RepeatingButton>
                         </div>
-                        <button onClick={() => editorRef.current?.updateTransform(10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3"/></button>
+                        <RepeatingButton onClick={() => editorRef.current?.updateTransform(5, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded active:bg-blue-100 transition-colors"><ArrowIcon className="w-3 h-3"/></RepeatingButton>
                     </div>
                 </>
             ) : (
