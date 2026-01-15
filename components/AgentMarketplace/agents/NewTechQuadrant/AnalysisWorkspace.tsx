@@ -213,7 +213,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
 
                                         <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2">
                                             <div 
-                                                className="mb-1 line-clamp-2 hover:line-clamp-none transition-all cursor-text"
+                                                className="mb-1 line-clamp-2 transition-all cursor-text"
                                                 title="双击复制内容"
                                                 onDoubleClick={(e) => handleCopyContent(e, item.description, '技术描述')}
                                             >
@@ -221,7 +221,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                                 {item.description}
                                             </div>
                                             <div 
-                                                className="line-clamp-2 hover:line-clamp-none transition-all cursor-text"
+                                                className="line-clamp-2 transition-all cursor-text"
                                                 title="双击复制内容"
                                                 onDoubleClick={(e) => handleCopyContent(e, item.status, '行业应用')}
                                             >
