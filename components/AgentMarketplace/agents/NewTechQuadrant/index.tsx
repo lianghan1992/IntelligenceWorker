@@ -120,14 +120,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     const performExtraction = async (articles: ArticlePublic[]) => {
         setIsExtracting(true);
-        // We append to existing list or clear? 
-        // Requirement says: "Append to recognition list"
-        // But for a new batch flow, user might expect clean slate if they clicked "back to select" and then "confirm".
-        // Let's rely on user manually clearing if they want, or we can clear if it's a fresh start.
-        // For now, let's keep existing items and append new ones, handling duplicates maybe?
-        // Actually, simplicity: if modal opened via "Reset", list was cleared. If via "Add", append.
-        // Assuming "Confirm" from modal implies processing these specific new articles.
-        
         try {
             const extractPrompt = prompts.find(p => p.name === '新技术识别提示词');
             if (!extractPrompt || !extractPrompt.content) {
@@ -137,18 +129,11 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             }
 
             for (const article of articles) {
-                // 1. Prepare Content
                 const contentSnippet = article.content.slice(0, 3000); // Limit context window
                 const articleContext = `标题: ${article.title}\nURL: ${article.original_url || ''}\n发布时间: ${article.publish_date}\n\n正文:\n${contentSnippet}`;
-                
-                // 2. Fill Prompt
-                // The prompt expects CSV content usually, but we adapted it for single article text in previous logic? 
-                // Let's check prompt variable. If it doesn't have variable, we append.
-                // Assuming standard prompt structure where we append content.
                 const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
 
                 try {
-                    // 3. Call LLM (gemini-2.5-flash for speed)
                     const response = await chatGemini([{ role: 'user', content: fullPrompt }], 'gemini-2.5-flash');
                     
                     if (response && response.choices && response.choices.length > 0) {
@@ -186,10 +171,23 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     // --- Phase 2: Generation ---
     // User selected items from TechList, now we generate deep analysis for them sequentially.
     const startGeneration = async () => {
-        const selectedItems = techList.filter(t => t.isSelected && t.analysisState !== 'done' && t.analysisState !== 'generating_html');
-        if (selectedItems.length === 0) {
-            alert("请先选择需要分析的技术点（已完成的项目将被跳过）");
+        // 1. Filter: Keep ONLY selected items
+        const selectedList = techList.filter(t => t.isSelected);
+        
+        if (selectedList.length === 0) {
+            alert("请先选择需要分析的技术点");
             return;
+        }
+
+        // Update state to remove unselected items immediately
+        setTechList(selectedList);
+
+        // 2. Identify items that actually need processing (skip done/processing)
+        const itemsToProcess = selectedList.filter(t => t.analysisState !== 'done' && t.analysisState !== 'generating_html');
+
+        if (itemsToProcess.length === 0) {
+             // All selected are already done, nothing to do
+             return;
         }
 
         setIsGenerating(true);
@@ -203,7 +201,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             return;
         }
 
-        for (const item of selectedItems) {
+        for (const item of itemsToProcess) {
             // Update UI to show analyzing
             setTechList(prev => prev.map(t => t.id === item.id ? { ...t, analysisState: 'analyzing', logs: ['开始深度分析...'] } : t));
 
@@ -294,9 +292,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 techList={techList}
                 setTechList={setTechList}
                 onOpenSelection={() => {
-                    // Logic: Do not reset list if user just wants to add more.
-                    // But if they want a clean start, they can use a "Clear" button inside modal.
-                    // Here we just open modal.
                     setIsSelectionModalOpen(true);
                 }} 
                 isExtracting={isExtracting}

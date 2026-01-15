@@ -194,12 +194,13 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                             {item.sourceArticleTitle && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded truncate max-w-[120px]" title={item.sourceArticleTitle}>源: {item.sourceArticleTitle}</span>}
                                         </div>
 
-                                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed" title={item.description}>
-                                            {item.description}
-                                        </p>
+                                        <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 mb-2 select-text">
+                                            <div className="mb-1"><span className="font-bold text-slate-700">技术描述:</span> {item.description}</div>
+                                            <div><span className="font-bold text-slate-700">行业应用:</span> {item.status}</div>
+                                        </div>
                                         
                                         {/* Status Bar */}
-                                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                                        <div className="pt-1 border-t border-slate-50 flex items-center justify-between text-[10px]">
                                              <div className="font-mono flex items-center gap-1.5">
                                                 {item.analysisState === 'idle' && <span className="text-slate-400">待分析</span>}
                                                 {item.analysisState === 'analyzing' && <span className="text-indigo-500 font-bold flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 深度分析中...</span>}
@@ -284,14 +285,14 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                          <div className="space-y-6">
                                              <div>
                                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">技术描述</h4>
-                                                 <p className="text-sm text-slate-700 leading-loose bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                                 <p className="text-sm text-slate-700 leading-loose bg-slate-50 p-4 rounded-xl border border-slate-100 select-text">
                                                      {activeItem.description}
                                                  </p>
                                              </div>
                                              
                                              <div>
                                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">行业应用</h4>
-                                                 <p className="text-sm text-slate-700 leading-loose bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800">
+                                                 <p className="text-sm text-slate-700 leading-loose bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 select-text">
                                                      {activeItem.status}
                                                  </p>
                                              </div>

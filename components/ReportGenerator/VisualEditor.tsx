@@ -97,20 +97,13 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 2147483647 !important; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
-    /* Hide resizers for now to simplify drag logic fix */
   \`;
   document.head.appendChild(style);
 
   function getTransform(el) {
       const style = window.getComputedStyle(el);
       const matrix = new WebKitCSSMatrix(style.transform);
-      return { x: matrix.m41, y: matrix.m42, scale: 1 }; // Simplifying scale extraction
-  }
-
-  function setTransform(el, x, y, scale) {
-      // Preserve existing scale if possible, but for simple drag just translate
-      // A more robust regex might be needed to preserve other transform props
-      el.style.transform = \`translate(\${x}px, \${y}px) scale(\${scale})\`;
+      return { x: matrix.m41, y: matrix.m42 }; 
   }
 
   function pushHistory() {
@@ -120,20 +113,17 @@ const EDITOR_SCRIPT = `
              sendSelection(selectedEl, comp);
         }
         
-        // Save current selection to restore after getting HTML
         const wasSelected = selectedEl;
         deselect(true); 
-        
         const cleanHtml = document.documentElement.outerHTML;
-        
-        // Restore
         if (wasSelected) selectElement(wasSelected);
         
         window.parent.postMessage({ type: 'HISTORY_UPDATE', html: cleanHtml }, '*');
       }, 20);
   }
 
-  document.body.addEventListener('mousedown', (e) => {
+  document.addEventListener('mousedown', (e) => {
+      // Only start drag if on selected element and NOT editing text
       if (selectedEl && e.target === selectedEl && !selectedEl.isContentEditable) {
           isDragging = true;
           startX = e.clientX;
@@ -141,10 +131,12 @@ const EDITOR_SCRIPT = `
           const t = getTransform(selectedEl);
           startTranslateX = t.x;
           startTranslateY = t.y;
-          // e.preventDefault(); // Prevent text selection but allow focus
+          // Prevent text selection during drag
+          e.preventDefault(); 
       }
   });
 
+  // Listen globally (on window) for move/up to catch fast movements
   window.addEventListener('mousemove', (e) => {
       if (isDragging && selectedEl) {
           e.preventDefault();
@@ -152,10 +144,6 @@ const EDITOR_SCRIPT = `
           const dx = (e.clientX - startX) / scale;
           const dy = (e.clientY - startY) / scale;
           
-          // Apply transform
-          // Note: We need to retrieve current scale to preserve it. 
-          // For now hardcoding scale preservation is tricky without parsing.
-          // Assuming scale 1 for drag unless we parse it.
           const currentStyle = selectedEl.style.transform || '';
           let currentScale = 1;
           const scaleMatch = currentStyle.match(/scale\\(([^)]+)\\)/);
@@ -175,9 +163,6 @@ const EDITOR_SCRIPT = `
   document.body.addEventListener('click', (e) => {
     if (isDragging) return; // Don't select on drag end
     if (e.target.isContentEditable) return;
-    
-    // e.preventDefault(); 
-    // e.stopPropagation();
     
     if (selectedEl === e.target) return;
 
