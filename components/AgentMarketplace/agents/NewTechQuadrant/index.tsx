@@ -31,6 +31,12 @@ export const AVAILABLE_MODELS = [
     { label: 'Gemini 3.0 Flash', value: 'gemini-3-flash-preview' },
 ];
 
+export interface ModelConfig {
+    extraction: string;
+    analysis: string;
+    html: string;
+}
+
 // Helper: Robustly extract JSON array from text
 const extractJsonArray = (text: string): any[] | null => {
     if (!text) return null;
@@ -98,6 +104,47 @@ const extractJsonArray = (text: string): any[] | null => {
     return null;
 };
 
+// Helper: Robustly extract HTML from text
+const extractCleanHtml = (text: string): string => {
+    if (!text) return '';
+    let clean = text.trim();
+
+    // 1. Try extracting from markdown code blocks first (most common)
+    const codeBlockMatch = clean.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+        clean = codeBlockMatch[1].trim();
+    }
+
+    // 2. Locate the start of HTML
+    // Covers <!DOCTYPE html>, <html>, or even just <div if partial
+    const startMatch = clean.search(/<!DOCTYPE\s+html|<html/i);
+    if (startMatch !== -1) {
+        clean = clean.substring(startMatch);
+    } else {
+        // Fallback for when no doctype/html tag is present but looks like HTML
+        const divMatch = clean.search(/<div|<section|<body/i);
+        if (divMatch !== -1) {
+            // It might be a fragment, try to use it as is or wrap it? 
+            // For now, assume VisualEditor handles fragments if they are valid elements
+            clean = clean.substring(divMatch);
+        }
+    }
+
+    // 3. Locate the end of HTML to strip trailing AI commentary
+    const endMatch = clean.search(/<\/html>/i);
+    if (endMatch !== -1) {
+        clean = clean.substring(0, endMatch + 7);
+    }
+    
+    // 4. Cleanup escaped characters if LLM messed up (basic ones)
+    // Sometimes LLMs return \&lt; instead of < inside code blocks
+    if (clean.startsWith('&lt;!DOCTYPE')) {
+        clean = clean.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    }
+
+    return clean.trim();
+};
+
 const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(true); 
     const [selectedArticles, setSelectedArticles] = useState<ArticlePublic[]>([]);
@@ -110,8 +157,12 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [resetTrigger, setResetTrigger] = useState(0);
     const [prompts, setPrompts] = useState<StratifyPrompt[]>([]);
 
-    // Model Selection State
-    const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-pro');
+    // Model Selection State (Granular)
+    const [modelConfig, setModelConfig] = useState<ModelConfig>({
+        extraction: 'gemini-2.5-flash',
+        analysis: 'gemini-2.5-pro',
+        html: 'gemini-2.5-flash' // Flash is usually good enough for HTML and faster
+    });
 
     useEffect(() => {
         getPrompts({ scenario_id: SCENARIO_ID })
@@ -119,15 +170,21 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             .catch(err => console.error("Failed to load scenario prompts", err));
         
         // Load model preference
-        const savedModel = localStorage.getItem('ntq_selected_model');
-        if (savedModel && AVAILABLE_MODELS.some(m => m.value === savedModel)) {
-            setSelectedModel(savedModel);
+        const savedConfigStr = localStorage.getItem('ntq_model_config');
+        if (savedConfigStr) {
+            try {
+                const saved = JSON.parse(savedConfigStr);
+                setModelConfig(prev => ({ ...prev, ...saved }));
+            } catch (e) {}
         }
     }, []);
 
-    const handleModelChange = (model: string) => {
-        setSelectedModel(model);
-        localStorage.setItem('ntq_selected_model', model);
+    const handleModelConfigChange = (key: keyof ModelConfig, value: string) => {
+        setModelConfig(prev => {
+            const next = { ...prev, [key]: value };
+            localStorage.setItem('ntq_model_config', JSON.stringify(next));
+            return next;
+        });
     };
 
     // --- Phase 1: Extraction ---
@@ -154,7 +211,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
 
                 try {
-                    const response = await chatGemini([{ role: 'user', content: fullPrompt }], selectedModel);
+                    // Use Extraction Model
+                    const response = await chatGemini([{ role: 'user', content: fullPrompt }], modelConfig.extraction);
                     
                     if (response && response.choices && response.choices.length > 0) {
                         const text = response.choices[0].message.content;
@@ -257,7 +315,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     .replace('{{ tech_info }}', item.description)
                     .replace('{{ retrieved_info }}', retrievedInfo);
 
-                const reportRes = await chatGemini([{ role: 'user', content: filledReportPrompt }], selectedModel);
+                // Use Analysis Model
+                const reportRes = await chatGemini([{ role: 'user', content: filledReportPrompt }], modelConfig.analysis);
                 const reportMd = reportRes?.choices?.[0]?.message?.content;
                 
                 if (!reportMd) throw new Error("报告生成返回空");
@@ -273,19 +332,14 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 // --- Step 2.3: Generate HTML ---
                 const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', reportMd);
                 
-                const htmlRes = await chatGemini([{ role: 'user', content: filledHtmlPrompt }], selectedModel);
+                // Use HTML Model
+                const htmlRes = await chatGemini([{ role: 'user', content: filledHtmlPrompt }], modelConfig.html);
                 const rawHtml = htmlRes?.choices?.[0]?.message?.content;
                 
                 if (!rawHtml) throw new Error("HTML 生成返回空");
                 
-                // Extract clean HTML
-                let cleanHtml = rawHtml;
-                const match = rawHtml.match(/```html([\s\S]*?)```/);
-                if (match) cleanHtml = match[1];
-                else {
-                     const startIdx = rawHtml.indexOf('<!DOCTYPE html>');
-                     if (startIdx !== -1) cleanHtml = rawHtml.substring(startIdx);
-                }
+                // Extract clean HTML using robust helper
+                const cleanHtml = extractCleanHtml(rawHtml);
 
                 // Finalize
                 setTechList(prev => prev.map(t => t.id === item.id ? { 
@@ -307,6 +361,54 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
         setIsGenerating(false);
     };
+    
+    // --- Manual Regeneration (HTML Only) ---
+    const regenerateHtml = async (item: TechItem) => {
+        if (!item.markdownContent) {
+            alert("该项目没有分析报告内容，无法重新生成 HTML。请先进行完整分析。");
+            return;
+        }
+
+        const htmlPrompt = prompts.find(p => p.name === '新技术四象限html生成');
+        if (!htmlPrompt) {
+            alert("未找到 HTML 生成提示词");
+            return;
+        }
+
+        setTechList(prev => prev.map(t => t.id === item.id ? { 
+            ...t, 
+            analysisState: 'generating_html', 
+            logs: [...(t.logs||[]), '正在重新生成 HTML...'] 
+        } : t));
+
+        try {
+            const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', item.markdownContent);
+            
+            // Use HTML Model
+            const htmlRes = await chatGemini([{ role: 'user', content: filledHtmlPrompt }], modelConfig.html);
+            const rawHtml = htmlRes?.choices?.[0]?.message?.content;
+            
+            if (!rawHtml) throw new Error("HTML 生成返回空");
+            
+            // Extract clean HTML using robust helper
+            const cleanHtml = extractCleanHtml(rawHtml);
+
+            setTechList(prev => prev.map(t => t.id === item.id ? { 
+                ...t, 
+                htmlContent: cleanHtml,
+                analysisState: 'done',
+                logs: [...(t.logs||[]), 'HTML 重新生成完成']
+            } : t));
+
+        } catch (err: any) {
+            console.error(`Error regenerating HTML for ${item.name}`, err);
+            setTechList(prev => prev.map(t => t.id === item.id ? { 
+                ...t, 
+                analysisState: 'error',
+                logs: [...(t.logs||[]), `重绘失败: ${err.message}`]
+            } : t));
+        }
+    };
 
 
     return (
@@ -322,9 +424,10 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 isGenerating={isGenerating}
                 onStartGeneration={startGeneration}
                 prompts={prompts}
-                selectedModel={selectedModel}
-                onModelChange={handleModelChange}
+                modelConfig={modelConfig}
+                onModelConfigChange={handleModelConfigChange}
                 availableModels={AVAILABLE_MODELS}
+                onRegenerateHtml={regenerateHtml}
             />
 
             {/* Selection Modal */}

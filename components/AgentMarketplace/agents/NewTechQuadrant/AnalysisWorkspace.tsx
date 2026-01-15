@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { TechItem } from './index';
+import { TechItem, ModelConfig } from './index';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { 
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
@@ -20,9 +20,10 @@ interface AnalysisWorkspaceProps {
     isGenerating: boolean;
     onStartGeneration: () => void;
     prompts?: StratifyPrompt[];
-    selectedModel: string;
-    onModelChange: (model: string) => void;
+    modelConfig: ModelConfig;
+    onModelConfigChange: (key: keyof ModelConfig, value: string) => void;
     availableModels: { label: string; value: string }[];
+    onRegenerateHtml: (item: TechItem) => void;
 }
 
 // URL Cleaner Helper
@@ -44,7 +45,8 @@ const cleanUrl = (url?: string) => {
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ 
     articles, techList, setTechList, onOpenSelection, 
     isExtracting, isGenerating, onStartGeneration, prompts,
-    selectedModel, onModelChange, availableModels
+    modelConfig, onModelConfigChange, availableModels,
+    onRegenerateHtml
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [scale, setScale] = useState(1.0); // Default 1.0, but useEffect will adjust
@@ -126,7 +128,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                  const url = window.URL.createObjectURL(blob);
                  const a = document.createElement('a');
                  a.href = url;
-                 a.download = `${activeItem.name}_report.pdf`;
+                 a.download = `${activeItem.name}.pdf`;
                  a.click();
                  window.URL.revokeObjectURL(url);
              } catch(e) {
@@ -178,22 +180,48 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                         </button>
                     </div>
 
-                    {/* Model Selector */}
-                    <div className="flex items-center gap-2 mb-4 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
-                        <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded">
-                            <ServerIcon className="w-3.5 h-3.5" />
+                    {/* Model Configuration Panel */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-4 space-y-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-600 border-b border-slate-100 pb-2">
+                            <ServerIcon className="w-3.5 h-3.5 text-indigo-500" />
+                            模型配置策略
                         </div>
-                        <select
-                            value={selectedModel}
-                            onChange={(e) => onModelChange(e.target.value)}
-                            disabled={isExtracting || isGenerating}
-                            className="flex-1 bg-transparent text-xs font-medium text-slate-700 outline-none cursor-pointer disabled:opacity-50"
-                            title="选择 AI 模型"
-                        >
-                            {availableModels.map(m => (
-                                <option key={m.value} value={m.value}>{m.label}</option>
-                            ))}
-                        </select>
+                        
+                        <div className="grid grid-cols-1 gap-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] text-slate-400 font-medium">识别 (Extract)</label>
+                                <select
+                                    value={modelConfig.extraction}
+                                    onChange={(e) => onModelConfigChange('extraction', e.target.value)}
+                                    disabled={isExtracting || isGenerating}
+                                    className="bg-slate-50 border border-slate-200 text-[10px] rounded px-2 py-1 w-40 outline-none focus:border-indigo-300 disabled:opacity-50"
+                                >
+                                    {availableModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] text-slate-400 font-medium">内容 (Generate)</label>
+                                <select
+                                    value={modelConfig.analysis}
+                                    onChange={(e) => onModelConfigChange('analysis', e.target.value)}
+                                    disabled={isExtracting || isGenerating}
+                                    className="bg-slate-50 border border-slate-200 text-[10px] rounded px-2 py-1 w-40 outline-none focus:border-indigo-300 disabled:opacity-50"
+                                >
+                                    {availableModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] text-slate-400 font-medium">绘图 (HTML)</label>
+                                <select
+                                    value={modelConfig.html}
+                                    onChange={(e) => onModelConfigChange('html', e.target.value)}
+                                    disabled={isExtracting || isGenerating}
+                                    className="bg-slate-50 border border-slate-200 text-[10px] rounded px-2 py-1 w-40 outline-none focus:border-indigo-300 disabled:opacity-50"
+                                >
+                                    {availableModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Progress Bar (Extraction) */}
@@ -274,6 +302,17 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                         <div className="flex justify-between items-start mb-1">
                                             <h4 className={`font-bold text-sm truncate pr-2 flex-1 ${activeTechId === item.id ? 'text-indigo-700' : 'text-slate-800'}`}>{item.name}</h4>
                                             {item.analysisState === 'done' && <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />}
+                                            
+                                            {/* Regenerate Button */}
+                                            {item.analysisState === 'done' && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); onRegenerateHtml(item); }}
+                                                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-600 transition-colors ml-1"
+                                                    title="重新生成 HTML"
+                                                >
+                                                    <RefreshIcon className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
                                         </div>
                                         
                                         <div className="flex flex-wrap gap-2 mb-2">
