@@ -6,16 +6,16 @@ import {
     LinkIcon, RefreshIcon,
     LayerIcon, DuplicateIcon, ArrowIcon,
     BoldIcon, ItalicIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon,
-    PlusIcon // Using PlusIcon for zoom in / scale up
+    PlusIcon, DocumentTextIcon // Added DocumentTextIcon for Text Tool
 } from '../icons';
 
 export interface VisualCanvasHandle {
     updateStyle: (key: string, value: string | number) => void;
     updateContent: (text: string) => void;
     updateAttribute: (key: string, value: string) => void;
-    insertElement: (type: 'img', value: string) => void;
+    insertElement: (type: 'img' | 'text', value: string) => void; // Added 'text'
     updateTransform: (dx: number, dy: number, scale?: number) => void;
-    scaleGroup: (factor: number) => void; // New method
+    scaleGroup: (factor: number) => void;
     changeLayer: (direction: 'up' | 'down') => void;
     duplicate: () => void;
     deleteElement: () => void;
@@ -105,7 +105,16 @@ const EDITOR_SCRIPT = `
     html, body { min-height: 100vh !important; margin: 0; background-color: #ffffff; }
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 2147483647 !important; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
-    *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
+    
+    /* Strong override for editable content */
+    *[contenteditable="true"] { 
+        cursor: text !important; 
+        outline: 2px dashed #10b981 !important; 
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); 
+        user-select: text !important; 
+        -webkit-user-select: text !important;
+    }
+    
     .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 1px solid #3b82f6; z-index: 2147483647; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
     .ai-r-nw { top: -5px; left: -5px; cursor: nw-resize; }
     .ai-r-n  { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
@@ -140,6 +149,9 @@ const EDITOR_SCRIPT = `
 
   function createResizers(el) {
       removeResizers();
+      // Don't add resizers if editing text
+      if (el.isContentEditable) return;
+      
       const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
       handles.forEach(h => {
           const div = document.createElement('div');
@@ -155,6 +167,7 @@ const EDITOR_SCRIPT = `
 
   // --- Resize Mouse Down ---
   document.addEventListener('mousedown', (e) => {
+      // 1. Resizing
       if (e.target.classList.contains('ai-resizer')) {
           e.preventDefault(); e.stopPropagation();
           isResizing = true;
@@ -171,14 +184,20 @@ const EDITOR_SCRIPT = `
           return;
       }
       
-      // Start Drag
-      if (selectedEl && e.target === selectedEl && !selectedEl.isContentEditable) {
+      // 2. Dragging - CRITICAL FIX: Do NOT start drag if editing text
+      if (selectedEl && e.target === selectedEl) {
+          if (selectedEl.isContentEditable) {
+              // Allow default behavior (text selection)
+              return;
+          }
+          
           isDragging = true;
           startX = e.clientX;
           startY = e.clientY;
           const t = getTransform(selectedEl);
           startTranslateX = t.x;
           startTranslateY = t.y;
+          // Don't prevent default here if we want to allow focus, but we do want to prevent text selection during drag
           e.preventDefault(); 
       }
   });
@@ -192,23 +211,20 @@ const EDITOR_SCRIPT = `
       if (isResizing && selectedEl) {
           e.preventDefault();
           
-          // Simple width/height resizing for E/S/SE handles. 
-          // For other handles (W, N, etc), it often requires changing left/top which interacts with flow layout.
-          // We limit to size adjustment for now.
+          // Force layout properties to ensure resizing works even in Flex/Grid
+          if (selectedEl.style.maxWidth) selectedEl.style.maxWidth = 'none';
+          if (selectedEl.style.maxHeight) selectedEl.style.maxHeight = 'none';
+          // If in flex container, prevent shrinking
+          selectedEl.style.flexShrink = '0';
+          
           if (resizeHandle.includes('e')) {
                selectedEl.style.width = Math.max(10, startWidth + dx) + 'px';
-               selectedEl.style.maxWidth = 'none'; // Ensure resizing works
           }
           if (resizeHandle.includes('s')) {
                selectedEl.style.height = Math.max(10, startHeight + dy) + 'px';
-               selectedEl.style.maxHeight = 'none';
           }
-          if (resizeHandle.includes('w')) {
-               // Negative logic for width, tricky with static positioning, let's just support right/bottom for now
-               // or we could use transform scale? No, user expects dimension change.
-               selectedEl.style.width = Math.max(10, startWidth - dx) + 'px';
-          }
-          // Note: Full resizing logic (changing top/left) is complex with standard flow layout. 
+          // Simple logic for SE resizing. 
+          // Note: Full multi-directional resizing logic is complex, sticking to Width/Height for stability.
       }
 
       if (isDragging && selectedEl) {
@@ -232,8 +248,15 @@ const EDITOR_SCRIPT = `
 
   document.body.addEventListener('click', (e) => {
     if (e.target.classList.contains('ai-resizer')) return;
-    if (e.target.isContentEditable) return;
     
+    // If editing text, clicking inside shouldn't deselect
+    if (selectedEl && selectedEl.contains(e.target) && selectedEl.isContentEditable) {
+        return;
+    }
+    
+    // Stop propagation so we select the specific child clicked
+    e.stopPropagation();
+
     // Clicking selected element does nothing (keeps selection)
     if (selectedEl === e.target) return;
 
@@ -253,6 +276,8 @@ const EDITOR_SCRIPT = `
              wrapper.className = 'ai-img-wrapper';
              const comp = window.getComputedStyle(target);
              wrapper.style.cssText = comp.cssText; // Copy all styles
+             
+             // Ensure positioning works
              wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
              wrapper.style.width = target.offsetWidth + 'px';
              wrapper.style.height = target.offsetHeight + 'px';
@@ -279,7 +304,7 @@ const EDITOR_SCRIPT = `
         return;
     }
     
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault(); 
     selectElement(target);
   }, true);
 
@@ -304,18 +329,17 @@ const EDITOR_SCRIPT = `
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault(); e.stopPropagation();
      
-     // Allow selecting child elements deeply
-     if (!selectedEl || !selectedEl.contains(e.target)) return;
+     // Find the target for editing. If selectedEl is valid, use it.
+     let target = selectedEl || e.target;
      
-     // If selected element is a wrapper or container, try to find a text node target
-     let target = e.target;
-     // Prevent editing wrappers
+     // Handle img wrapper case (cannot edit wrapper)
      if (target.classList.contains('ai-img-wrapper') || target.classList.contains('ai-resizer')) return;
 
      if (!target.isContentEditable) {
-         removeResizers();
+         removeResizers(); // Hide handles while editing
          target.contentEditable = 'true';
          target.focus();
+         
          // Select logic when editing
          if (target !== selectedEl) selectElement(target);
 
@@ -445,6 +469,23 @@ const EDITOR_SCRIPT = `
                  pushHistory();
              }
              img.src = value.src;
+        } else if (value.type === 'text') {
+             const div = document.createElement('div');
+             div.innerText = value.value || '双击编辑文本';
+             div.style.position = 'absolute';
+             div.style.left = '100px';
+             div.style.top = '100px';
+             div.style.fontSize = '24px';
+             div.style.fontWeight = 'bold';
+             div.style.color = '#333';
+             div.style.zIndex = '50';
+             // Default Tailwind-ish style
+             div.className = 'font-sans'; 
+             
+             const canvas = document.getElementById('canvas') || document.body;
+             canvas.appendChild(div);
+             selectElement(div);
+             pushHistory();
         }
         return;
     }
@@ -533,7 +574,7 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         updateStyle: (key, value) => sendCommand('UPDATE_STYLE', { [key]: value }),
         updateContent: (text) => sendCommand('UPDATE_CONTENT', text),
         updateAttribute: (key, value) => sendCommand('UPDATE_ATTRIBUTE', { key, val: value }),
-        insertElement: (type, src) => sendCommand('INSERT_ELEMENT', { type, src }),
+        insertElement: (type, value) => sendCommand('INSERT_ELEMENT', { type, [type === 'img' ? 'src' : 'value']: value }),
         updateTransform: (dx, dy, scaleVal) => sendCommand('UPDATE_TRANSFORM', { dx, dy, scale: scaleVal }),
         changeLayer: (direction) => sendCommand('LAYER', direction),
         duplicate: () => sendCommand('DUPLICATE'),
@@ -693,6 +734,10 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
         editorRef.current?.updateStyle(key, value);
     };
 
+    const handleInsertText = () => {
+        editorRef.current?.insertElement('text', '点击编辑文本');
+    };
+
     const handleInsertImage = () => {
         const url = prompt("请输入图片 URL:");
         if (url) {
@@ -735,6 +780,10 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
         <div className={`flex items-center gap-1.5 py-1 ${selectedElement ? 'overflow-x-auto no-scrollbar w-full' : 'overflow-visible'}`}>
              {/* Insert Tools */}
             <div className="flex items-center gap-2 flex-shrink-0 mr-2 border-r border-slate-200 pr-2">
+                 <button onClick={handleInsertText} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm">
+                     <DocumentTextIcon className="w-3.5 h-3.5"/> 插入文本
+                 </button>
+                 
                  <div className="relative group">
                      <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
                          <PhotoIcon className="w-3.5 h-3.5"/> 插入图片
