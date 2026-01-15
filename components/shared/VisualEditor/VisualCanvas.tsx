@@ -56,8 +56,8 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { 
         outline: 2px solid #3b82f6 !important; 
         outline-offset: 0px; 
-        /* REMOVED z-index: 1000 to allow seeing layer changes */
-        position: relative; /* Ensure it creates a stacking context contextually */
+        /* Ensure specific z-index is respected by not forcing it here unless needed for visibility */
+        /* position: relative;  <-- Don't force this globally, handled in logic */
     }
     
     /* Hover Effect */
@@ -538,16 +538,27 @@ const EDITOR_SCRIPT = `
         pushHistory(); 
     }
     else if (action === 'LAYER') {
+        // Robust Layer Adjustment Logic
         const style = window.getComputedStyle(selectedEl);
-        const val = parseInt(style.zIndex);
-        const currentZ = isNaN(val) ? 0 : val;
+        
+        // 1. Force position if currently static
+        if (style.position === 'static') {
+            selectedEl.style.setProperty('position', 'relative', 'important');
+        }
+        
+        // 2. Parse current Z-Index (handle 'auto')
+        let currentZ = 0;
+        if (style.zIndex !== 'auto') {
+            const parsed = parseInt(style.zIndex, 10);
+            if (!isNaN(parsed)) currentZ = parsed;
+        }
+
+        // 3. Calculate new Z-Index
         const newZ = value === 'up' ? currentZ + 1 : currentZ - 1;
         
+        // 4. Apply
         selectedEl.style.setProperty('z-index', newZ.toString(), 'important');
         
-        if (style.position === 'static') {
-             selectedEl.style.setProperty('position', 'relative', 'important');
-        }
         pushHistory();
     }
     else if (action === 'UPDATE_TRANSFORM') {
