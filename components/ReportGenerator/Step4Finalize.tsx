@@ -8,7 +8,7 @@ import {
     ChevronLeftIcon, CheckIcon, CodeIcon, BrainIcon,
     PlayIcon, LightningBoltIcon, CloseIcon
 } from '../icons';
-import { VisualEditor } from './VisualEditor';
+import VisualEditor from '../shared/VisualEditor';
 import { AGENTS } from '../../agentConfig'; // Import AGENTS
 
 interface Step4FinalizeProps extends SharedGeneratorProps {

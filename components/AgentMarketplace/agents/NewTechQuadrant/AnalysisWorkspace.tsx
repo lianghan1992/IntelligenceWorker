@@ -9,7 +9,7 @@ import {
     PlusIcon, ChartIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
-import { VisualEditor } from '../../../ReportGenerator/VisualEditor'; 
+import VisualEditor from '../../../shared/VisualEditor'; 
 
 interface AnalysisWorkspaceProps {
     articles: ArticlePublic[];

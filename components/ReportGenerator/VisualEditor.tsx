@@ -1,5 +1,4 @@
 
-// Re-export the shared VisualEditor component to maintain backward compatibility
-// and unify the codebase.
-export { default as VisualEditor } from '../shared/VisualEditor';
-export type { VisualEditorProps } from '../shared/VisualEditor';
+// This file is deprecated.
+// Please use components/shared/VisualEditor/index.tsx instead.
+export {};
