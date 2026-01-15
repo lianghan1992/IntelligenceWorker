@@ -90,7 +90,7 @@ const extractJsonArray = (text: string): any[] | null => {
 };
 
 const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-    const [step, setStep] = useState<'selection' | 'workspace'>('selection');
+    const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(true); // Default open to start
     const [selectedArticles, setSelectedArticles] = useState<ArticlePublic[]>([]);
     const [techList, setTechList] = useState<TechItem[]>([]);
     const [isExtracting, setIsExtracting] = useState(false);
@@ -106,15 +106,19 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }, []);
 
     const handleArticlesConfirmed = (articles: ArticlePublic[]) => {
+        // If we are re-selecting, we might want to append or replace. 
+        // For simplicity, we restart analysis for new items or replace list.
+        // Current logic: Replace selected articles and start analysis on them.
         setSelectedArticles(articles);
-        setStep('workspace');
-        // Start extraction process immediately upon entering workspace
+        setIsSelectionModalOpen(false);
         performAnalysis(articles);
     };
 
     const performAnalysis = async (articles: ArticlePublic[]) => {
         setIsExtracting(true);
-        setTechList([]); // Clear previous results
+        // Note: Currently we reset list on new analysis. 
+        // To support appending, we would need to merge with existing techList.
+        setTechList([]); 
 
         try {
             // 1. Get prompt from pre-loaded state
@@ -203,22 +207,28 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#f8fafc]">
-            {step === 'selection' ? (
-                <ArticleSelectionStep 
-                    onConfirm={handleArticlesConfirmed} 
-                    onBack={onBack}
-                />
-            ) : (
-                <AnalysisWorkspace 
-                    articles={selectedArticles}
-                    techList={techList}
-                    setTechList={setTechList}
-                    onBack={() => setStep('selection')}
-                    isExtracting={isExtracting}
-                    prompts={prompts} // Pass prompts down
-                />
-            )}
+        <div className="h-full flex flex-col bg-[#f8fafc] relative">
+            <AnalysisWorkspace 
+                articles={selectedArticles}
+                techList={techList}
+                setTechList={setTechList}
+                onOpenSelection={() => setIsSelectionModalOpen(true)} // Re-open modal
+                isExtracting={isExtracting}
+                prompts={prompts}
+            />
+
+            {/* Persistent Modal Wrapper */}
+            <div 
+                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${isSelectionModalOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                style={{ display: isSelectionModalOpen ? 'flex' : 'none' }} // Use display to preserve React state
+            >
+                 <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95">
+                      <ArticleSelectionStep 
+                          onConfirm={handleArticlesConfirmed} 
+                          onClose={() => setIsSelectionModalOpen(false)}
+                      />
+                 </div>
+            </div>
         </div>
     );
 };

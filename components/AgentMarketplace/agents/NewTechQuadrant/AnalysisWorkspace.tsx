@@ -5,7 +5,8 @@ import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { 
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
     CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
-    DownloadIcon, PencilIcon, LinkIcon, SparklesIcon, TrendingUpIcon
+    DownloadIcon, PencilIcon, LinkIcon, SparklesIcon, TrendingUpIcon,
+    PlusIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import { chatGemini, searchSemanticSegments } from '../../../../api/intelligence';
@@ -15,7 +16,7 @@ interface AnalysisWorkspaceProps {
     articles: ArticlePublic[];
     techList: TechItem[];
     setTechList: React.Dispatch<React.SetStateAction<TechItem[]>>;
-    onBack: () => void;
+    onOpenSelection: () => void; // Changed from onBack
     isExtracting: boolean;
     prompts?: StratifyPrompt[];
 }
@@ -82,7 +83,7 @@ const extractCleanHtml = (text: string) => {
     return '';
 };
 
-export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, techList, setTechList, onBack, isExtracting, prompts }) => {
+export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, techList, setTechList, onOpenSelection, isExtracting, prompts }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [markdownInput, setMarkdownInput] = useState('');
     const [logs, setLogs] = useState<string[]>([]);
@@ -260,13 +261,18 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
         <div className="flex h-full overflow-hidden">
             {/* Left Sidebar: Tech List */}
             <div className="w-[420px] bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10">
-                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <h3 className="font-bold text-slate-700">识别清单 ({techList.length})</h3>
-                    <button onClick={onBack} className="text-xs text-slate-400 hover:text-slate-600">重选文章</button>
+                    <button 
+                        onClick={onOpenSelection} 
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+                    >
+                        <PlusIcon className="w-3.5 h-3.5" /> 添加/管理素材
+                    </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar bg-slate-50/50">
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar bg-slate-50/30">
                     {techList.length === 0 ? (
-                        <div className="text-center py-10 text-slate-400 text-sm">
+                        <div className="text-center py-20 text-slate-400 text-sm">
                             {isExtracting ? (
                                 <>
                                     <RefreshIcon className="w-6 h-6 mx-auto mb-2 animate-spin text-indigo-400"/>
@@ -275,7 +281,8 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                             ) : (
                                 <>
                                     <SparklesIcon className="w-6 h-6 mx-auto mb-2 text-slate-300"/>
-                                    未识别到有效技术点
+                                    暂无识别到的技术点<br/>
+                                    请点击右上角添加素材
                                 </>
                             )}
                         </div>
@@ -287,7 +294,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                 className={`p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden group ${
                                     activeTechId === item.id 
                                         ? 'bg-white border-indigo-500 ring-1 ring-indigo-500/20 shadow-md' 
-                                        : 'bg-white border-slate-200 hover:border-indigo-300'
+                                        : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-sm'
                                 }`}
                             >
                                 <div className="flex justify-between items-start mb-2">

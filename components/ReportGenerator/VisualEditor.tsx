@@ -4,6 +4,8 @@ import {
     TrashIcon, CloseIcon,
     PhotoIcon, PencilIcon, 
     LinkIcon, RefreshIcon,
+    LayerIcon, DuplicateIcon, ArrowIcon,
+    BoldIcon, ItalicIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon
 } from '../icons';
 
 export interface VisualCanvasHandle {
@@ -37,16 +39,6 @@ interface VisualEditorProps {
     canvasSize?: { width: number; height: number };
     hideToolbar?: boolean;
 }
-
-// --- Icons ---
-const BoldIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 11.81C16.36 11.23 17 10.23 17 9c0-2.21-1.79-4-4-4H7v14h7.5c2.09 0 3.5-1.75 3.5-3.88 0-1.63-1.04-3.05-2.4-3.31zM10.5 7.5H13c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>;
-const ItalicIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>;
-const AlignLeftIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>;
-const AlignCenterIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>;
-const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
-const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
-const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
-const ArrowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"/></svg>;
 
 // --- Editor Interaction Script ---
 const EDITOR_SCRIPT = `
@@ -120,6 +112,7 @@ const EDITOR_SCRIPT = `
     if (e.target.isContentEditable) return;
     e.preventDefault(); e.stopPropagation();
     
+    // FIX: Allow clicking children. If clicking a new element (even if child of current), select it.
     if (selectedEl === e.target) return;
 
     if (selectedEl && selectedEl !== e.target) {
@@ -319,6 +312,7 @@ const EDITOR_SCRIPT = `
         pushHistory(); 
     }
     else if (action === 'UPDATE_STYLE') { 
+        // FIX: Use setProperty with 'important' to override Tailwind utility classes
         Object.entries(value).forEach(([k, v]) => {
             const prop = k.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
             selectedEl.style.setProperty(prop, String(v), 'important');
@@ -363,7 +357,11 @@ const EDITOR_SCRIPT = `
         const style = window.getComputedStyle(selectedEl);
         const currentZ = parseInt(style.zIndex) || 0;
         const newZ = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
+        
+        // FIX: Force set Z-Index
         selectedEl.style.setProperty('z-index', newZ.toString(), 'important');
+        
+        // FIX: Ensure positioning allows z-index
         if (style.position === 'static') {
             selectedEl.style.setProperty('position', 'relative', 'important');
         }
@@ -374,16 +372,20 @@ const EDITOR_SCRIPT = `
         let currentScale = 1;
         let currentX = 0;
         let currentY = 0;
+        
         const scaleMatch = currentTransform.match(/scale\\(([^)]+)\\)/);
         if (scaleMatch) currentScale = parseFloat(scaleMatch[1]);
+        
         const translateMatch = currentTransform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
         if (translateMatch) {
             currentX = parseFloat(translateMatch[1]);
             currentY = parseFloat(translateMatch[2]);
         }
+        
         const newX = currentX + (value.dx || 0);
         const newY = currentY + (value.dy || 0);
         const newScale = value.scale !== undefined ? value.scale : currentScale;
+        
         selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) scale(\${newScale})\`;
         selectElement(selectedEl);
         pushHistory();
@@ -391,109 +393,6 @@ const EDITOR_SCRIPT = `
     else if (action === 'DESELECT_FORCE') {
         deselect();
     }
-  });
-
-  document.body.addEventListener('mousedown', (e) => {
-    if (e.target.classList.contains('ai-resizer')) {
-        if (!selectedEl) return;
-        isResizing = true;
-        resizeHandle = e.target.dataset.handle;
-        startX = e.clientX;
-        startY = e.clientY;
-        initialWidth = parseFloat(window.getComputedStyle(selectedEl).width);
-        initialHeight = parseFloat(window.getComputedStyle(selectedEl).height);
-        
-        const transform = selectedEl.style.transform || '';
-        const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
-        if (match) {
-            window.initialTransformX = parseFloat(match[1]);
-            window.initialTransformY = parseFloat(match[2]);
-        } else {
-            window.initialTransformX = 0;
-            window.initialTransformY = 0;
-        }
-        
-        e.stopPropagation(); e.preventDefault();
-        return;
-    }
-    
-    if (!selectedEl) return;
-    const isSelfOrChild = selectedEl === e.target || selectedEl.contains(e.target);
-    if (!isSelfOrChild && e.target !== selectedEl) return;
-    
-    if (selectedEl.isContentEditable) return; 
-
-    isDragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-    const transform = selectedEl.style.transform || '';
-    const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
-    if (match) {
-        window.initialTransformX = parseFloat(match[1]);
-        window.initialTransformY = parseFloat(match[2]);
-    } else {
-        window.initialTransformX = 0;
-        window.initialTransformY = 0;
-    }
-  });
-
-  window.addEventListener('mousemove', (e) => {
-    const scale = window.visualEditorScale || 1; 
-    if (isResizing && selectedEl) {
-        e.preventDefault();
-        const dx = (e.clientX - startX) / scale;
-        const dy = (e.clientY - startY) / scale;
-        
-        let newWidth = initialWidth;
-        let newHeight = initialHeight;
-        let newX = window.initialTransformX;
-        let newY = window.initialTransformY;
-
-        if (resizeHandle.includes('e')) newWidth = initialWidth + dx;
-        if (resizeHandle.includes('s')) newHeight = initialHeight + dy;
-        
-        if (resizeHandle.includes('w')) {
-            newWidth = initialWidth - dx;
-            newX += dx;
-        }
-        if (resizeHandle.includes('n')) {
-            newHeight = initialHeight - dy;
-            newY += dy;
-        }
-        
-        if (newWidth > 10) {
-            selectedEl.style.setProperty('width', newWidth + 'px', 'important');
-            selectedEl.style.setProperty('min-width', newWidth + 'px', 'important');
-            selectedEl.style.setProperty('max-width', newWidth + 'px', 'important');
-        }
-        if (newHeight > 10) {
-            selectedEl.style.setProperty('height', newHeight + 'px', 'important');
-            selectedEl.style.setProperty('min-height', newHeight + 'px', 'important');
-            selectedEl.style.setProperty('max-height', newHeight + 'px', 'important');
-        }
-        
-        if (resizeHandle.includes('w') || resizeHandle.includes('n')) {
-            const currentTransform = selectedEl.style.transform || '';
-            let scalePart = '';
-            const scaleMatch = currentTransform.match(/scale\\(([^)]+)\\)/);
-            if (scaleMatch) scalePart = scaleMatch[0];
-            
-            if ((resizeHandle.includes('w') && newWidth > 10) || (resizeHandle.includes('n') && newHeight > 10)) {
-                 selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) \${scalePart}\`;
-            }
-        }
-        return;
-    }
-    
-    if (!isDragging || !selectedEl) return;
-    e.preventDefault();
-    const dx = (e.clientX - startX) / scale; 
-    const dy = (e.clientY - startY) / scale;
-    const currentTransform = selectedEl.style.transform || '';
-    let scalePart = '';
-    const scaleMatch = currentTransform.match(/scale\\([^)]+\\)/);
-    if (scaleMatch) scalePart = scaleMatch[0];
-    selectedEl.style.transform = \`translate(\${(window.initialTransformX || 0) + dx}px, \${(window.initialTransformY || 0) + dy}px) \${scalePart}\`;
   });
 
   window.addEventListener('mouseup', () => {
@@ -712,17 +611,17 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
     const parseFontSize = (val: string) => parseInt(val) || 16;
 
     const Toolbar = () => (
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+        <div className={`flex items-center gap-1.5 py-1 ${selectedElement ? 'overflow-x-auto no-scrollbar w-full' : 'overflow-visible'}`}>
             {selectedElement ? (
                 <>
                     {/* Element Type Badge */}
-                    <div className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold uppercase border border-indigo-100 mr-2">
+                    <div className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold uppercase border border-indigo-100 mr-2 flex-shrink-0">
                         {isImg ? 'IMAGE' : selectedElement.tagName}
                     </div>
 
                     {/* Typography Group */}
                     {isText && (
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 flex-shrink-0">
                              <div className="flex items-center bg-white border border-slate-200 rounded px-1 h-7">
                                 <button 
                                     onClick={() => handleUpdateStyle('fontSize', `${Math.max(1, parseFontSize(selectedElement.fontSize) - 2)}px`)}
@@ -758,7 +657,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
                     
                     {/* Image Actions */}
                     {isImg && (
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
                              <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm transition-colors">
                                 <RefreshIcon className="w-3 h-3"/> 换图
                              </button>
@@ -766,7 +665,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
                     )}
 
                     {/* Dimensions & Background Group */}
-                    <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                    <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
                         <div className="flex items-center gap-1">
                             <span className="text-[9px] font-bold text-slate-400">W</span>
                             <input type="number" value={parseVal(selectedElement.width)} onChange={(e) => handleUpdateStyle('width', `${e.target.value}px`)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
@@ -795,7 +694,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
                     </div>
 
                     {/* Actions Group */}
-                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
                          <button onClick={() => editorRef.current?.changeLayer('up')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
                          <button onClick={() => editorRef.current?.changeLayer('down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
                          <div className="w-px h-4 bg-slate-200 mx-1"></div>
@@ -804,7 +703,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
                     </div>
 
                     {/* Transform Nudge Group */}
-                    <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                    <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1 flex-shrink-0">
                         <button onClick={() => editorRef.current?.updateTransform(-10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
                         <div className="flex flex-col gap-0.5">
                              <button onClick={() => editorRef.current?.updateTransform(0, -10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
@@ -845,7 +744,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
              {/* Toolbar - Only visible if not hidden */}
              {!hideToolbar && (
                  <div className="h-14 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">
-                    <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                    <div className="flex items-center gap-2 flex-1 min-w-0 relative">
                         <Toolbar />
                     </div>
                     {/* Zoom Controls */}
