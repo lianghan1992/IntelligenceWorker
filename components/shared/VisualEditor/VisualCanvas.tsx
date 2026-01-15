@@ -33,19 +33,37 @@ const EDITOR_SCRIPT = `
   let isDragging = false;
   let isResizing = false;
   let resizeHandle = null;
+  
+  // Dragging state
   let startX = 0, startY = 0;
   let startTranslateX = 0, startTranslateY = 0;
+  
+  // Resizing state
   let startWidth = 0, startHeight = 0;
+  let startLeft = 0, startTop = 0;
 
   window.visualEditorScale = 1;
 
   const style = document.createElement('style');
   style.innerHTML = \`
     html, body { min-height: 100vh !important; margin: 0; background-color: #ffffff; }
-    .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 2147483647 !important; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
-    .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     
-    /* Strong override for editable content */
+    /* Selection Outline */
+    .ai-editor-selected { 
+        outline: 2px solid #3b82f6 !important; 
+        outline-offset: 0px; 
+        cursor: move !important; 
+        position: relative; 
+        z-index: 1000 !important;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); 
+    }
+    
+    .ai-editor-hover:not(.ai-editor-selected) { 
+        outline: 1px dashed #93c5fd !important; 
+        cursor: pointer !important; 
+    }
+    
+    /* Editing Text State */
     *[contenteditable="true"] { 
         cursor: text !important; 
         outline: 2px dashed #10b981 !important; 
@@ -54,15 +72,28 @@ const EDITOR_SCRIPT = `
         -webkit-user-select: text !important;
     }
     
-    .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 1px solid #3b82f6; z-index: 2147483647; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-    .ai-r-nw { top: -5px; left: -5px; cursor: nw-resize; }
-    .ai-r-n  { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
-    .ai-r-ne { top: -5px; right: -5px; cursor: ne-resize; }
-    .ai-r-e  { top: 50%; right: -5px; margin-top: -5px; cursor: e-resize; }
-    .ai-r-se { bottom: -5px; right: -5px; cursor: se-resize; }
-    .ai-r-s  { bottom: -5px; left: 50%; margin-left: -5px; cursor: s-resize; }
-    .ai-r-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
-    .ai-r-w  { top: 50%; left: -5px; margin-top: -5px; cursor: w-resize; }
+    /* Resizer Handles */
+    .ai-resizer { 
+        position: absolute; 
+        width: 12px; 
+        height: 12px; 
+        background: white; 
+        border: 2px solid #3b82f6; 
+        z-index: 2000 !important; 
+        border-radius: 50%; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
+        transition: transform 0.1s;
+    }
+    .ai-resizer:hover { transform: scale(1.2); }
+    
+    .ai-r-nw { top: -6px; left: -6px; cursor: nw-resize; }
+    .ai-r-n  { top: -6px; left: 50%; margin-left: -6px; cursor: n-resize; }
+    .ai-r-ne { top: -6px; right: -6px; cursor: ne-resize; }
+    .ai-r-e  { top: 50%; right: -6px; margin-top: -6px; cursor: e-resize; }
+    .ai-r-se { bottom: -6px; right: -6px; cursor: se-resize; }
+    .ai-r-s  { bottom: -6px; left: 50%; margin-left: -6px; cursor: s-resize; }
+    .ai-r-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+    .ai-r-w  { top: 50%; left: -6px; margin-top: -6px; cursor: w-resize; }
   \`;
   document.head.appendChild(style);
 
@@ -88,7 +119,7 @@ const EDITOR_SCRIPT = `
 
   function createResizers(el) {
       removeResizers();
-      // Don't add resizers if editing text
+      // Don't add resizers if editing text content
       if (el.isContentEditable) return;
       
       const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -96,6 +127,8 @@ const EDITOR_SCRIPT = `
           const div = document.createElement('div');
           div.className = 'ai-resizer ai-r-' + h;
           div.dataset.handle = h;
+          // Prevent resizing event from bubbling to selection click
+          div.addEventListener('mousedown', startResizing);
           el.appendChild(div);
       });
   }
@@ -103,40 +136,44 @@ const EDITOR_SCRIPT = `
   function removeResizers() {
       document.querySelectorAll('.ai-resizer').forEach(r => r.remove());
   }
-
-  // --- Resize Mouse Down ---
-  document.addEventListener('mousedown', (e) => {
-      // 1. Resizing
-      if (e.target.classList.contains('ai-resizer')) {
-          e.preventDefault(); e.stopPropagation();
-          isResizing = true;
-          resizeHandle = e.target.dataset.handle;
-          startX = e.clientX;
-          startY = e.clientY;
-          
-          if (selectedEl) {
-              const rect = selectedEl.getBoundingClientRect();
-              const comp = window.getComputedStyle(selectedEl);
-              startWidth = parseFloat(comp.width) || rect.width;
-              startHeight = parseFloat(comp.height) || rect.height;
-          }
-          return;
-      }
+  
+  function startResizing(e) {
+      e.preventDefault(); e.stopPropagation();
+      isResizing = true;
+      resizeHandle = e.target.dataset.handle;
+      startX = e.clientX;
+      startY = e.clientY;
       
-      // 2. Dragging - CRITICAL FIX: Do NOT start drag if editing text
-      if (selectedEl && e.target === selectedEl) {
+      const rect = selectedEl.getBoundingClientRect();
+      const style = window.getComputedStyle(selectedEl);
+      
+      startWidth = parseFloat(style.width) || rect.width;
+      startHeight = parseFloat(style.height) || rect.height;
+      
+      // Force inline elements to behave like blocks for resizing
+      if (style.display === 'inline') {
+          selectedEl.style.display = 'inline-block';
+      }
+  }
+
+  // --- Global Mouse Down ---
+  document.addEventListener('mousedown', (e) => {
+      if (isResizing) return;
+      
+      // Check if clicking inside current selected element
+      if (selectedEl && selectedEl.contains(e.target)) {
+          // If content editable, let default browser behavior happen (text selection)
           if (selectedEl.isContentEditable) {
-              // Allow default behavior (text selection)
-              return;
+              return; 
           }
           
+          // Start dragging
           isDragging = true;
           startX = e.clientX;
           startY = e.clientY;
           const t = getTransform(selectedEl);
           startTranslateX = t.x;
           startTranslateY = t.y;
-          // Don't prevent default here if we want to allow focus, but we do want to prevent text selection during drag
           e.preventDefault(); 
       }
   });
@@ -150,10 +187,9 @@ const EDITOR_SCRIPT = `
       if (isResizing && selectedEl) {
           e.preventDefault();
           
-          // Force layout properties to ensure resizing works even in Flex/Grid
-          if (selectedEl.style.maxWidth) selectedEl.style.maxWidth = 'none';
-          if (selectedEl.style.maxHeight) selectedEl.style.maxHeight = 'none';
-          // If in flex container, prevent shrinking
+          // Disable max constraints during resize for flexibility
+          selectedEl.style.maxWidth = 'none';
+          selectedEl.style.maxHeight = 'none';
           selectedEl.style.flexShrink = '0';
           
           if (resizeHandle.includes('e')) {
@@ -162,8 +198,8 @@ const EDITOR_SCRIPT = `
           if (resizeHandle.includes('s')) {
                selectedEl.style.height = Math.max(10, startHeight + dy) + 'px';
           }
-          // Simple logic for SE resizing. 
-          // Note: Full multi-directional resizing logic is complex, sticking to Width/Height for stability.
+          // Note: Advanced resizing (NW, W, etc.) requires position manipulation which is complex with Transforms. 
+          // Sticking to Width/Height (E/S/SE) is safer for this lightweight editor.
       }
 
       if (isDragging && selectedEl) {
@@ -185,68 +221,60 @@ const EDITOR_SCRIPT = `
       }
   });
 
+  // --- Click Selection ---
   document.body.addEventListener('click', (e) => {
     if (e.target.classList.contains('ai-resizer')) return;
     
-    // If editing text, clicking inside shouldn't deselect
+    // If clicking inside editable text, do nothing (keep focus)
     if (selectedEl && selectedEl.contains(e.target) && selectedEl.isContentEditable) {
         return;
     }
     
-    // Stop propagation so we select the specific child clicked
     e.stopPropagation();
 
-    // Clicking selected element does nothing (keeps selection)
-    if (selectedEl === e.target) return;
-
-    // Deselect previous
-    if (selectedEl && selectedEl !== e.target) {
-        deselect();
-    }
-    
-    let target = e.target;
-    
-    // Auto-wrap IMG
-    if (target.tagName === 'IMG') {
-        if (target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
-             target = target.parentElement;
-        } else {
-             const wrapper = document.createElement('div');
-             wrapper.className = 'ai-img-wrapper';
-             const comp = window.getComputedStyle(target);
-             wrapper.style.cssText = comp.cssText; // Copy all styles
-             
-             // Ensure positioning works
-             wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
-             wrapper.style.width = target.offsetWidth + 'px';
-             wrapper.style.height = target.offsetHeight + 'px';
-             wrapper.style.position = comp.position === 'static' ? 'relative' : comp.position;
-             
-             target.style.position = 'static';
-             target.style.transform = 'none';
-             target.style.width = '100%';
-             target.style.height = '100%';
-             target.style.margin = '0';
-             
-             if (target.parentNode) {
-                 target.parentNode.insertBefore(wrapper, target);
-                 wrapper.appendChild(target);
-                 target = wrapper;
-                 pushHistory();
-             }
-        }
-    }
-    
-    // Deselect if background
-    if (target === document.body || target === document.documentElement || target.id === 'canvas') {
+    // Deselect if clicking canvas background or root
+    if (e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas') {
         deselect();
         return;
     }
     
+    // If clicking a new element (even inside selected), select the new target
+    if (selectedEl !== e.target) {
+        if (selectedEl) deselect();
+        
+        let target = e.target;
+        // Auto-wrap IMG logic (unchanged)
+        if (target.tagName === 'IMG') {
+            if (target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
+                 target = target.parentElement;
+            } else {
+                 const wrapper = document.createElement('div');
+                 wrapper.className = 'ai-img-wrapper';
+                 const comp = window.getComputedStyle(target);
+                 wrapper.style.cssText = comp.cssText;
+                 wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
+                 wrapper.style.width = target.offsetWidth + 'px';
+                 wrapper.style.height = target.offsetHeight + 'px';
+                 wrapper.style.position = comp.position === 'static' ? 'relative' : comp.position;
+                 target.style.position = 'static';
+                 target.style.transform = 'none';
+                 target.style.width = '100%';
+                 target.style.height = '100%';
+                 target.style.margin = '0';
+                 if (target.parentNode) {
+                     target.parentNode.insertBefore(wrapper, target);
+                     wrapper.appendChild(target);
+                     target = wrapper;
+                     pushHistory();
+                 }
+            }
+        }
+        selectElement(target);
+    }
     e.preventDefault(); 
-    selectElement(target);
   }, true);
 
+  // --- Hover Effects ---
   document.body.addEventListener('mouseover', (e) => {
       if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
       let target = e.target;
@@ -264,23 +292,24 @@ const EDITOR_SCRIPT = `
       target.classList.remove('ai-editor-hover'); 
   });
 
-  // Double Click Text Editing
+  // --- Double Click Text Editing ---
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault(); e.stopPropagation();
      
-     // Find the target for editing. If selectedEl is valid, use it.
      let target = selectedEl || e.target;
      
-     // Handle img wrapper case (cannot edit wrapper)
      if (target.classList.contains('ai-img-wrapper') || target.classList.contains('ai-resizer')) return;
+
+     // Ensure we select it first if not already
+     if (target !== selectedEl) selectElement(target);
 
      if (!target.isContentEditable) {
          removeResizers(); // Hide handles while editing
          target.contentEditable = 'true';
          target.focus();
          
-         // Select logic when editing
-         if (target !== selectedEl) selectElement(target);
+         // Select all text for convenience (optional)
+         // document.execCommand('selectAll', false, null);
 
          const onBlur = () => {
              target.contentEditable = 'false';
@@ -346,27 +375,20 @@ const EDITOR_SCRIPT = `
       }
   }
 
-  // --- SCALE GROUP LOGIC ---
   function scaleElementRecursive(el, factor) {
       const style = window.getComputedStyle(el);
-      
-      // Font Size
       const fs = parseFloat(style.fontSize);
       if (fs) el.style.fontSize = (fs * factor) + 'px';
       
-      // Padding
       const pt = parseFloat(style.paddingTop); if(pt) el.style.paddingTop = (pt * factor) + 'px';
       const pb = parseFloat(style.paddingBottom); if(pb) el.style.paddingBottom = (pb * factor) + 'px';
       const pl = parseFloat(style.paddingLeft); if(pl) el.style.paddingLeft = (pl * factor) + 'px';
       const pr = parseFloat(style.paddingRight); if(pr) el.style.paddingRight = (pr * factor) + 'px';
 
-      // Line Height (if px)
       if (style.lineHeight.endsWith('px')) {
           const lh = parseFloat(style.lineHeight);
           if (lh) el.style.lineHeight = (lh * factor) + 'px';
       }
-      
-      // Children
       Array.from(el.children).forEach(child => scaleElementRecursive(child, factor));
   }
 
@@ -387,7 +409,6 @@ const EDITOR_SCRIPT = `
     }
 
     if (action === 'INSERT_ELEMENT') {
-        // ... (Insert Logic kept same) ...
         if (value.type === 'img') {
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
@@ -418,7 +439,6 @@ const EDITOR_SCRIPT = `
              div.style.fontWeight = 'bold';
              div.style.color = '#333';
              div.style.zIndex = '50';
-             // Default Tailwind-ish style
              div.className = 'font-sans'; 
              
              const canvas = document.getElementById('canvas') || document.body;
@@ -432,8 +452,7 @@ const EDITOR_SCRIPT = `
     if (!selectedEl) return;
     
     if (action === 'SCALE_GROUP') {
-        // New: Scale tree
-        const factor = value; // 1.1 or 0.9
+        const factor = value;
         scaleElementRecursive(selectedEl, factor);
         pushHistory();
     }
@@ -464,13 +483,25 @@ const EDITOR_SCRIPT = `
     } 
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
-        // ... (duplicate logic same)
+        const currentTransform = clone.style.transform || '';
+        const match = currentTransform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
+        if (match) {
+             const x = parseFloat(match[1]) + 20;
+             const y = parseFloat(match[2]) + 20;
+             const scaleMatch = currentTransform.match(/scale\\(([^)]+)\\)/);
+             const scalePart = scaleMatch ? \`scale(\${scaleMatch[1]})\` : '';
+             clone.style.transform = \`translate(\${x}px, \${y}px) \${scalePart}\`;
+        } else {
+             const top = parseFloat(clone.style.top) || 0;
+             const left = parseFloat(clone.style.left) || 0;
+             clone.style.top = (top + 20) + 'px';
+             clone.style.left = (left + 20) + 'px';
+        }
         selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
         selectElement(clone);
         pushHistory();
     }
     else if (action === 'LAYER') {
-        // ... (layer logic same)
         const style = window.getComputedStyle(selectedEl);
         const currentZ = parseInt(style.zIndex) || 0;
         const newZ = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
@@ -479,7 +510,6 @@ const EDITOR_SCRIPT = `
         pushHistory();
     }
     else if (action === 'UPDATE_TRANSFORM') {
-        // ... (transform logic same)
         const currentTransform = selectedEl.style.transform || '';
         let currentScale = 1; let currentX = 0; let currentY = 0;
         const scaleMatch = currentTransform.match(/scale\\(([^)]+)\\)/);
@@ -508,7 +538,6 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
     const isInternalUpdate = useRef(false);
     const [selectedElement, setSelectedElement] = useState<any>(null);
 
-    // Expose methods to parent
     useImperativeHandle(ref, () => ({
         updateStyle: (key, value) => sendCommand('UPDATE_STYLE', { [key]: value }),
         updateContent: (text) => sendCommand('UPDATE_CONTENT', text),
@@ -519,7 +548,7 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         duplicate: () => sendCommand('DUPLICATE'),
         deleteElement: () => sendCommand('DELETE'),
         deselect: () => sendCommand('DESELECT_FORCE'),
-        scaleGroup: (factor) => sendCommand('SCALE_GROUP', factor), // New
+        scaleGroup: (factor) => sendCommand('SCALE_GROUP', factor),
         getCanvasNode: () => {
             const doc = iframeRef.current?.contentDocument;
             if (!doc) return null;
@@ -527,7 +556,6 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         }
     }));
 
-    // Initial Load & External Updates
     useEffect(() => {
         if (isInternalUpdate.current) { isInternalUpdate.current = false; return; }
 
@@ -547,7 +575,6 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         }
     }, [initialHtml]);
 
-    // Handle Messages from Iframe
     useEffect(() => {
         const handler = (e: MessageEvent) => {
             if (e.data.type === 'SELECTED') {
@@ -568,14 +595,12 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         return () => window.removeEventListener('message', handler);
     }, [onSave, onSelectionChange]);
 
-    // Update Scale inside iframe
     useEffect(() => {
         if (iframeRef.current?.contentWindow) {
             iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
         }
     }, [scale]);
 
-    // Update Canvas Size in Iframe
     useEffect(() => {
         const doc = iframeRef.current?.contentDocument;
         if (doc) {
@@ -596,11 +621,10 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         }
     }, [canvasSize]);
 
-    // --- Zoom Interaction ---
     const handleWheel = useCallback((e: React.WheelEvent) => {
         if (e.altKey && onScaleChange) {
             e.preventDefault();
-            const delta = -e.deltaY * 0.001; // Scale factor
+            const delta = -e.deltaY * 0.001; 
             const newScale = Math.min(Math.max(0.1, scale + delta), 3);
             onScaleChange(newScale);
         }
@@ -611,23 +635,20 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
     };
 
     return (
-        <div className="flex w-full h-full bg-[#0f172a] overflow-hidden relative">
-            {/* Scrollable Canvas Wrapper */}
+        <div className="flex w-full h-full bg-[#f1f5f9] overflow-hidden relative">
             <div 
                 ref={containerRef}
                 className="flex-1 relative overflow-auto flex items-center justify-center p-10 no-scrollbar"
                 onWheel={handleWheel}
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-                 <style>{`
-                    .no-scrollbar::-webkit-scrollbar { display: none; }
-                `}</style>
+                 <style>{` .no-scrollbar::-webkit-scrollbar { display: none; } `}</style>
                  <div 
                     style={{ 
                         width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, 
                         transform: `scale(${scale})`, 
                         transformOrigin: 'center center',
-                        boxShadow: '0 0 50px rgba(0,0,0,0.5)',
+                        boxShadow: '0 0 50px rgba(0,0,0,0.1)',
                         transition: 'transform 0.1s ease-out'
                     }}
                     className="bg-white flex-shrink-0"

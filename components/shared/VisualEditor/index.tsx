@@ -99,11 +99,9 @@ const VisualEditor: React.FC<VisualEditorProps> = ({
         editorRef.current?.insertElement('text', '点击编辑文本');
     };
 
-    const handleInsertImage = () => {
-        const url = prompt("请输入图片 URL:");
-        if (url) {
-            editorRef.current?.insertElement('img', url);
-        }
+    // Modified: Directly trigger file input click
+    const handleTriggerUpload = () => {
+        fileInputRef.current?.click();
     };
 
     const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,11 +119,8 @@ const VisualEditor: React.FC<VisualEditorProps> = ({
     };
 
     const handleImageChange = () => {
-        const currentSrc = selectedElement?.src || "";
-        const url = prompt("请输入图片 URL:", currentSrc);
-        if (url !== null) {
-            editorRef.current?.updateAttribute('src', url);
-        }
+        // Reuse upload logic for changing image
+        fileInputRef.current?.click();
     };
 
     const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV','LI'].includes(selectedElement.tagName));
@@ -145,24 +140,17 @@ const VisualEditor: React.FC<VisualEditorProps> = ({
                      <DocumentTextIcon className="w-3.5 h-3.5"/> 插入文本
                  </button>
                  
-                 <div className="relative group">
-                     <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
-                         <PhotoIcon className="w-3.5 h-3.5"/> 插入图片
-                     </button>
-                     <div className="absolute top-full left-0 mt-1 w-36 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
-                         <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 font-medium items-center"><LinkIcon className="w-3.5 h-3.5"/> 网络图片</button>
-                         <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer font-medium items-center">
-                             <PhotoIcon className="w-3.5 h-3.5"/> 本地上传
-                             <input 
-                                 ref={fileInputRef}
-                                 type="file" 
-                                 accept="image/*" 
-                                 onChange={handleInsertUpload} 
-                                 className="hidden" 
-                             />
-                         </label>
-                     </div>
-                 </div>
+                 {/* Simplified Image Button */}
+                 <button onClick={handleTriggerUpload} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
+                     <PhotoIcon className="w-3.5 h-3.5"/> 插入图片
+                 </button>
+                 <input 
+                     ref={fileInputRef}
+                     type="file" 
+                     accept="image/*" 
+                     onChange={handleInsertUpload} 
+                     className="hidden" 
+                 />
             </div>
 
             {selectedElement ? (
@@ -172,7 +160,7 @@ const VisualEditor: React.FC<VisualEditorProps> = ({
                         {isImg ? 'IMAGE' : selectedElement.tagName}
                     </div>
 
-                    {/* Scale Group (New Feature) */}
+                    {/* Scale Group */}
                     <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 flex-shrink-0 mr-1">
                         <button 
                             onClick={() => editorRef.current?.scaleGroup(0.9)} 
