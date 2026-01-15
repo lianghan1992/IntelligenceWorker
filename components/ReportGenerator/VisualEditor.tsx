@@ -631,19 +631,23 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
     };
 
     return (
-        <div className="flex w-full h-full bg-slate-200 overflow-hidden relative">
+        <div className="flex w-full h-full bg-[#0f172a] overflow-hidden relative">
             {/* Scrollable Canvas Wrapper */}
             <div 
                 ref={containerRef}
-                className="flex-1 relative overflow-auto flex items-center justify-center p-10"
+                className="flex-1 relative overflow-auto flex items-center justify-center p-10 no-scrollbar"
                 onWheel={handleWheel}
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
+                 <style>{`
+                    .no-scrollbar::-webkit-scrollbar { display: none; }
+                `}</style>
                  <div 
                     style={{ 
                         width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, 
                         transform: `scale(${scale})`, 
                         transformOrigin: 'center center',
-                        boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+                        boxShadow: '0 0 50px rgba(0,0,0,0.5)',
                         transition: 'transform 0.1s ease-out'
                     }}
                     className="bg-white flex-shrink-0"
@@ -876,7 +880,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({
     );
 
     return (
-        <div className="flex flex-col w-full h-full bg-slate-50 relative">
+        <div className="flex flex-col w-full h-full bg-transparent relative">
              {/* Toolbar - Only visible if not hidden */}
              {!hideToolbar && (
                  <div className="h-14 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">

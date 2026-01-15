@@ -249,11 +249,11 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                 </div>
             </div>
 
-            {/* Right Workspace */}
-            <div className="flex-1 bg-slate-100 relative overflow-hidden flex flex-col">
+            {/* Right Workspace (Dark Themed) */}
+            <div className="flex-1 bg-[#0f172a] relative overflow-hidden flex flex-col">
                 {!activeItem ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
-                        <ChartIcon className="w-16 h-16 mb-4 text-slate-300" />
+                        <ChartIcon className="w-16 h-16 mb-4 text-slate-500" />
                         <p>请在左侧选择一项技术查看详情或开始分析</p>
                     </div>
                 ) : (
@@ -265,16 +265,16 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                          
                          {activeItem.analysisState === 'done' && activeItem.htmlContent ? (
                              <div className="flex flex-col h-full">
-                                 {/* Toolbar */}
-                                 <div className="h-14 px-6 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-20">
-                                     <div className="flex items-center gap-2 text-slate-800 font-bold">
-                                         <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                                 {/* Toolbar (Dark) */}
+                                 <div className="h-14 px-6 bg-[#1e293b] border-b border-slate-700 flex justify-between items-center shadow-sm z-20">
+                                     <div className="flex items-center gap-2 text-white font-bold">
+                                         <CheckCircleIcon className="w-5 h-5 text-green-400" />
                                          {activeItem.name} - 分析报告
                                      </div>
                                      <div className="flex items-center gap-3">
                                          <button 
                                              onClick={handleDownload}
-                                             className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2 shadow-sm"
+                                             className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-500 transition-colors flex items-center gap-2 shadow-sm"
                                          >
                                              <DownloadIcon className="w-3.5 h-3.5" /> 导出 PDF
                                          </button>
@@ -282,7 +282,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                  </div>
                                  
                                  {/* Editor Area */}
-                                 <div className="flex-1 bg-slate-200 relative overflow-hidden">
+                                 <div className="flex-1 bg-[#0f172a] relative overflow-hidden">
                                      <div className="w-full h-full flex items-center justify-center">
                                          <VisualEditor 
                                              initialHtml={activeItem.htmlContent}
