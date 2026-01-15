@@ -6,7 +6,7 @@ import {
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
     CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
     DownloadIcon, PencilIcon, LinkIcon, SparklesIcon, TrendingUpIcon,
-    PlusIcon, ChartIcon
+    PlusIcon, ChartIcon, ServerIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import VisualEditor from '../../../shared/VisualEditor'; 
@@ -20,6 +20,9 @@ interface AnalysisWorkspaceProps {
     isGenerating: boolean;
     onStartGeneration: () => void;
     prompts?: StratifyPrompt[];
+    selectedModel: string;
+    onModelChange: (model: string) => void;
+    availableModels: { label: string; value: string }[];
 }
 
 // URL Cleaner Helper
@@ -40,7 +43,8 @@ const cleanUrl = (url?: string) => {
 
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ 
     articles, techList, setTechList, onOpenSelection, 
-    isExtracting, isGenerating, onStartGeneration, prompts 
+    isExtracting, isGenerating, onStartGeneration, prompts,
+    selectedModel, onModelChange, availableModels
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [scale, setScale] = useState(1.0); // Default 1.0, but useEffect will adjust
@@ -160,7 +164,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                 
                 {/* Header Actions */}
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-3">
                         <h3 className="font-bold text-slate-700 flex items-center gap-2">
                             <DocumentTextIcon className="w-5 h-5 text-indigo-600"/>
                             识别清单 ({techList.length})
@@ -172,6 +176,24 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                         >
                             <PlusIcon className="w-3.5 h-3.5" /> 添加/分析文章
                         </button>
+                    </div>
+
+                    {/* Model Selector */}
+                    <div className="flex items-center gap-2 mb-4 bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                        <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded">
+                            <ServerIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <select
+                            value={selectedModel}
+                            onChange={(e) => onModelChange(e.target.value)}
+                            disabled={isExtracting || isGenerating}
+                            className="flex-1 bg-transparent text-xs font-medium text-slate-700 outline-none cursor-pointer disabled:opacity-50"
+                            title="选择 AI 模型"
+                        >
+                            {availableModels.map(m => (
+                                <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Progress Bar (Extraction) */}

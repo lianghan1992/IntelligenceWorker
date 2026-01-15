@@ -25,6 +25,12 @@ export interface TechItem {
 
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
 
+export const AVAILABLE_MODELS = [
+    { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
+    { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
+    { label: 'Gemini 3.0 Flash', value: 'gemini-3-flash-preview' },
+];
+
 // Helper: Robustly extract JSON array from text
 const extractJsonArray = (text: string): any[] | null => {
     if (!text) return null;
@@ -104,11 +110,25 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [resetTrigger, setResetTrigger] = useState(0);
     const [prompts, setPrompts] = useState<StratifyPrompt[]>([]);
 
+    // Model Selection State
+    const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-pro');
+
     useEffect(() => {
         getPrompts({ scenario_id: SCENARIO_ID })
             .then(setPrompts)
             .catch(err => console.error("Failed to load scenario prompts", err));
+        
+        // Load model preference
+        const savedModel = localStorage.getItem('ntq_selected_model');
+        if (savedModel && AVAILABLE_MODELS.some(m => m.value === savedModel)) {
+            setSelectedModel(savedModel);
+        }
     }, []);
+
+    const handleModelChange = (model: string) => {
+        setSelectedModel(model);
+        localStorage.setItem('ntq_selected_model', model);
+    };
 
     // --- Phase 1: Extraction ---
     // User selected articles, now we process them one by one to find new tech.
@@ -134,7 +154,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
 
                 try {
-                    const response = await chatGemini([{ role: 'user', content: fullPrompt }], 'gemini-2.5-flash');
+                    const response = await chatGemini([{ role: 'user', content: fullPrompt }], selectedModel);
                     
                     if (response && response.choices && response.choices.length > 0) {
                         const text = response.choices[0].message.content;
@@ -237,8 +257,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     .replace('{{ tech_info }}', item.description)
                     .replace('{{ retrieved_info }}', retrievedInfo);
 
-                // Use Pro model for better reasoning
-                const reportRes = await chatGemini([{ role: 'user', content: filledReportPrompt }], 'gemini-2.5-pro');
+                const reportRes = await chatGemini([{ role: 'user', content: filledReportPrompt }], selectedModel);
                 const reportMd = reportRes?.choices?.[0]?.message?.content;
                 
                 if (!reportMd) throw new Error("报告生成返回空");
@@ -254,7 +273,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 // --- Step 2.3: Generate HTML ---
                 const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', reportMd);
                 
-                const htmlRes = await chatGemini([{ role: 'user', content: filledHtmlPrompt }], 'gemini-2.5-pro');
+                const htmlRes = await chatGemini([{ role: 'user', content: filledHtmlPrompt }], selectedModel);
                 const rawHtml = htmlRes?.choices?.[0]?.message?.content;
                 
                 if (!rawHtml) throw new Error("HTML 生成返回空");
@@ -303,6 +322,9 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 isGenerating={isGenerating}
                 onStartGeneration={startGeneration}
                 prompts={prompts}
+                selectedModel={selectedModel}
+                onModelChange={handleModelChange}
+                availableModels={AVAILABLE_MODELS}
             />
 
             {/* Selection Modal */}
