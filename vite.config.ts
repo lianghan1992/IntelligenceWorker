@@ -21,14 +21,15 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // Remove best-effort-json-parser
+    // 强制预构建这些依赖，防止开发模式下频繁请求
+    include: ['react', 'react-dom', 'socket.io-client', 'marked', 'mammoth', 'html-to-image']
   },
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
-          'vendor-socket': ['socket.io-client'],
+          'vendor-utils': ['socket.io-client', 'marked', 'mammoth'],
         },
       },
     },
