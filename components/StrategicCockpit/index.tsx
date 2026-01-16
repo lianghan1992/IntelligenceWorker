@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SystemSource, InfoItem, User } from '../../types';
 import { lookCategories } from './data';
@@ -11,9 +10,6 @@ interface StrategicCockpitProps {
     subscriptions: SystemSource[];
     user?: User; 
 }
-
-// Renamed to avoid any potential conflicts
-export type CockpitMobileTab = 'list' | 'detail' | 'chat';
 
 export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user }) => {
     // --- State Management ---
@@ -35,8 +31,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
     const selectedArticleRef = useRef<InfoItem | null>(null);
 
-    // Layout State for Mobile
-    const [mobileTab, setMobileTab] = useState<CockpitMobileTab>('list');
+    // Layout State for Mobile - Typed as string to avoid TS2367 narrowing errors
+    const [mobileTab, setMobileTab] = useState<string>('list');
 
     useEffect(() => {
         selectedArticleRef.current = selectedArticle;
@@ -214,7 +210,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             </div>
 
             {/* --- Mobile Bottom Navigation --- */}
-            {(mobileTab as string) !== 'detail' && (
+            {mobileTab !== 'detail' && (
                 <div className="md:hidden flex-shrink-0 h-14 bg-white border-t border-slate-200 flex justify-around items-center z-40 relative shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
                     <button 
                         onClick={() => setMobileTab('list')}
