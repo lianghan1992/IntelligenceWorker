@@ -194,7 +194,10 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
                     ${mobileTab === 'detail' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                 `}>
-                     <EvidenceTrail selectedArticle={selectedArticle} />
+                     <EvidenceTrail 
+                        selectedArticle={selectedArticle} 
+                        onBack={() => setMobileTab('list')}
+                    />
                 </div>
 
                 {/* 3. Right Column: AI Chat (Fixed) */}
@@ -208,27 +211,29 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             </div>
 
             {/* --- Mobile Bottom Navigation --- */}
-            <div className="md:hidden flex-shrink-0 h-14 bg-white border-t border-slate-200 flex justify-around items-center z-40 relative shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
-                <button 
-                    onClick={() => setMobileTab('list')}
-                    className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'list' ? 'text-indigo-600' : 'text-slate-400'}`}
-                >
-                    <span className="text-xs font-bold mt-1">列表</span>
-                </button>
-                <button 
-                    onClick={() => setMobileTab('detail')}
-                    className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'detail' ? 'text-indigo-600' : 'text-slate-400'}`}
-                    disabled={!selectedArticle}
-                >
-                    <span className="text-xs font-bold mt-1">正文</span>
-                </button>
-                <button 
-                    onClick={() => setMobileTab('chat')}
-                    className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'chat' ? 'text-indigo-600' : 'text-slate-400'}`}
-                >
-                    <span className="text-xs font-bold mt-1">AI助手</span>
-                </button>
-            </div>
+            {mobileTab !== 'detail' && (
+                <div className="md:hidden flex-shrink-0 h-14 bg-white border-t border-slate-200 flex justify-around items-center z-40 relative shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+                    <button 
+                        onClick={() => setMobileTab('list')}
+                        className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'list' ? 'text-indigo-600' : 'text-slate-400'}`}
+                    >
+                        <span className="text-xs font-bold mt-1">列表</span>
+                    </button>
+                    <button 
+                        onClick={() => setMobileTab('detail')}
+                        className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'detail' ? 'text-indigo-600' : 'text-slate-400'}`}
+                        disabled={!selectedArticle}
+                    >
+                        <span className="text-xs font-bold mt-1">正文</span>
+                    </button>
+                    <button 
+                        onClick={() => setMobileTab('chat')}
+                        className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'chat' ? 'text-indigo-600' : 'text-slate-400'}`}
+                    >
+                        <span className="text-xs font-bold mt-1">AI助手</span>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

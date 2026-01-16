@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { InfoItem } from '../../types';
-import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, ExternalLinkIcon, ClockIcon } from '../icons';
+import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, ExternalLinkIcon, ClockIcon, ChevronLeftIcon } from '../icons';
 import { getArticleHtml, generateArticleHtml, downloadArticlePdf, getSpiderArticleDetail } from '../../api/intelligence';
 import { marked } from 'marked';
 
 interface EvidenceTrailProps {
     selectedArticle: InfoItem | null;
+    onBack?: () => void;
 }
 
 const Spinner: React.FC = () => (
@@ -23,7 +24,7 @@ const unescapeUnicode = (str: string) => {
     });
 }
 
-export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
+export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, onBack }) => {
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [fullContent, setFullContent] = useState<string>('');
     const [articleUrl, setArticleUrl] = useState<string>('');
@@ -244,27 +245,39 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         <aside className="h-full flex flex-col bg-white overflow-hidden relative shadow-xl z-30">
             {/* Header - Modern & Clean */}
             <div className="flex-shrink-0 border-b border-slate-100 bg-white z-20">
-                <div className="px-6 py-5">
-                     <div className="flex items-center gap-3 mb-3 text-xs">
-                        <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md uppercase tracking-wide">
-                            {selectedArticle.source_name}
-                        </span>
-                        <span className="text-slate-400 flex items-center gap-1 font-medium">
-                            <ClockIcon className="w-3.5 h-3.5" />
-                            {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric'})}
-                        </span>
-                        
-                         {selectedArticle.is_atomized && (
-                            <div className="flex items-center gap-1 text-purple-600 font-bold ml-auto">
-                                <SparklesIcon className="w-3.5 h-3.5" />
-                                <span className="text-[10px] uppercase tracking-wider">AI Atomized</span>
-                            </div>
-                        )}
-                    </div>
+                <div className="px-4 py-4 md:px-6 md:py-5 flex gap-3">
+                    {/* Mobile Back Button */}
+                    {onBack && (
+                        <button 
+                            onClick={onBack} 
+                            className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 h-fit"
+                        >
+                            <ChevronLeftIcon className="w-6 h-6" />
+                        </button>
+                    )}
                     
-                    <h3 className="font-extrabold text-slate-900 text-xl md:text-2xl leading-tight">
-                        {selectedArticle.title}
-                    </h3>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2 text-xs">
+                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md uppercase tracking-wide">
+                                {selectedArticle.source_name}
+                            </span>
+                            <span className="text-slate-400 flex items-center gap-1 font-medium">
+                                <ClockIcon className="w-3.5 h-3.5" />
+                                {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric'})}
+                            </span>
+                            
+                            {selectedArticle.is_atomized && (
+                                <div className="flex items-center gap-1 text-purple-600 font-bold ml-auto">
+                                    <SparklesIcon className="w-3.5 h-3.5" />
+                                    <span className="text-[10px] uppercase tracking-wider">AI Atomized</span>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <h3 className="font-extrabold text-slate-900 text-lg md:text-xl md:text-2xl leading-tight line-clamp-2 md:line-clamp-none">
+                            {selectedArticle.title}
+                        </h3>
+                    </div>
                 </div>
 
                 {/* Toolbar */}
