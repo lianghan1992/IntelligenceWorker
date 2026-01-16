@@ -29,7 +29,6 @@ export default defineConfig({
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
           'vendor-socket': ['socket.io-client'],
-          'vendor-ui': ['/components/icons.tsx'], // Split large icons file if possible (heuristic)
         },
       },
     },
