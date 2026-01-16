@@ -12,8 +12,8 @@ interface StrategicCockpitProps {
     user?: User; 
 }
 
-// Explicitly define the type to avoid inference issues
-export type MobileTab = 'list' | 'detail' | 'chat';
+// Renamed to avoid any potential conflicts
+export type CockpitMobileTab = 'list' | 'detail' | 'chat';
 
 export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user }) => {
     // --- State Management ---
@@ -35,8 +35,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
     const selectedArticleRef = useRef<InfoItem | null>(null);
 
-    // Layout State for Mobile - Explicitly typed to prevent TS2367
-    const [mobileTab, setMobileTab] = useState<MobileTab>('list');
+    // Layout State for Mobile
+    const [mobileTab, setMobileTab] = useState<CockpitMobileTab>('list');
 
     useEffect(() => {
         selectedArticleRef.current = selectedArticle;
@@ -214,7 +214,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             </div>
 
             {/* --- Mobile Bottom Navigation --- */}
-            {mobileTab !== 'detail' && (
+            {(mobileTab as string) !== 'detail' && (
                 <div className="md:hidden flex-shrink-0 h-14 bg-white border-t border-slate-200 flex justify-around items-center z-40 relative shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
                     <button 
                         onClick={() => setMobileTab('list')}
