@@ -13,7 +13,7 @@ interface StrategicCockpitProps {
 }
 
 // Explicitly define the type to avoid inference issues
-type MobileTab = 'list' | 'detail' | 'chat';
+export type MobileTab = 'list' | 'detail' | 'chat';
 
 export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user }) => {
     // --- State Management ---
@@ -35,7 +35,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
     const selectedArticleRef = useRef<InfoItem | null>(null);
 
-    // Layout State for Mobile - Explicitly typed
+    // Layout State for Mobile - Explicitly typed to prevent TS2367
     const [mobileTab, setMobileTab] = useState<MobileTab>('list');
 
     useEffect(() => {
