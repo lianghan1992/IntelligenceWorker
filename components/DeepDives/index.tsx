@@ -10,7 +10,6 @@ import {
     SearchIcon, DocumentTextIcon, CalendarIcon, 
     SparklesIcon, CloudIcon, EyeIcon, 
     ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon,
-    LightningBoltIcon, GlobeIcon, ShieldCheckIcon, TruckIcon,
     ViewGridIcon
 } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
@@ -23,15 +22,6 @@ const GRADIENTS = [
     'from-orange-500 to-amber-500',
     'from-pink-500 to-rose-500'
 ];
-
-const CATEGORY_ICONS: Record<string, React.FC<any>> = {
-    '默认': DocumentTextIcon,
-    '自动驾驶': TruckIcon,
-    '动力电池': LightningBoltIcon,
-    '智能座舱': DocumentTextIcon, // Fallback
-    '车联网': GlobeIcon,
-    '政策法规': ShieldCheckIcon
-};
 
 // Correct file size formatting based on backend bytes
 const formatFileSize = (bytes?: number) => {
@@ -192,7 +182,6 @@ const ReportCard: React.FC<{
     categoryName: string;
     onRead: () => void;
 }> = ({ task, categoryName, onRead }) => {
-    // Relaxed check: allow fetching cover for more states, as backend might have cover ready even if processing
     const isCompleted = ['completed', 'finished', 'success'].includes(task.status.toLowerCase());
     
     // Deterministic gradient based on id
@@ -202,7 +191,6 @@ const ReportCard: React.FC<{
 
     useEffect(() => {
         let active = true;
-        // Attempt to fetch cover for all tasks. If 404, it returns null and shows placeholder.
         fetchDeepInsightCover(task.id).then(url => {
             if (active && url) setCoverUrl(url);
         });
@@ -309,11 +297,15 @@ const ReportCard: React.FC<{
 
 export const DeepDives: React.FC = () => {
     const [tasks, setTasks] = useState<DeepInsightTask[]>([]);
+    const [featuredTasks, setFeaturedTasks] = useState<DeepInsightTask[]>([]); // Independent Hero Data
     const [categories, setCategories] = useState<DeepInsightCategory[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    
+    // Filter States
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortOption, setSortOption] = useState('newest');
+    
     const [readerTask, setReaderTask] = useState<DeepInsightTask | null>(null);
 
     // Pagination State
@@ -321,33 +313,46 @@ export const DeepDives: React.FC = () => {
     const [total, setTotal] = useState(0);
     const limit = 12;
 
-    // Initial Load
-    const loadData = useCallback(async () => {
+    // --- 1. Initial Data Load (Once) ---
+    useEffect(() => {
+        const initData = async () => {
+            setIsLoading(true);
+            try {
+                // Fetch categories and "featured" tasks (latest 5 regardless of filter)
+                const [cats, featured] = await Promise.all([
+                    getDeepInsightCategories().catch(() => []),
+                    getDeepInsightTasks({ limit: 5, page: 1 }).catch(() => ({ items: [], total: 0 }))
+                ]);
+                
+                setCategories(Array.isArray(cats) ? cats : []);
+                
+                const featuredItems = Array.isArray(featured) ? featured : (featured.items || []);
+                setFeaturedTasks(featuredItems);
+            } catch (error) {
+                console.error("Failed to init data", error);
+            } finally {
+                // Don't set loading false here, wait for grid data
+            }
+        };
+        initData();
+    }, []);
+
+    // --- 2. Grid Data Load (On Filter Change) ---
+    const loadGridData = useCallback(async () => {
         setIsLoading(true);
         try {
-            // Parallel fetch categories and tasks
-            const [cats, tasksRes] = await Promise.all([
-                getDeepInsightCategories().catch(() => []), // Safe catch to ensure array
-                getDeepInsightTasks({ 
-                    limit, 
-                    page, 
-                    category_id: selectedCategoryId, 
-                    search: searchQuery 
-                }).catch(() => ({ items: [], total: 0 }))
-            ]);
-            
-            // Explicit array checks to prevent "map is not a function"
-            setCategories(Array.isArray(cats) ? cats : []);
+            const tasksRes = await getDeepInsightTasks({ 
+                limit, 
+                page, 
+                category_id: selectedCategoryId, 
+                search: searchQuery 
+            });
             
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
             setTasks(items);
-            
-            // Handle total from API response
             setTotal((tasksRes as any).total || 0);
         } catch (error) {
-            console.error("Failed to load data", error);
-            // Default safe states on critical error
-            setCategories([]);
+            console.error("Failed to load grid tasks", error);
             setTasks([]);
             setTotal(0);
         } finally {
@@ -355,23 +360,22 @@ export const DeepDives: React.FC = () => {
         }
     }, [selectedCategoryId, searchQuery, page]);
 
+    useEffect(() => {
+        // Debounce search slightly
+        const timer = setTimeout(() => {
+            loadGridData();
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [loadGridData]);
+
     // Reset page on filter change
     useEffect(() => {
         setPage(1);
     }, [selectedCategoryId, searchQuery]);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            loadData();
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [loadData]);
-
-    // Derived Data - Client-side sort if API doesn't support
+    // Derived Data - Client-side sort
     const sortedTasks = useMemo(() => {
-        // Safe check
         if (!Array.isArray(tasks)) return [];
-
         let sorted = [...tasks];
         if (sortOption === 'newest') {
             sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -381,7 +385,6 @@ export const DeepDives: React.FC = () => {
         return sorted;
     }, [tasks, sortOption]);
 
-    const featuredTasks = useMemo(() => sortedTasks.slice(0, 5), [sortedTasks]);
     const totalPages = Math.ceil(total / limit) || 1;
 
     const handlePageChange = (newPage: number) => {
@@ -397,7 +400,6 @@ export const DeepDives: React.FC = () => {
     const getPageNumbers = () => {
         const pages = [];
         const maxVisiblePages = 5;
-        
         if (totalPages <= maxVisiblePages) {
             for (let i = 1; i <= totalPages; i++) pages.push(i);
         } else {
@@ -412,40 +414,43 @@ export const DeepDives: React.FC = () => {
         return pages;
     };
 
-
     return (
         <div className="relative min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
             
             <main className="flex-1 flex flex-col items-center w-full">
                 
-                {/* 1. Hero Section (Carousel) */}
-                {!isLoading && featuredTasks.length > 0 && <HeroSection tasks={featuredTasks} onRead={setReaderTask} />}
+                {/* 1. Hero Section (Always Visible, independent of filters) */}
+                {featuredTasks.length > 0 && <HeroSection tasks={featuredTasks} onRead={setReaderTask} />}
 
                 {/* 2. Filter Section */}
                 <section className="w-full max-w-[1440px] px-4 md:px-10 py-8" id="report-grid-section">
                     <div className="flex flex-col gap-6">
-                        {/* Tags */}
+                        {/* Categories - Modern Pill Style */}
                         <div className="flex flex-wrap items-center gap-3">
-                            <span className="text-slate-900 text-sm font-bold mr-2">热门领域:</span>
+                            <span className="text-slate-500 text-sm font-medium mr-2">热门领域:</span>
                             <button 
                                 onClick={() => setSelectedCategoryId(null)}
-                                className={`flex h-9 items-center justify-center gap-x-2 rounded-full px-4 transition-all cursor-pointer group shadow-sm ${selectedCategoryId === null ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-white border border-slate-200 text-slate-600 hover:border-blue-500 hover:text-blue-600'}`}
+                                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm ${
+                                    selectedCategoryId === null 
+                                    ? 'bg-slate-900 text-white shadow-md' 
+                                    : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                }`}
                             >
-                                <ViewGridIcon className="w-4 h-4" />
-                                <span className="text-sm font-medium">全部</span>
+                                全部
                             </button>
-                            {/* Safe check for categories mapping */}
                             {Array.isArray(categories) && categories.map(cat => {
-                                const Icon = CATEGORY_ICONS[cat.name] || DocumentTextIcon;
                                 const isSelected = selectedCategoryId === cat.id;
                                 return (
                                     <button 
                                         key={cat.id}
                                         onClick={() => setSelectedCategoryId(cat.id)}
-                                        className={`flex h-9 items-center justify-center gap-x-2 rounded-full px-4 transition-all cursor-pointer group shadow-sm ${isSelected ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-white border border-slate-200 text-slate-600 hover:border-blue-500 hover:text-blue-600'}`}
+                                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm ${
+                                            isSelected 
+                                            ? 'bg-slate-900 text-white shadow-md' 
+                                            : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                        }`}
                                     >
-                                        <Icon className="w-4 h-4" />
-                                        <span className="text-sm font-medium">{cat.name}</span>
+                                        {cat.name}
                                     </button>
                                 );
                             })}
