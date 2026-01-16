@@ -324,7 +324,10 @@ export const DeepDives: React.FC = () => {
                     getDeepInsightTasks({ limit: 5, page: 1 }).catch(() => ({ items: [], total: 0 }))
                 ]);
                 
-                setCategories(Array.isArray(cats) ? cats : []);
+                // FIX: Filter out invalid categories to prevent selection state bugs
+                // This ensures we don't have categories with null/undefined IDs that confuse the "All" selector
+                const validCats = (Array.isArray(cats) ? cats : []).filter(c => c && c.id && c.name);
+                setCategories(validCats);
                 
                 const featuredItems = Array.isArray(featured) ? featured : (featured.items || []);
                 setFeaturedTasks(featuredItems);
