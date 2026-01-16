@@ -194,3 +194,19 @@ export const createModelPricing = (data: Partial<ModelPricing>): Promise<ModelPr
 
 export const deleteModelPricing = (id: string | number): Promise<void> => 
     apiFetch<void>(`${USER_SERVICE_PATH}/admin/model-pricing/${id}`, { method: 'DELETE' });
+
+// --- System Config & Gifting (Admin) ---
+export const getInitialBalanceConfig = (): Promise<{ value: string; description?: string }> =>
+    apiFetch<{ value: string; description?: string }>(`${USER_SERVICE_PATH}/admin/config/initial-balance`);
+
+export const updateInitialBalanceConfig = (data: { value: string; description?: string }): Promise<void> =>
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/config/initial-balance`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const giftBalanceBatch = (data: { user_ids: string[]; amount: number; reason?: string }): Promise<{ message: string; count: number }> =>
+    apiFetch<{ message: string; count: number }>(`${USER_SERVICE_PATH}/admin/gift`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });

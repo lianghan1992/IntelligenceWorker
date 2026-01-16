@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { AdminTransaction, PaymentOrder, UserListItem } from '../../../types';
-import { getAdminTransactions, getAdminOrders, getUserById } from '../../../api/user';
-import { RefreshIcon, SearchIcon, CreditCardIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, UserIcon, ClockIcon } from '../../icons';
+import { getAdminTransactions, getAdminOrders, getUserById, getInitialBalanceConfig, updateInitialBalanceConfig } from '../../../api/user';
+import { RefreshIcon, SearchIcon, CreditCardIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, UserIcon, ClockIcon, GearIcon, CheckIcon } from '../../icons';
 import { AGENT_NAMES } from '../../../agentConfig';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
@@ -56,6 +56,89 @@ const parseMeta = (metaStr: string | null) => {
     } catch (e) {
         return null;
     }
+};
+
+// --- SystemConfigModal ---
+const SystemConfigModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen, onClose }) => {
+    const [balance, setBalance] = useState('0.00');
+    const [desc, setDesc] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            setIsLoading(true);
+            getInitialBalanceConfig().then(res => {
+                setBalance(res.value || '0.00');
+                setDesc(res.description || '');
+            }).finally(() => setIsLoading(false));
+        }
+    }, [isOpen]);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await updateInitialBalanceConfig({ value: balance, description: desc });
+            alert('配置更新成功');
+            onClose();
+        } catch (e: any) {
+            alert('更新失败: ' + e.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-slate-200">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gray-50">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <GearIcon className="w-5 h-5 text-indigo-600"/> 全局财务配置
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-full transition-colors"><CloseIcon className="w-5 h-5"/></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    {isLoading ? (
+                        <div className="py-8 text-center"><Spinner /></div>
+                    ) : (
+                        <>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">新用户初始赠送金额 (CNY)</label>
+                                <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    value={balance} 
+                                    onChange={e => setBalance(e.target.value)} 
+                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-lg font-mono font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">说明备注</label>
+                                <input 
+                                    type="text" 
+                                    value={desc} 
+                                    onChange={e => setDesc(e.target.value)} 
+                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    placeholder="例如：2024新年注册福利"
+                                />
+                            </div>
+                            <div className="flex justify-end pt-2">
+                                <button 
+                                    onClick={handleSave} 
+                                    disabled={isSaving} 
+                                    className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-md transition-all active:scale-95"
+                                >
+                                    {isSaving ? <Spinner /> : <CheckIcon className="w-4 h-4"/>} 保存配置
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 // --- User Detail Modal ---
@@ -158,6 +241,7 @@ export const FinanceManager: React.FC = () => {
 
     // Modals
     const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+    const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -212,19 +296,28 @@ export const FinanceManager: React.FC = () => {
                         </h2>
                         <p className="text-xs text-slate-500 mt-1">查看全平台交易记录与订单状态</p>
                     </div>
-                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                    
+                    <div className="flex gap-4">
                         <button 
-                            onClick={() => { setActiveTab('transactions'); setPage(1); }}
-                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'transactions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                             onClick={() => setIsConfigModalOpen(true)}
+                             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 hover:text-slate-800 transition-colors"
                         >
-                            交易流水
+                            <GearIcon className="w-4 h-4" /> 全局配置
                         </button>
-                        <button 
-                            onClick={() => { setActiveTab('orders'); setPage(1); }}
-                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            支付订单
-                        </button>
+                        <div className="flex bg-slate-100 p-1 rounded-lg">
+                            <button 
+                                onClick={() => { setActiveTab('transactions'); setPage(1); }}
+                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'transactions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                交易流水
+                            </button>
+                            <button 
+                                onClick={() => { setActiveTab('orders'); setPage(1); }}
+                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                支付订单
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -432,6 +525,8 @@ export const FinanceManager: React.FC = () => {
             </div>
 
             {viewingUserId && <UserDetailModal userId={viewingUserId} onClose={() => setViewingUserId(null)} />}
+            
+            <SystemConfigModal isOpen={isConfigModalOpen} onClose={() => setIsConfigModalOpen(false)} />
         </div>
     );
 };

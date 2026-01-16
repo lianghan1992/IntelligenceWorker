@@ -1,11 +1,102 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserListItem, UserForAdminUpdate } from '../../../types';
-import { getUsers, updateUser, deleteUser } from '../../../api/user';
-import { CloseIcon, PencilIcon, TrashIcon, SearchIcon, FilterIcon, RefreshIcon } from '../../icons';
+import { getUsers, updateUser, deleteUser, giftBalanceBatch } from '../../../api/user';
+import { CloseIcon, PencilIcon, TrashIcon, SearchIcon, FilterIcon, RefreshIcon, SparklesIcon, CheckIcon } from '../../icons';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
+
+// --- GiftModal ---
+const GiftModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    selectedCount: number; 
+    userIds: string[]; 
+    onSuccess: () => void; 
+}> = ({ isOpen, onClose, selectedCount, userIds, onSuccess }) => {
+    const [amount, setAmount] = useState<string>('5.00');
+    const [reason, setReason] = useState('System Gift');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const numAmount = parseFloat(amount);
+        if (isNaN(numAmount) || numAmount <= 0) {
+            setError('请输入有效的金额');
+            return;
+        }
+
+        setIsSubmitting(true);
+        setError('');
+        try {
+            await giftBalanceBatch({
+                user_ids: userIds,
+                amount: numAmount,
+                reason: reason
+            });
+            onSuccess();
+            onClose();
+            alert(`成功向 ${selectedCount} 位用户赠送了 ${numAmount} 元`);
+        } catch (err: any) {
+            setError(err.message || '赠送失败');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+            <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-slate-200">
+                <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <SparklesIcon className="w-5 h-5 text-purple-500" />
+                        批量赠送余额
+                    </h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded-full"><CloseIcon className="w-5 h-5"/></button>
+                </div>
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <p className="text-sm text-gray-600 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                        正在向 <span className="font-bold text-purple-700">{selectedCount}</span> 位用户赠送系统余额。
+                    </p>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">赠送金额 (CNY)</label>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            value={amount} 
+                            onChange={e => setAmount(e.target.value)} 
+                            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-lg font-mono font-bold text-slate-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">赠送原因 (备注)</label>
+                        <input 
+                            type="text" 
+                            value={reason} 
+                            onChange={e => setReason(e.target.value)} 
+                            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                            placeholder="例如：新用户福利、系统补偿..."
+                        />
+                    </div>
+                    {error && <p className="text-xs text-red-500">{error}</p>}
+                    <div className="flex justify-end pt-2">
+                        <button 
+                            type="submit" 
+                            disabled={isSubmitting} 
+                            className="px-6 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2 shadow-md transition-all active:scale-95"
+                        >
+                            {isSubmitting ? <Spinner /> : <CheckIcon className="w-4 h-4"/>} 确认赠送
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 // --- EditUserModal ---
 const EditUserModal: React.FC<{ user: UserListItem; onClose: () => void; onSave: () => void; }> = ({ user, onClose, onSave }) => {
@@ -94,7 +185,10 @@ export const UserList: React.FC = () => {
         status: ''
     });
 
+    // Selection & Actions
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [modalState, setModalState] = useState<{ type: 'edit' | 'delete', user: UserListItem | null }>({ type: 'edit', user: null });
+    const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
 
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
@@ -109,6 +203,7 @@ export const UserList: React.FC = () => {
             });
             setUsers(response.items || []);
             setPagination(prev => ({ ...prev, total: response.total, totalPages: response.totalPages ?? 1 }));
+            setSelectedIds(new Set()); // Reset selection on fetch
         } catch (err: any) {
             setError(err.message || '获取用户列表失败');
             setUsers([]);
@@ -141,6 +236,18 @@ export const UserList: React.FC = () => {
         if (newPage > 0 && newPage <= pagination.totalPages) {
             setPagination(prev => ({ ...prev, page: newPage }));
         }
+    };
+
+    const toggleSelect = (id: string) => {
+        const newSet = new Set(selectedIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedIds(newSet);
+    };
+
+    const toggleAll = () => {
+        if (selectedIds.size === users.length && users.length > 0) setSelectedIds(new Set());
+        else setSelectedIds(new Set(users.map(u => u.id)));
     };
 
     return (
@@ -184,9 +291,19 @@ export const UserList: React.FC = () => {
                     </div>
                 </div>
                 
-                <button onClick={fetchUsers} className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors shadow-sm" title="刷新">
-                    <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex gap-2">
+                    {selectedIds.size > 0 && (
+                        <button 
+                            onClick={() => setIsGiftModalOpen(true)}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 shadow-sm transition-all animate-in fade-in zoom-in"
+                        >
+                            <SparklesIcon className="w-4 h-4" /> 批量赠送 ({selectedIds.size})
+                        </button>
+                    )}
+                    <button onClick={fetchUsers} className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors shadow-sm" title="刷新">
+                        <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
             </div>
 
             {error && <div className="mx-4 mt-4 p-3 bg-red-100 text-red-700 rounded-md text-sm border border-red-200">{error}</div>}
@@ -196,6 +313,14 @@ export const UserList: React.FC = () => {
                     <table className="w-full text-sm text-left text-gray-500">
                         <thead className="text-xs text-gray-700 uppercase bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                             <tr>
+                                <th className="px-4 py-4 w-10 text-center">
+                                    <input 
+                                        type="checkbox" 
+                                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        checked={users.length > 0 && selectedIds.size === users.length}
+                                        onChange={toggleAll}
+                                    />
+                                </th>
                                 <th className="px-6 py-4">ID / 用户</th>
                                 <th className="px-6 py-4">邮箱</th>
                                 <th className="px-6 py-4">订阅计划</th>
@@ -207,11 +332,20 @@ export const UserList: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {isLoading && users.length === 0 ? (
-                                <tr><td colSpan={7} className="text-center py-20"><div className="flex justify-center"><Spinner /></div></td></tr>
+                                <tr><td colSpan={8} className="text-center py-20"><div className="flex justify-center"><Spinner /></div></td></tr>
                             ) : users.length === 0 ? (
-                                <tr><td colSpan={7} className="text-center py-20 text-gray-400">暂无用户数据</td></tr>
+                                <tr><td colSpan={8} className="text-center py-20 text-gray-400">暂无用户数据</td></tr>
                             ) : users.map(user => (
-                                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                                <tr key={user.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(user.id) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(user.id)}>
+                                    <td className="px-4 py-4 text-center">
+                                        <input 
+                                            type="checkbox" 
+                                            className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            checked={selectedIds.has(user.id)}
+                                            onChange={() => toggleSelect(user.id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </td>
                                     <td className="px-6 py-4">
                                         <div className="font-bold text-gray-900">{user.username}</div>
                                         <div className="font-mono text-xs text-gray-400 mt-0.5">{user.id.slice(0, 8)}...</div>
@@ -245,8 +379,8 @@ export const UserList: React.FC = () => {
                                     <td className="px-6 py-4 text-xs font-mono text-gray-500">{new Date(user.created_at).toLocaleString()}</td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex items-center justify-center gap-2">
-                                            <button onClick={() => setModalState({ type: 'edit', user })} className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded transition-colors" title="编辑"><PencilIcon className="w-4 h-4"/></button>
-                                            <button onClick={() => setModalState({ type: 'delete', user })} className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded transition-colors" title="删除"><TrashIcon className="w-4 h-4"/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); setModalState({ type: 'edit', user }); }} className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded transition-colors" title="编辑"><PencilIcon className="w-4 h-4"/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); setModalState({ type: 'delete', user }); }} className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded transition-colors" title="删除"><TrashIcon className="w-4 h-4"/></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -268,6 +402,14 @@ export const UserList: React.FC = () => {
 
             {modalState.user && modalState.type === 'edit' && <EditUserModal user={modalState.user} onClose={() => setModalState({type: 'edit', user: null})} onSave={fetchUsers} />}
             {modalState.user && modalState.type === 'delete' && <ConfirmationModal title="确认删除用户" message={`您确定要删除用户 "${modalState.user.username}" 吗？此操作不可撤销，并将清除该用户的所有关联数据。`} onConfirm={handleDeleteUser} onCancel={() => setModalState({type: 'delete', user: null})} variant="destructive" />}
+            
+            <GiftModal 
+                isOpen={isGiftModalOpen} 
+                onClose={() => setIsGiftModalOpen(false)} 
+                selectedCount={selectedIds.size}
+                userIds={Array.from(selectedIds)}
+                onSuccess={fetchUsers}
+            />
         </div>
     );
 };
