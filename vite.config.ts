@@ -21,17 +21,27 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // 🔴 强制不使用外部 CDN，确保所有包都打入本地文件
-      external: [],
       output: {
-        // ✅ 性能优化：修复构建错误并优化分包
-        manualChunks: {
-          // 仅提取 React 核心，确保其作为基础运行时被缓存
-          'vendor-react': ['react', 'react-dom'],
-          // 其他所有业务代码和工具库将由 Vite 自动进行基于路由和动态导入的拆分 (Code Splitting)
+        // ✅ 细粒度分包策略：防止单个 JS 文件过大导致超时
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            // 核心框架独立（最优先加载）
+            if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
+              return 'framework';
+            }
+            // 大型工具库单独拆分，按需加载
+            if (id.includes('html-to-image') || id.includes('mammoth') || id.includes('jspdf')) {
+              return 'heavy-utils';
+            }
+            if (id.includes('echarts') || id.includes('chart.js') || id.includes('apexcharts')) {
+              return 'charts';
+            }
+            // 其他第三方库归为 vendor
+            return 'vendor';
+          }
         }
       },
     },
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 800,
   },
 })
