@@ -25,12 +25,10 @@ export default defineConfig({
       // 🔴 强制不使用外部 CDN，确保所有包都打入本地文件
       external: [],
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-utils': ['socket.io-client', 'marked', 'mammoth'],
-        },
+        // 移除 manualChunks，让 Rollup 自动通过动态导入进行分割，或者合并为较少的大文件。
+        // 在高延迟（HK -> 大陆）网络下，减少请求数量（TCP握手次数）优于减小单文件体积。
       },
     },
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 2000, // 调大警告限制，因为我们有意合并了文件
   },
 })
