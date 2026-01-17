@@ -5,48 +5,37 @@ export {}; // Mark as module
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
-// 强制升级版本号 v4 -> v5
-const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v5';
+// 🔴 升级版本号，强制客户端更新缓存策略
+const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v8-optimized';
 
-// Add assets that are absolutely essential for the app shell to work offline.
+// 基础 App Shell
 const urlsToCache = [
   '/',
   '/index.html',
   '/logo.svg',
-  // Static assets from CDNs
-  'https://cdn.tailwindcss.com',
-  'https://cdn.bootcdn.net/ajax/libs/marked/13.0.1/marked.min.js',
 ];
 
 // Install: Cache the app shell
 sw.addEventListener('install', (event) => {
-  // 强制立即接管，跳过等待
   sw.skipWaiting();
-
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache and caching app shell');
         return cache.addAll(urlsToCache);
       })
-      .catch(error => {
-        console.error('Failed to cache app shell:', error);
-      })
   );
 });
 
 // Activate: Clean up old caches
 sw.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     Promise.all([
-      // 立即接管所有客户端页面
       sw.clients.claim(),
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheWhitelist.indexOf(cacheName) === -1) {
-              console.log('Deleting old cache:', cacheName);
+            if (cacheName !== CACHE_NAME) {
               return caches.delete(cacheName);
             }
           })
@@ -56,67 +45,15 @@ sw.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Serve from cache or network
+// Fetch: Stale-While-Revalidate for HTML, Cache-First for Assets
 sw.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // For API calls and socket connections, always go to the network.
+  // 1. API 永远走网络
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) {
-    if (request.method !== 'GET') {
-        event.respondWith(fetch(request));
-        return;
-    }
-    
-    event.respondWith(
-        fetch(request).catch(() => {
-            return caches.match(request).then(response => {
-                return response || Promise.reject('Network error and no cache.');
-            });
-        })
-    );
     return;
   }
 
-  // HTML: Network First (Strategy Change)
-  if (request.destination === 'document') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, response.clone());
-            return response;
-          });
-        })
-        .catch(() => {
-          return caches.match(request).then(response => {
-             return response || Promise.reject('Offline and no cache.');
-          });
-        })
-    );
-    return;
-  }
-
-  // Assets: Cache First
-  event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        return fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && request.method === 'GET') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(request, responseToCache);
-              });
-          }
-          return networkResponse;
-        }).catch(error => {
-            throw error;
-        });
-      })
-  );
-});
+  // 2. 静态资源 (JS/CSS/Images)：激进缓存 (Cache First)
+  // 只要是本

@@ -31,8 +31,6 @@ app.use('/api', createProxyMiddleware({
   logLevel: 'debug',
   onProxyReq: (proxyReq, req, res) => {
     // 关键修复：确保将原始请求的协议（http或https）通过 X-Forwarded-Proto 头传递给后端。
-    // 这使得后端（例如带有 ProxyHeadersMiddleware 的 FastAPI）在处理重定向时能够生成正确的URL，
-    // 从而解决了在HTTPS环境下出现的“混合内容”错误。
     proxyReq.setHeader('X-Forwarded-Proto', req.protocol);
   }
 }));
@@ -78,7 +76,7 @@ const buildPath = path.join(__dirname, 'dist');
 app.use(express.static(buildPath, {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html')) {
-      // 禁止缓存 index.html，确保每次发布都能看到最新版本
+      // 🔴 强制禁止缓存 index.html，确保每次发布都能看到最新版本
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
@@ -91,7 +89,7 @@ app.use(express.static(buildPath, {
 
 // 对于所有其他GET请求，返回index.html，以支持客户端路由 (SPA)
 app.get('/*', (req, res) => {
-  // 同样对 SPA 的入口 index.html 禁用缓存
+  // 🔴 同样对 SPA 的入口 index.html 禁用缓存
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
