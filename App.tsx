@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Header } from './components/Header';
 import { AuthModal } from './components/HomePage/AuthModal';
@@ -9,15 +8,23 @@ import { UserProfileModal } from './components/UserProfile/UserProfileModal';
 import { User, View, SystemSource } from './types';
 import { getUserSubscribedSources, getMe } from './api';
 
-// Lazy load components with named export adaptation
-const StrategicCockpit = React.lazy(() => import('./components/StrategicCockpit/index').then(module => ({ default: module.StrategicCockpit })));
-const CompetitivenessDashboard = React.lazy(() => import('./components/CompetitivenessDashboard/index').then(module => ({ default: module.CompetitivenessDashboard })));
-const DeepDives = React.lazy(() => import('./components/DeepDives/index').then(module => ({ default: module.DeepDives })));
-const IndustryEvents = React.lazy(() => import('./components/IndustryEvents/index').then(module => ({ default: module.IndustryEvents })));
-const ReportGenerator = React.lazy(() => import('./components/ReportGenerator/index').then(module => ({ default: module.ReportGenerator })));
-const AdminPage = React.lazy(() => import('./components/Admin/index').then(module => ({ default: module.AdminPage })));
-// New Marketplace
-const AgentMarketplace = React.lazy(() => import('./components/AgentMarketplace/index'));
+// --- Lazy Load Loaders (Extracted for Prefetching) ---
+const loadStrategicCockpit = () => import('./components/StrategicCockpit/index').then(module => ({ default: module.StrategicCockpit }));
+const loadCompetitivenessDashboard = () => import('./components/CompetitivenessDashboard/index').then(module => ({ default: module.CompetitivenessDashboard }));
+const loadDeepDives = () => import('./components/DeepDives/index').then(module => ({ default: module.DeepDives }));
+const loadIndustryEvents = () => import('./components/IndustryEvents/index').then(module => ({ default: module.IndustryEvents }));
+const loadReportGenerator = () => import('./components/ReportGenerator/index').then(module => ({ default: module.ReportGenerator }));
+const loadAdminPage = () => import('./components/Admin/index').then(module => ({ default: module.AdminPage }));
+const loadAgentMarketplace = () => import('./components/AgentMarketplace/index');
+
+// --- Lazy Components ---
+const StrategicCockpit = React.lazy(loadStrategicCockpit);
+const CompetitivenessDashboard = React.lazy(loadCompetitivenessDashboard);
+const DeepDives = React.lazy(loadDeepDives);
+const IndustryEvents = React.lazy(loadIndustryEvents);
+const ReportGenerator = React.lazy(loadReportGenerator);
+const AdminPage = React.lazy(loadAdminPage);
+const AgentMarketplace = React.lazy(loadAgentMarketplace);
 
 // Loading Fallback Component
 const PageLoader = () => (
@@ -55,6 +62,42 @@ const App: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   
   const [subscriptions, setSubscriptions] = useState<SystemSource[]>([]);
+
+  // 🚀 Intelligent Prefetching Strategy
+  useEffect(() => {
+    const prefetchResources = async () => {
+      // Wait for 3.5 seconds to ensure the main thread is idle and LCP (Largest Contentful Paint) is finished
+      await new Promise(resolve => setTimeout(resolve, 3500));
+      
+      console.log('🚀 [AutoInsight] Starting idle resource prefetching...');
+      
+      // Trigger network requests for all chunks. 
+      // Since these imports match the React.lazy definitions, the browser will cache them.
+      const loaders = [
+        loadStrategicCockpit,
+        loadCompetitivenessDashboard,
+        loadDeepDives,
+        loadIndustryEvents,
+        loadReportGenerator,
+        loadAgentMarketplace,
+        // Only prefetch admin if likely needed, or just always (it's split anyway)
+        loadAdminPage
+      ];
+
+      loaders.forEach(loader => {
+        try {
+          loader(); 
+        } catch (e) {
+          // Ignore prefetch errors, they will be handled by ErrorBoundaries if real load fails
+        }
+      });
+    };
+
+    // Only prefetch if we have a user (meaning we are inside the dashboard)
+    if (user) {
+        prefetchResources();
+    }
+  }, [user]); // Run when user logs in
 
   // PWA Cleanup: Unregister Service Worker if it exists
   useEffect(() => {
