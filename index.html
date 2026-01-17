@@ -9,91 +9,89 @@
   
   <style>
     body {
-      /* 
-         有笔锋的系统字体栈 (Serif)
-         优先调用 Mac/iOS 的宋体，然后是 Windows 的宋体，最后是通用的衬线体
-         加载速度：0ms (无需下载)
-      */
       font-family: "Songti SC", "STSong", "SimSun", "Times New Roman", serif;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       background-color: #f8f9fa;
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* Prevent scrollbars during loading */
     }
     
-    /* 全局滚动条美化 - 极简风格 */
-    ::-webkit-scrollbar {
-      width: 5px; /* 更细 */
-      height: 5px;
-    }
-    
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-      background: #e2e8f0; /* 更淡的灰色 (slate-200) */
-      border-radius: 10px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-      background: #cbd5e1; /* slate-300 */
-    }
+    /* 全局滚动条美化 */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+    .custom-slim-scrollbar::-webkit-scrollbar { width: 3px; }
+    .custom-scrollbar-dark::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
+    .custom-scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
+    .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .prose { max-width: 65ch; color: #374151; }
+    .prose a { color: #4f46e5; text-decoration: none; }
+    .prose a:hover { text-decoration: underline; }
+    .animate-in { animation: enter 0.3s ease-out; }
+    .fade-in-0 { opacity: 0; animation-fill-mode: forwards; }
+    .zoom-in-95 { transform: scale(0.95); }
+    @keyframes enter { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
 
-    /* 针对特定容器的自定义滚动条 (如果需要更细的) */
-    .custom-slim-scrollbar::-webkit-scrollbar {
-      width: 3px;
+    /* --- Critical CSS for Instant Loading Screen --- */
+    #app-shell-loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #f8fafc; /* slate-50 */
+      z-index: 9999;
+      transition: opacity 0.5s ease-out;
     }
-    
-    /* 深色模式滚动条 */
-    .custom-scrollbar-dark::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.02);
+    .loader-logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 24px;
+      animation: logo-pulse 2s infinite ease-in-out;
     }
-    .custom-scrollbar-dark::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
+    .loader-bar-bg {
+      width: 160px;
+      height: 3px;
+      background: #e2e8f0;
+      border-radius: 99px;
+      overflow: hidden;
+      position: relative;
     }
-    .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.25);
+    .loader-bar-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 30%;
+      background: #4f46e5; /* indigo-600 */
+      border-radius: 99px;
+      animation: bar-slide 1.5s infinite ease-in-out;
     }
-
-    /* 隐藏滚动条但保留功能 */
-    .no-scrollbar::-webkit-scrollbar {
-      display: none;
+    .loader-text {
+      margin-top: 16px;
+      color: #64748b;
+      font-size: 12px;
+      font-family: sans-serif;
+      font-weight: 500;
+      letter-spacing: 0.05em;
     }
-    .no-scrollbar {
-      -ms-overflow-style: none;  /* IE and Edge */
-      scrollbar-width: none;  /* Firefox */
+    @keyframes logo-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
     }
-
-    .prose {
-      max-width: 65ch;
-      color: #374151;
-    }
-    .prose a {
-      color: #4f46e5;
-      text-decoration: none;
-    }
-    .prose a:hover {
-      text-decoration: underline;
-    }
-    .animate-in {
-      animation: enter 0.3s ease-out;
-    }
-    .fade-in-0 {
-      opacity: 0;
-      animation-fill-mode: forwards;
-    }
-    .zoom-in-95 {
-      transform: scale(0.95);
-    }
-    @keyframes enter {
-      from {
-        opacity: 0;
-        transform: scale(0.98);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
+    @keyframes bar-slide {
+      0% { left: -30%; width: 30%; }
+      50% { width: 60%; }
+      100% { left: 100%; width: 30%; }
     }
   </style>
 <script type="importmap">
@@ -122,7 +120,33 @@
 </script>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <!-- ⚡️ Instant First Paint Shell -->
+    <div id="app-shell-loader">
+      <div class="loader-logo">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+              <linearGradient id="beamGrad" x1="50" y1="0" x2="50" y2="100" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#7C3AED" stop-opacity="1"/>
+                  <stop offset="60%" stop-color="#8B5CF6" stop-opacity="0.7"/> 
+                  <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/> 
+              </linearGradient>
+              <linearGradient id="lineGrad" x1="50" y1="20" x2="50" y2="95" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#2563EB"/>
+                  <stop offset="100%" stop-color="#1D4ED8"/>
+              </linearGradient>
+          </defs>
+          <path d="M50 5 L 15 95 L 42 95 L 50 18 Z" fill="url(#beamGrad)" />
+          <path d="M50 5 L 85 95 L 58 95 L 50 18 Z" fill="url(#beamGrad)" />
+          <path d="M49.95 25 L 50.05 25 L 52 95 L 48 95 Z" fill="url(#lineGrad)" />
+        </svg>
+      </div>
+      <div class="loader-bar-bg">
+        <div class="loader-bar-fill"></div>
+      </div>
+      <div class="loader-text">INITIALIZING ENGINE...</div>
+    </div>
+  </div>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>

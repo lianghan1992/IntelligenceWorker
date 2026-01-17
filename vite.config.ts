@@ -24,13 +24,12 @@ export default defineConfig({
       // 🔴 强制不使用外部 CDN，确保所有包都打入本地文件
       external: [],
       output: {
-        // ✅ 性能优化：启用代码分割 (Code Splitting)
-        // 将大文件拆分为多个小文件，允许浏览器并行下载，解决单线程传输瓶颈。
+        // ✅ 性能优化升级：更精细的策略
         manualChunks: {
-          // 核心框架：体积较大且变动不频繁，适合单独缓存
-          'vendor-core': ['react', 'react-dom'],
-          // 工具库：体积中等，剥离后可减小业务代码体积
-          'vendor-utils': ['socket.io-client', 'marked', 'mammoth', 'html-to-image'],
+          // 仅提取 React 核心，这是首屏必须的，体积固定且易于缓存
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // 其他重型库 (mammoth, html-to-image) 不再强制合并，
+          // 而是让 Vite 自动将其放入对应的 lazy-load 路由 chunk 中，实现"按需静默下载"。
         }
       },
     },
