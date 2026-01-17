@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -21,28 +22,15 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      // 🔴 强制不使用外部 CDN，确保所有包都打入本地文件
+      external: [],
       output: {
-        // ✅ 极致分包策略
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // 1. 核心基础库 (首屏必须) - 保持最小
-            if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
-              return 'framework';
-            }
-            // 2. 独立的重型库 (按需加载)
-            if (id.includes('socket.io-client')) return 'lib-socket';
-            if (id.includes('html-to-image')) return 'lib-image';
-            if (id.includes('mammoth')) return 'lib-doc';
-            if (id.includes('marked')) return 'lib-markdown';
-            if (id.includes('echarts') || id.includes('chart.js') || id.includes('apexcharts')) {
-              return 'lib-charts';
-            }
-            // 3. 其他杂项
-            return 'vendor-utils';
-          }
-        }
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-utils': ['socket.io-client', 'marked', 'mammoth'],
+        },
       },
     },
-    chunkSizeWarningLimit: 800,
+    chunkSizeWarningLimit: 1000,
   },
 })
