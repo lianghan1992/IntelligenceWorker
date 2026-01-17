@@ -1,4 +1,3 @@
-
 /// <reference lib="WebWorker" />
 
 export {}; // Mark as module
@@ -8,12 +7,11 @@ const sw = self as unknown as ServiceWorkerGlobalScope;
 // 🔴 关键修改：升级版本号 (v6 -> v7)，这将强制浏览器重新安装 Service Worker 并触发清理逻辑
 const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v7';
 
-// 🔴 关键修改：只缓存本地文件，移除所有 http 开头的外部 CDN 链接，防止网络卡顿导致安装失败
+// 🔴 关键修改：只缓存本地文件，移除所有外部 CDN 链接，防止网络卡顿导致安装失败
 const urlsToCache = [
   '/',
   '/index.html',
   '/logo.svg',
-  // 注意：这里不再包含 cdn.tailwindcss.com 或其他外部链接
 ];
 
 // Install: Cache the app shell
@@ -62,16 +60,14 @@ sw.addEventListener('fetch', (event) => {
 
   // API 和 Socket 请求：永远走网络，不走缓存
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) {
-    return; // 让浏览器默认处理，不使用 respondWith 也就是 Network Only
+    return;
   }
 
-  // HTML 文档：网络优先 (Network First)
-  // 确保用户总是拿到服务器上最新的 index.html
+  // HTML 文档：网络优先 (Network First)，确保拿到最新 index.html
   if (request.destination === 'document') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // 如果网络请求成功，更新缓存
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(request, responseClone);
@@ -79,7 +75,6 @@ sw.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // 网络失败时，才使用缓存作为后备
           return caches.match(request).then(response => {
              return response || Promise.reject('Offline and no cache.');
           });
@@ -89,6 +84,7 @@ sw.addEventListener('fetch', (event) => {
   }
 
   // 静态资源 (JS/CSS/Images)：缓存优先 (Cache First)
+  // 因为构建出来的文件名带有哈希，所以可以放心缓存
   event.respondWith(
     caches.match(request)
       .then((cachedResponse) => {
