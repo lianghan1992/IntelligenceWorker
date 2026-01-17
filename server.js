@@ -8,11 +8,15 @@ import fs from 'fs';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import compression from 'compression';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// 启用 Gzip 压缩，显著减小传输体积，优化弱网环境加载速度
+app.use(compression());
 
 // 启用CORS中间件，允许所有来源的请求
 app.use(cors());
