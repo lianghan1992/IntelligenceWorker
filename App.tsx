@@ -2,9 +2,13 @@ import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { User, View, SystemSource } from './types';
 import { getUserSubscribedSources, getMe } from './api';
 
-// --- 1. Lazy Components ---
-const Header = React.lazy(() => import('./components/Header').then(m => ({ default: m.Header })));
-const HomePage = React.lazy(() => import('./components/HomePage/index').then(m => ({ default: m.HomePage })));
+// --- 1. Critical Components (Direct Import) ---
+// 首页和头部组件直接打包进主文件，避免 React 加载完后还要发起额外的网络请求导致二次白屏。
+import { Header } from './components/Header';
+import { HomePage } from './components/HomePage/index';
+
+// --- 2. Lazy Components (Code Splitting) ---
+// 功能模块按需加载，减小首屏体积。
 const AuthModal = React.lazy(() => import('./components/HomePage/AuthModal').then(m => ({ default: m.AuthModal })));
 const PricingModal = React.lazy(() => import('./components/PricingModal').then(m => ({ default: m.PricingModal })));
 const BillingModal = React.lazy(() => import('./components/UserProfile/BillingModal').then(m => ({ default: m.BillingModal })));
@@ -18,41 +22,26 @@ const ReportGenerator = React.lazy(() => import('./components/ReportGenerator/in
 const AdminPage = React.lazy(() => import('./components/Admin/index').then(m => ({ default: m.AdminPage })));
 const AgentMarketplace = React.lazy(() => import('./components/AgentMarketplace/index'));
 
-// --- 2. Prefetch List ---
-const preloaders = [
+// --- 3. Prefetch List ---
+// 这些组件会在浏览器空闲时默默下载
+const prefetchList = [
     () => import('./components/StrategicCockpit/index'),
     () => import('./components/CompetitivenessDashboard/index'),
     () => import('./components/DeepDives/index'),
-    () => import('./components/IndustryEvents/index'),
     () => import('./components/ReportGenerator/index'),
+    () => import('./components/AgentMarketplace/index'),
+    // Modals
+    () => import('./components/HomePage/AuthModal'),
+    () => import('./components/PricingModal'),
 ];
 
-// --- 3. Loading Placeholder (Matches CSS Skeleton) ---
-// This React component takes over once React loads but before the specific page chunk arrives
+// --- 4. Fallback Loader ---
 const PageLoader = () => (
-  <div className="fixed inset-0 bg-[#f8fafc] z-50 flex flex-col animate-pulse">
-    {/* Header Skeleton */}
-    <div className="h-16 bg-white border-b border-slate-200 px-6 flex items-center gap-6">
-        <div className="w-8 h-8 bg-slate-200 rounded-lg"></div>
-        <div className="w-32 h-5 bg-slate-200 rounded"></div>
-        <div className="flex-1"></div>
-        <div className="w-8 h-8 bg-slate-200 rounded-full"></div>
-    </div>
-    {/* Body Skeleton */}
-    <div className="flex-1 p-6 flex gap-6 overflow-hidden">
-        <div className="hidden md:block w-96 bg-white border border-slate-200 rounded-2xl h-full p-4 space-y-4">
-            <div className="w-full h-10 bg-slate-100 rounded-lg"></div>
-            <div className="w-full h-24 bg-slate-50 rounded-xl"></div>
-            <div className="w-full h-24 bg-slate-50 rounded-xl"></div>
-        </div>
-        <div className="flex-1 flex flex-col gap-6">
-            <div className="w-full h-48 bg-slate-200/50 rounded-2xl"></div>
-            <div className="flex gap-6">
-                 <div className="flex-1 h-32 bg-white border border-slate-200 rounded-xl"></div>
-                 <div className="flex-1 h-32 bg-white border border-slate-200 rounded-xl"></div>
-            </div>
-        </div>
-    </div>
+  <div className="flex h-full w-full items-center justify-center bg-slate-50 min-h-[400px]">
+      <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-500">
+          <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+          <span className="text-xs font-bold text-indigo-400 tracking-widest uppercase">Loading...</span>
+      </div>
   </div>
 );
 
@@ -68,6 +57,7 @@ const App: React.FC = () => {
 
   const [view, setView] = useState<View>('cockpit'); 
   const hasToken = !!localStorage.getItem('accessToken');
+  // 如果有 token 但没有用户信息，需要 loading 等待验证；否则直接渲染
   const [isLoading, setIsLoading] = useState(hasToken && !user);
   
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -76,29 +66,34 @@ const App: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [subscriptions, setSubscriptions] = useState<SystemSource[]>([]);
 
-  // 🚀 Optimized Prefetching: Use requestIdleCallback
+  // 🚀 Idle Prefetching Strategy
   useEffect(() => {
-    if (!user) return;
-
+    // 仅在用户已登录或已停留在首页一段时间后触发预加载
     const runPrefetch = () => {
-        // Define a safe idle callback shim
+        // 使用 requestIdleCallback 在浏览器空闲时下载，不占用主线程和关键带宽
         const idleCallback = (window as any).requestIdleCallback || ((cb: any) => setTimeout(cb, 3000));
         
         idleCallback(() => {
             console.log('🚀 [AutoInsight] Network idle, prefetching next chunks...');
-            preloaders.forEach(loader => {
-                // Add a small staggered delay between requests to avoid burst
-                setTimeout(() => {
-                    try { loader(); } catch(e) {}
-                }, Math.random() * 2000);
-            });
+            
+            // 串行预加载，每隔 1.5s 下载一个，避免突发网络拥塞
+            prefetchList.reduce((promise, loader) => {
+                return promise.then(() => {
+                    return new Promise<void>(resolve => {
+                        setTimeout(() => {
+                            loader().catch(() => {}); // 静默下载，忽略错误
+                            resolve();
+                        }, 1500);
+                    });
+                });
+            }, Promise.resolve());
         });
     };
 
-    // Wait for initial render to settle completely
-    const t = setTimeout(runPrefetch, 4000);
+    // 页面加载 5 秒后再开始检查空闲状态，确保首屏完全渲染
+    const t = setTimeout(runPrefetch, 5000);
     return () => clearTimeout(t);
-  }, [user]);
+  }, []);
 
   // PWA Cleanup
   useEffect(() => {
@@ -186,33 +181,42 @@ const App: React.FC = () => {
     return <PageLoader />;
   }
 
-  return (
-    <Suspense fallback={<PageLoader />}>
-      {!user ? (
+  // Not logged in: Show HomePage immediately (no suspense needed for direct import)
+  if (!user) {
+    return (
         <>
-          <HomePage onEnter={() => setShowAuthModal(true)} />
-          {showAuthModal && <AuthModal onLoginSuccess={handleLoginSuccess} onClose={() => setShowAuthModal(false)} />}
+            <HomePage onEnter={() => setShowAuthModal(true)} />
+            <Suspense fallback={null}>
+                {showAuthModal && <AuthModal onLoginSuccess={handleLoginSuccess} onClose={() => setShowAuthModal(false)} />}
+            </Suspense>
         </>
-      ) : (
-        <div className="flex flex-col h-screen bg-[#f8fafc] font-sans">
-            <Header 
-                user={user}
-                currentView={view}
-                onNavigate={handleNavigate}
-                onUpgrade={() => setShowPricingModal(true)}
-                onLogout={handleLogout}
-                onShowBilling={() => setShowBillingModal(true)}
-                onShowProfile={() => setShowProfileModal(true)}
-            />
-            <main className="flex-1 min-h-0 relative">
-               {renderView()}
-            </main>
+    );
+  }
+
+  // Logged in: Show App Shell
+  return (
+    <div className="flex flex-col h-screen bg-[#f8fafc] font-sans">
+        <Header 
+            user={user}
+            currentView={view}
+            onNavigate={handleNavigate}
+            onUpgrade={() => setShowPricingModal(true)}
+            onLogout={handleLogout}
+            onShowBilling={() => setShowBillingModal(true)}
+            onShowProfile={() => setShowProfileModal(true)}
+        />
+        <main className="flex-1 min-h-0 relative">
+            <Suspense fallback={<PageLoader />}>
+                {renderView()}
+            </Suspense>
+        </main>
+        
+        <Suspense fallback={null}>
             {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
             {showBillingModal && <BillingModal user={user} onClose={() => setShowBillingModal(false)} />}
             {showProfileModal && <UserProfileModal user={user} onClose={() => setShowProfileModal(false)} />}
-        </div>
-      )}
-    </Suspense>
+        </Suspense>
+    </div>
   );
 };
 

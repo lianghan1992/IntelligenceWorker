@@ -22,22 +22,23 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // ✅ 细粒度分包策略：防止单个 JS 文件过大导致超时
+        // ✅ 极致分包策略
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // 核心框架独立（最优先加载）
+            // 1. 核心基础库 (首屏必须) - 保持最小
             if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
               return 'framework';
             }
-            // 大型工具库单独拆分，按需加载
-            if (id.includes('html-to-image') || id.includes('mammoth') || id.includes('jspdf')) {
-              return 'heavy-utils';
-            }
+            // 2. 独立的重型库 (按需加载)
+            if (id.includes('socket.io-client')) return 'lib-socket';
+            if (id.includes('html-to-image')) return 'lib-image';
+            if (id.includes('mammoth')) return 'lib-doc';
+            if (id.includes('marked')) return 'lib-markdown';
             if (id.includes('echarts') || id.includes('chart.js') || id.includes('apexcharts')) {
-              return 'charts';
+              return 'lib-charts';
             }
-            // 其他第三方库归为 vendor
-            return 'vendor';
+            // 3. 其他杂项
+            return 'vendor-utils';
           }
         }
       },
