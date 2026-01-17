@@ -1,40 +1,50 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
-import { Header } from './components/Header';
-import { AuthModal } from './components/HomePage/AuthModal';
-import { PricingModal } from './components/PricingModal';
-import { HomePage } from './components/HomePage/index';
-import { BillingModal } from './components/UserProfile/BillingModal';
-import { UserProfileModal } from './components/UserProfile/UserProfileModal';
 import { User, View, SystemSource } from './types';
 import { getUserSubscribedSources, getMe } from './api';
 
-// --- Lazy Load Loaders (Extracted for Prefetching) ---
-const loadStrategicCockpit = () => import('./components/StrategicCockpit/index').then(module => ({ default: module.StrategicCockpit }));
-const loadCompetitivenessDashboard = () => import('./components/CompetitivenessDashboard/index').then(module => ({ default: module.CompetitivenessDashboard }));
-const loadDeepDives = () => import('./components/DeepDives/index').then(module => ({ default: module.DeepDives }));
-const loadIndustryEvents = () => import('./components/IndustryEvents/index').then(module => ({ default: module.IndustryEvents }));
-const loadReportGenerator = () => import('./components/ReportGenerator/index').then(module => ({ default: module.ReportGenerator }));
-const loadAdminPage = () => import('./components/Admin/index').then(module => ({ default: module.AdminPage }));
-const loadAgentMarketplace = () => import('./components/AgentMarketplace/index');
+// --- 1. Critical Imports (Keep Minimal) ---
+// Only import minimal types or utils that are absolutely required for the initial render logic.
+// Icons and heavy components should be lazy loaded.
 
-// --- Lazy Components ---
-const StrategicCockpit = React.lazy(loadStrategicCockpit);
-const CompetitivenessDashboard = React.lazy(loadCompetitivenessDashboard);
-const DeepDives = React.lazy(loadDeepDives);
-const IndustryEvents = React.lazy(loadIndustryEvents);
-const ReportGenerator = React.lazy(loadReportGenerator);
-const AdminPage = React.lazy(loadAdminPage);
-const AgentMarketplace = React.lazy(loadAgentMarketplace);
+// --- 2. Lazy Load Components (Code Splitting) ---
+// By using React.lazy, these components are split into separate JS chunks
+// and only loaded when rendered. This drastically reduces the initial bundle size.
 
-// Loading Fallback Component
+const Header = React.lazy(() => import('./components/Header').then(m => ({ default: m.Header })));
+const HomePage = React.lazy(() => import('./components/HomePage/index').then(m => ({ default: m.HomePage })));
+const AuthModal = React.lazy(() => import('./components/HomePage/AuthModal').then(m => ({ default: m.AuthModal })));
+const PricingModal = React.lazy(() => import('./components/PricingModal').then(m => ({ default: m.PricingModal })));
+const BillingModal = React.lazy(() => import('./components/UserProfile/BillingModal').then(m => ({ default: m.BillingModal })));
+const UserProfileModal = React.lazy(() => import('./components/UserProfile/UserProfileModal').then(m => ({ default: m.UserProfileModal })));
+
+// Functional Modules (Already split, but listed here for clarity)
+const StrategicCockpit = React.lazy(() => import('./components/StrategicCockpit/index').then(m => ({ default: m.StrategicCockpit })));
+const CompetitivenessDashboard = React.lazy(() => import('./components/CompetitivenessDashboard/index').then(m => ({ default: m.CompetitivenessDashboard })));
+const DeepDives = React.lazy(() => import('./components/DeepDives/index').then(m => ({ default: m.DeepDives })));
+const IndustryEvents = React.lazy(() => import('./components/IndustryEvents/index').then(m => ({ default: m.IndustryEvents })));
+const ReportGenerator = React.lazy(() => import('./components/ReportGenerator/index').then(m => ({ default: m.ReportGenerator })));
+const AdminPage = React.lazy(() => import('./components/Admin/index').then(m => ({ default: m.AdminPage })));
+const AgentMarketplace = React.lazy(() => import('./components/AgentMarketplace/index'));
+
+// --- 3. Preload Loaders (Background Fetching) ---
+const preloaders = [
+    () => import('./components/Header'),
+    () => import('./components/HomePage/index'),
+    () => import('./components/StrategicCockpit/index'),
+    () => import('./components/CompetitivenessDashboard/index'),
+    () => import('./components/DeepDives/index'),
+    () => import('./components/IndustryEvents/index'),
+    () => import('./components/ReportGenerator/index'),
+];
+
+// --- 4. Loading Fallback ---
+// A lightweight loader that displays while lazy chunks are downloading.
 const PageLoader = () => (
-  <div className="flex items-center justify-center h-screen w-full bg-gray-50">
-    <div className="flex flex-col items-center gap-3">
-      <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      <span className="text-sm text-gray-500 font-medium">系统初始化中...</span>
+  <div className="flex items-center justify-center h-screen w-full bg-[#f8fafc]">
+    <div className="flex flex-col items-center gap-4">
+      {/* CSS-only simple spinner to avoid dependencies */}
+      <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      <span className="text-xs font-bold text-slate-400 tracking-widest uppercase animate-pulse">Loading Engine...</span>
     </div>
   </div>
 );
@@ -66,67 +76,48 @@ const App: React.FC = () => {
   // 🚀 Intelligent Prefetching Strategy
   useEffect(() => {
     const prefetchResources = async () => {
-      // Wait for 3.5 seconds to ensure the main thread is idle and LCP (Largest Contentful Paint) is finished
-      await new Promise(resolve => setTimeout(resolve, 3500));
+      // Delay prefetching to prioritize the main thread for initial render and interactivity
+      // Increased delay to 5s to ensure "Time to Interactive" is not affected on slow networks
+      await new Promise(resolve => setTimeout(resolve, 5000));
       
       console.log('🚀 [AutoInsight] Starting idle resource prefetching...');
       
-      // Trigger network requests for all chunks. 
-      // Since these imports match the React.lazy definitions, the browser will cache them.
-      const loaders = [
-        loadStrategicCockpit,
-        loadCompetitivenessDashboard,
-        loadDeepDives,
-        loadIndustryEvents,
-        loadReportGenerator,
-        loadAgentMarketplace,
-        // Only prefetch admin if likely needed, or just always (it's split anyway)
-        loadAdminPage
-      ];
-
-      loaders.forEach(loader => {
+      preloaders.forEach(loader => {
         try {
-          loader(); 
+          loader(); // Trigger the network request
         } catch (e) {
-          // Ignore prefetch errors, they will be handled by ErrorBoundaries if real load fails
+          // Ignore prefetch errors
         }
       });
     };
 
-    // Only prefetch if we have a user (meaning we are inside the dashboard)
+    // Only prefetch if we have a user (likely to use the app)
     if (user) {
         prefetchResources();
     }
-  }, [user]); // Run when user logs in
+  }, [user]);
 
-  // PWA Cleanup: Unregister Service Worker if it exists
+  // PWA Cleanup
   useEffect(() => {
-    const cleanupServiceWorker = async () => {
-      if ('serviceWorker' in navigator) {
-        try {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          for (const registration of registrations) {
-            await registration.unregister();
-          }
-          console.log('ServiceWorker cleanup done.');
-        } catch (error) {
-          console.warn('Service Worker unregistration failed (non-critical):', error);
-        }
-      }
-    };
-    cleanupServiceWorker();
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (const registration of registrations) {
+                registration.unregister();
+            }
+        });
+    }
   }, []);
 
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
-    localStorage.setItem('user_cache', JSON.stringify(loggedInUser)); // Cache user
+    localStorage.setItem('user_cache', JSON.stringify(loggedInUser));
     setShowAuthModal(false);
     setView('cockpit'); 
   }, []);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('user_cache'); // Clear cache
+    localStorage.removeItem('user_cache');
     setUser(null);
     setView('cockpit');
   }, []);
@@ -145,21 +136,16 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkUser = async () => {
       const token = localStorage.getItem('accessToken');
-      
       if (!token) {
           setIsLoading(false);
           return;
       }
-
       try {
-        // Run verification in background
         const userData = await getMe();
         setUser(userData);
-        // Update cache with fresh data
         localStorage.setItem('user_cache', JSON.stringify(userData));
       } catch (e) {
         console.error("Failed to verify token:", e);
-        // Only verify failed (401), we log out
         localStorage.removeItem('accessToken');
         localStorage.removeItem('user_cache');
         setUser(null);
@@ -180,24 +166,11 @@ const App: React.FC = () => {
       setView(newView);
   };
   
-  if (isLoading) {
-    return <PageLoader />;
-  }
-
-  // Instant render for non-authenticated users
-  if (!user) {
-    return (
-      <>
-        <HomePage onEnter={() => setShowAuthModal(true)} />
-        {showAuthModal && <AuthModal onLoginSuccess={handleLoginSuccess} onClose={() => setShowAuthModal(false)} />}
-      </>
-    );
-  }
-
+  // Render View Switcher
   const renderView = () => {
     switch (view) {
       case 'cockpit':
-        return <StrategicCockpit subscriptions={subscriptions} user={user} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={user!} />;
       case 'techboard':
         return <CompetitivenessDashboard />;
       case 'dives':
@@ -211,30 +184,42 @@ const App: React.FC = () => {
       case 'admin':
         return <AdminPage />;
       default:
-        return <StrategicCockpit subscriptions={subscriptions} user={user} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={user!} />;
     }
   };
 
+  // 🔴 Immediate Fallback for Auth Check
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
   return (
-    <div className="flex flex-col h-screen bg-gray-100 font-sans">
-        <Header 
-            user={user}
-            currentView={view}
-            onNavigate={handleNavigate}
-            onUpgrade={() => setShowPricingModal(true)}
-            onLogout={handleLogout}
-            onShowBilling={() => setShowBillingModal(true)}
-            onShowProfile={() => setShowProfileModal(true)}
-        />
-        <main className="flex-1 min-h-0">
-          <Suspense fallback={<PageLoader />}>
-            {renderView()}
-          </Suspense>
-        </main>
-        {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
-        {showBillingModal && user && <BillingModal user={user} onClose={() => setShowBillingModal(false)} />}
-        {showProfileModal && user && <UserProfileModal user={user} onClose={() => setShowProfileModal(false)} />}
-    </div>
+    <Suspense fallback={<PageLoader />}>
+      {!user ? (
+        <>
+          <HomePage onEnter={() => setShowAuthModal(true)} />
+          {showAuthModal && <AuthModal onLoginSuccess={handleLoginSuccess} onClose={() => setShowAuthModal(false)} />}
+        </>
+      ) : (
+        <div className="flex flex-col h-screen bg-gray-100 font-sans">
+            <Header 
+                user={user}
+                currentView={view}
+                onNavigate={handleNavigate}
+                onUpgrade={() => setShowPricingModal(true)}
+                onLogout={handleLogout}
+                onShowBilling={() => setShowBillingModal(true)}
+                onShowProfile={() => setShowProfileModal(true)}
+            />
+            <main className="flex-1 min-h-0">
+               {renderView()}
+            </main>
+            {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
+            {showBillingModal && <BillingModal user={user} onClose={() => setShowBillingModal(false)} />}
+            {showProfileModal && <UserProfileModal user={user} onClose={() => setShowProfileModal(false)} />}
+        </div>
+      )}
+    </Suspense>
   );
 };
 

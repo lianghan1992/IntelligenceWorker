@@ -24,11 +24,11 @@ export default defineConfig({
       // 🔴 强制不使用外部 CDN，确保所有包都打入本地文件
       external: [],
       output: {
-        // ✅ 性能优化升级：修复构建错误
+        // ✅ 性能优化：修复构建错误并优化分包
         manualChunks: {
-          // 仅提取已安装的 React 核心库
+          // 仅提取 React 核心，确保其作为基础运行时被缓存
           'vendor-react': ['react', 'react-dom'],
-          // 其他重型库 (mammoth, html-to-image) 让 Vite 自动按路由拆分，配合前端预加载实现最佳体验
+          // 其他所有业务代码和工具库将由 Vite 自动进行基于路由和动态导入的拆分 (Code Splitting)
         }
       },
     },
