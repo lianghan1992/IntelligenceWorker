@@ -5,17 +5,15 @@ export {}; // Mark as module
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
-// 🔴 强制升级版本号 v5 -> v6，这将触发 activate 事件清理旧缓存
-const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v6';
+// 🔴 关键修改：升级版本号 (v6 -> v7)，这将强制浏览器重新安装 Service Worker 并触发清理逻辑
+const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v7';
 
-// Add assets that are absolutely essential for the app shell to work offline.
+// 🔴 关键修改：只缓存本地文件，移除所有 http 开头的外部 CDN 链接，防止网络卡顿导致安装失败
 const urlsToCache = [
   '/',
   '/index.html',
   '/logo.svg',
-  // Static assets from CDNs
-  'https://cdn.tailwindcss.com',
-  'https://cdn.bootcdn.net/ajax/libs/marked/13.0.1/marked.min.js',
+  // 注意：这里不再包含 cdn.tailwindcss.com 或其他外部链接
 ];
 
 // Install: Cache the app shell
@@ -37,12 +35,12 @@ sw.addEventListener('install', (event) => {
 
 // Activate: Clean up old caches
 sw.addEventListener('activate', (event) => {
-  // 白名单只保留当前版本
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     Promise.all([
       // 立即接管所有客户端页面
       sw.clients.claim(),
+      // 清理旧版本的缓存
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
@@ -62,34 +60,26 @@ sw.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // For API calls and socket connections, always go to the network.
+  // API 和 Socket 请求：永远走网络，不走缓存
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) {
-    if (request.method !== 'GET') {
-        event.respondWith(fetch(request));
-        return;
-    }
-    
-    event.respondWith(
-        fetch(request).catch(() => {
-            return caches.match(request).then(response => {
-                return response || Promise.reject('Network error and no cache.');
-            });
-        })
-    );
-    return;
+    return; // 让浏览器默认处理，不使用 respondWith 也就是 Network Only
   }
 
-  // HTML: Network First (Strategy Change)
+  // HTML 文档：网络优先 (Network First)
+  // 确保用户总是拿到服务器上最新的 index.html
   if (request.destination === 'document') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, response.clone());
-            return response;
+          // 如果网络请求成功，更新缓存
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone);
           });
+          return response;
         })
         .catch(() => {
+          // 网络失败时，才使用缓存作为后备
           return caches.match(request).then(response => {
              return response || Promise.reject('Offline and no cache.');
           });
@@ -98,25 +88,22 @@ sw.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets: Cache First
+  // 静态资源 (JS/CSS/Images)：缓存优先 (Cache First)
   event.respondWith(
     caches.match(request)
       .then((cachedResponse) => {
         if (cachedResponse) {
           return cachedResponse;
         }
-
         return fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && request.method === 'GET') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(request, responseToCache);
-              });
+          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+            return networkResponse;
           }
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseToCache);
+          });
           return networkResponse;
-        }).catch(error => {
-            throw error;
         });
       })
   );
