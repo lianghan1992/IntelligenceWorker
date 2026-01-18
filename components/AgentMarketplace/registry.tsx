@@ -46,7 +46,7 @@ export const AGENT_REGISTRY: AgentConfig[] = [
         icon: BrainIcon,
         component: AutonomousTechAnalysis,
         tags: ['Agent', 'Function Calling', 'Generative UI'],
-        isBeta: true
-        // Access restriction removed for public availability
+        isBeta: true,
+        allowedEmails: ['326575140@qq.com'] // Restricted Access
     }
 ];

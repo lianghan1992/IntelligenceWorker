@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, UserIcon, ServerIcon, RefreshIcon, 
-    ArrowRightIcon, PuzzleIcon
+    ArrowRightIcon, PuzzleIcon, DocumentTextIcon 
 } from '../../../../components/icons';
 import { streamChatCompletions, getPrompts } from '../../../../api/stratify';
 import { searchSemanticSegments } from '../../../../api/intelligence';
@@ -21,8 +21,6 @@ interface Message {
 }
 
 const SCENARIO_ID = 'autonomous-tech-analysis'; // Virtual ID for fetching prompts
-// Use Gemini 2.0 Flash Lite for better tool use capability and speed
-const DEFAULT_MODEL = 'openrouter@google/gemini-2.0-flash-lite-preview-02-05:free';
 
 export default function AutonomousTechAnalysis() {
     const [input, setInput] = useState('');
@@ -74,47 +72,26 @@ export default function AutonomousTechAnalysis() {
 
     const processTurn = async (history: Message[]) => {
         try {
-            // Prepare messages for API (Strip UI fields and strictly sanitize for API)
+            // Prepare messages for API (strip UI fields)
             const apiMessages = [
                 { role: 'system', content: systemPrompt },
-                ...history.map(m => {
-                    // Base message object
-                    const msg: any = {
-                        role: m.role,
-                        content: m.content || '' // API requires content to be string (even empty)
-                    };
-                    
-                    // If it's an assistant message with tool calls, we MUST format strictly
-                    if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
-                        msg.tool_calls = m.tool_calls.map(tc => ({
-                            id: tc.id,
-                            type: tc.type || 'function',
-                            function: {
-                                name: tc.function.name,
-                                arguments: tc.function.arguments // Must be a JSON string
-                            }
-                        }));
-                    }
-
-                    // If it's a tool response, it needs tool_call_id
-                    if (m.role === 'tool') {
-                        msg.tool_call_id = m.tool_call_id;
-                    }
-
-                    return msg;
-                })
+                ...history.map(m => ({
+                    role: m.role,
+                    content: m.content,
+                    tool_calls: m.tool_calls,
+                    tool_call_id: m.tool_call_id
+                }))
             ];
 
             let assistantMsgContent = '';
-            // Fix: Use an object to track tool calls by index to handle fragmentation correctly
-            let toolCallsMap: Record<number, any> = {};
+            let toolCallsBuffer: any[] = [];
             
             // Placeholder for streaming response
             const responseMsgId = crypto.randomUUID();
             setMessages(prev => [...prev, { id: responseMsgId, role: 'assistant', content: '' }]);
 
             await streamChatCompletions({
-                model: DEFAULT_MODEL, 
+                model: 'zhipu@glm-4-plus', // Strong reasoning model
                 messages: apiMessages,
                 tools: TOOLS,
                 tool_choice: 'auto',
@@ -122,22 +99,18 @@ export default function AutonomousTechAnalysis() {
             }, (chunk) => {
                 if (chunk.content) assistantMsgContent += chunk.content;
                 
-                // Enhanced accumulation logic for fragmented tool calls
+                // Accumulate tool calls logic (simplified for single tool call per stream for now)
                 if (chunk.tool_calls) {
-                     chunk.tool_calls.forEach((tc: any) => {
-                        const idx = tc.index || 0;
-                        if (!toolCallsMap[idx]) {
-                            toolCallsMap[idx] = { 
-                                index: idx,
-                                id: tc.id || '',
-                                type: tc.type || 'function',
-                                function: { name: '', arguments: '' }
-                            };
-                        }
-                        
-                        if (tc.id) toolCallsMap[idx].id = tc.id;
-                        if (tc.function?.name) toolCallsMap[idx].function.name = tc.function.name;
-                        if (tc.function?.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
+                    // Logic to merge tool calls chunks would go here if streaming partial JSON
+                    // For simplicity in this demo, we assume the final chunk or non-streaming-like accumulation 
+                    // In production, robust JSON stream parsing is needed. 
+                    // StratifyAI gateway usually returns full tool calls in chunks differently.
+                    // Assuming we get full objects for now or handle simple accumulation.
+                     chunk.tool_calls.forEach((tc, idx) => {
+                        if (!toolCallsBuffer[idx]) toolCallsBuffer[idx] = { ...tc, arguments: '' };
+                        if (tc.function?.arguments) toolCallsBuffer[idx].arguments += tc.function.arguments;
+                        if (tc.id) toolCallsBuffer[idx].id = tc.id;
+                        if (tc.function?.name) toolCallsBuffer[idx].function = { name: tc.function.name };
                      });
                 }
 
@@ -149,80 +122,54 @@ export default function AutonomousTechAnalysis() {
                 ));
             });
 
-            // Convert map back to array and SANITIZE (remove index)
-            const toolCallsBuffer = Object.values(toolCallsMap).map((tc: any) => ({
-                id: tc.id,
-                type: tc.type,
-                function: tc.function
-            }));
-
             // 3. Handle Tool Execution (Post-Stream)
             if (toolCallsBuffer.length > 0) {
                 // Update the message to formally include tool_calls
                 const finalAssistantMsg: Message = { 
                     id: responseMsgId, 
                     role: 'assistant', 
-                    content: assistantMsgContent, // Keep content even if empty (required by some models)
+                    content: assistantMsgContent,
                     tool_calls: toolCallsBuffer
                 };
                 
                 // Fix state to ensure history is correct
-                // We replace the last placeholder with the complete message
-                setMessages(prev => prev.map(m => m.id === responseMsgId ? finalAssistantMsg : m));
-                
-                // Construct new history for the NEXT turn
                 const newHistory = [...history, finalAssistantMsg];
+                setMessages(newHistory);
 
                 // Execute Tools
                 for (const toolCall of toolCallsBuffer) {
                     const functionName = toolCall.function.name;
-                    const argumentsStr = toolCall.function.arguments;
-                    
-                    let args: any = {};
+                    const args = JSON.parse(toolCall.function.arguments);
                     let result = '';
                     let uiComponent = undefined;
 
-                    try {
-                        // Attempt to parse JSON arguments
-                        if (!argumentsStr) throw new Error("Empty arguments");
-                        args = JSON.parse(argumentsStr);
-                    } catch (e) {
-                         console.error("Tool Argument Parse Error:", e, argumentsStr);
-                         result = `Error: Invalid JSON arguments from model. Raw: ${argumentsStr}`;
-                    }
-
-                    if (!result) { // Only execute if no parse error
-                        if (functionName === 'search_knowledge_base') {
-                            // --- SERVER API CALL ---
-                            // Don't turn off loading, we are continuing
-                            try {
-                                const res = await searchSemanticSegments({
-                                    query_text: args.query,
-                                    start_date: args.start_date,
-                                    end_date: args.end_date,
-                                    max_segments: 5 // Changed from 'limit' to 'max_segments' to match API
-                                });
-                                result = JSON.stringify(res.items?.map(i => ({ title: i.title, content: i.content, date: i.publish_date })) || []);
-                                if (result === '[]') result = "No relevant information found in knowledge base.";
-                            } catch (e: any) {
-                                result = `Error calling search API: ${e.message}`;
-                            }
-                        } else if (functionName === 'render_visual_report') {
-                            // --- CLIENT UI RENDER ---
-                            result = "Visual Report rendered successfully to user interface.";
-                            uiComponent = (
-                                <div className="h-[500px] w-full border border-slate-200 rounded-xl overflow-hidden my-4 shadow-lg bg-white">
-                                    <VisualEditor 
-                                        initialHtml={args.html_content} 
-                                        onSave={() => {}} 
-                                        scale={0.6}
-                                        hideToolbar={true} // View-only initially
-                                    />
-                                </div>
-                            );
-                        } else {
-                            result = `Error: Unknown tool '${functionName}'`;
+                    if (functionName === 'search_knowledge_base') {
+                        // --- SERVER API CALL ---
+                        setIsLoading(true); // Keep loading state
+                        try {
+                            const res = await searchSemanticSegments({
+                                query_text: args.query,
+                                start_date: args.start_date,
+                                end_date: args.end_date,
+                                limit: 5
+                            });
+                            result = JSON.stringify(res.items?.map(i => ({ title: i.title, content: i.content, date: i.publish_date })) || []);
+                        } catch (e: any) {
+                            result = `Error: ${e.message}`;
                         }
+                    } else if (functionName === 'render_visual_report') {
+                        // --- CLIENT UI RENDER ---
+                        result = "Report rendered successfully to user.";
+                        uiComponent = (
+                            <div className="h-[500px] w-full border border-slate-200 rounded-xl overflow-hidden my-4 shadow-lg">
+                                <VisualEditor 
+                                    initialHtml={args.html_content} 
+                                    onSave={() => {}} 
+                                    scale={0.6}
+                                    hideToolbar={true} // View-only initially
+                                />
+                            </div>
+                        );
                     }
 
                     // Append Tool Output to History
@@ -238,14 +185,13 @@ export default function AutonomousTechAnalysis() {
                     setMessages(prev => [...prev, toolMsg]);
                 }
 
-                // 4. Recursive Call (Feed tool outputs back to LLM to generate final response)
-                // IMPORTANT: We keep isLoading true
+                // 4. Recursive Call (Feed tool outputs back to LLM)
                 await processTurn(newHistory);
             }
 
         } catch (e) {
             console.error("Agent Loop Error", e);
-            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system', content: `System Error: ${e}` }]);
+            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system', content: `Error: ${e}` }]);
         } finally {
             setIsLoading(false);
         }
@@ -253,13 +199,6 @@ export default function AutonomousTechAnalysis() {
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
-            {/* Header / Info */}
-            <div className="absolute top-4 right-4 z-10 opacity-50 hover:opacity-100 transition-opacity">
-                <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-1 rounded border border-slate-300 font-mono">
-                    Model: {DEFAULT_MODEL}
-                </span>
-            </div>
-
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6" ref={scrollRef}>
                 {messages.map((msg) => (
