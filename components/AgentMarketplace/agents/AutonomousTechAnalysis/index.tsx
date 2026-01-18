@@ -21,6 +21,8 @@ interface Message {
 }
 
 const SCENARIO_ID = 'autonomous-tech-analysis'; // Virtual ID for fetching prompts
+// Updated model as requested
+const DEFAULT_MODEL = 'openrouter@xiaomi/mimo-v2-flash:free';
 
 export default function AutonomousTechAnalysis() {
     const [input, setInput] = useState('');
@@ -84,14 +86,15 @@ export default function AutonomousTechAnalysis() {
             ];
 
             let assistantMsgContent = '';
-            let toolCallsBuffer: any[] = [];
+            // Fix: Use an object to track tool calls by index to handle fragmentation correctly
+            let toolCallsMap: Record<number, any> = {};
             
             // Placeholder for streaming response
             const responseMsgId = crypto.randomUUID();
             setMessages(prev => [...prev, { id: responseMsgId, role: 'assistant', content: '' }]);
 
             await streamChatCompletions({
-                model: 'zhipu@glm-4-plus', // Strong reasoning model
+                model: DEFAULT_MODEL, 
                 messages: apiMessages,
                 tools: TOOLS,
                 tool_choice: 'auto',
@@ -99,18 +102,22 @@ export default function AutonomousTechAnalysis() {
             }, (chunk) => {
                 if (chunk.content) assistantMsgContent += chunk.content;
                 
-                // Accumulate tool calls logic (simplified for single tool call per stream for now)
+                // Enhanced accumulation logic for fragmented tool calls
                 if (chunk.tool_calls) {
-                    // Logic to merge tool calls chunks would go here if streaming partial JSON
-                    // For simplicity in this demo, we assume the final chunk or non-streaming-like accumulation 
-                    // In production, robust JSON stream parsing is needed. 
-                    // StratifyAI gateway usually returns full tool calls in chunks differently.
-                    // Assuming we get full objects for now or handle simple accumulation.
-                     chunk.tool_calls.forEach((tc, idx) => {
-                        if (!toolCallsBuffer[idx]) toolCallsBuffer[idx] = { ...tc, arguments: '' };
-                        if (tc.function?.arguments) toolCallsBuffer[idx].arguments += tc.function.arguments;
-                        if (tc.id) toolCallsBuffer[idx].id = tc.id;
-                        if (tc.function?.name) toolCallsBuffer[idx].function = { name: tc.function.name };
+                     chunk.tool_calls.forEach((tc: any) => {
+                        const idx = tc.index || 0;
+                        if (!toolCallsMap[idx]) {
+                            toolCallsMap[idx] = { 
+                                index: idx,
+                                id: tc.id || '',
+                                type: tc.type || 'function',
+                                function: { name: '', arguments: '' }
+                            };
+                        }
+                        
+                        if (tc.id) toolCallsMap[idx].id = tc.id;
+                        if (tc.function?.name) toolCallsMap[idx].function.name = tc.function.name;
+                        if (tc.function?.arguments) toolCallsMap[idx].function.arguments += tc.function.arguments;
                      });
                 }
 
@@ -121,6 +128,9 @@ export default function AutonomousTechAnalysis() {
                     : m
                 ));
             });
+
+            // Convert map back to array
+            const toolCallsBuffer = Object.values(toolCallsMap);
 
             // 3. Handle Tool Execution (Post-Stream)
             if (toolCallsBuffer.length > 0) {
@@ -139,9 +149,30 @@ export default function AutonomousTechAnalysis() {
                 // Execute Tools
                 for (const toolCall of toolCallsBuffer) {
                     const functionName = toolCall.function.name;
-                    const args = JSON.parse(toolCall.function.arguments);
+                    const argumentsStr = toolCall.function.arguments;
+                    
+                    let args: any = {};
                     let result = '';
                     let uiComponent = undefined;
+
+                    try {
+                        // Attempt to parse JSON arguments
+                        if (!argumentsStr) throw new Error("Empty arguments");
+                        args = JSON.parse(argumentsStr);
+                    } catch (e) {
+                         console.error("Tool Argument Parse Error:", e, argumentsStr);
+                         result = `Error: Invalid JSON arguments from model. Raw: ${argumentsStr}`;
+                         // Add error message to history and skip execution
+                         const errorMsg: Message = {
+                            id: crypto.randomUUID(),
+                            role: 'tool',
+                            content: result,
+                            tool_call_id: toolCall.id,
+                         };
+                         newHistory.push(errorMsg);
+                         setMessages(prev => [...prev, errorMsg]);
+                         continue; 
+                    }
 
                     if (functionName === 'search_knowledge_base') {
                         // --- SERVER API CALL ---
@@ -199,6 +230,13 @@ export default function AutonomousTechAnalysis() {
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
+            {/* Header / Info */}
+            <div className="absolute top-4 right-4 z-10 opacity-50 hover:opacity-100 transition-opacity">
+                <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-1 rounded border border-slate-300 font-mono">
+                    Model: {DEFAULT_MODEL}
+                </span>
+            </div>
+
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6" ref={scrollRef}>
                 {messages.map((msg) => (
