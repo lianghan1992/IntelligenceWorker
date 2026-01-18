@@ -21,7 +21,8 @@ interface Message {
 }
 
 const SCENARIO_ID = 'autonomous-tech-analysis'; // Virtual ID for fetching prompts
-const DEFAULT_MODEL = 'openrouter@xiaomi/mimo-v2-flash:free';
+// Use Gemini 2.0 Flash Lite for better tool use capability and speed
+const DEFAULT_MODEL = 'openrouter@google/gemini-2.0-flash-lite-preview-02-05:free';
 
 export default function AutonomousTechAnalysis() {
     const [input, setInput] = useState('');
@@ -199,7 +200,7 @@ export default function AutonomousTechAnalysis() {
                                     query_text: args.query,
                                     start_date: args.start_date,
                                     end_date: args.end_date,
-                                    limit: 5
+                                    max_segments: 5 // Changed from 'limit' to 'max_segments' to match API
                                 });
                                 result = JSON.stringify(res.items?.map(i => ({ title: i.title, content: i.content, date: i.publish_date })) || []);
                                 if (result === '[]') result = "No relevant information found in knowledge base.";
