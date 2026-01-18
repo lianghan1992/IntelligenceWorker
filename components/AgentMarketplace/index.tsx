@@ -3,8 +3,13 @@ import React, { useState, Suspense } from 'react';
 import { MarketHome } from './MarketHome';
 import { AgentLayout } from './AgentLayout';
 import { AGENT_REGISTRY } from './registry';
+import { User } from '../../types'; // Import User type
 
-const AgentMarketplace: React.FC = () => {
+interface AgentMarketplaceProps {
+    user?: User; // Optional user prop
+}
+
+const AgentMarketplace: React.FC<AgentMarketplaceProps> = ({ user }) => {
     const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
 
     const activeAgent = activeAgentId 
@@ -14,7 +19,7 @@ const AgentMarketplace: React.FC = () => {
     if (activeAgent) {
         const AgentComponent = activeAgent.component;
         
-        // For HTML Visual Editor, we bypass the default AgentLayout to allow custom merging of the header and toolbar
+        // For HTML Visual Editor, we bypass the default AgentLayout
         if (activeAgentId === 'html-visual-editor') {
             return (
                 <Suspense fallback={
@@ -22,7 +27,6 @@ const AgentMarketplace: React.FC = () => {
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                     </div>
                 }>
-                    {/* Pass onBack to the component so it can implement its own header with back button */}
                     <AgentComponent onBack={() => setActiveAgentId(null)} />
                 </Suspense>
             );
@@ -45,7 +49,7 @@ const AgentMarketplace: React.FC = () => {
         );
     }
 
-    return <MarketHome onSelectAgent={setActiveAgentId} />;
+    return <MarketHome onSelectAgent={setActiveAgentId} user={user} />;
 };
 
 export default AgentMarketplace;

@@ -11,4 +11,5 @@ export interface AgentConfig {
     tags?: string[];
     isBeta?: boolean;
     disabled?: boolean;
+    allowedEmails?: string[]; // Optional: restrict access to specific users
 }
