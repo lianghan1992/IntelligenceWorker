@@ -1,13 +1,12 @@
 
 import React from 'react';
 import { AgentConfig } from './types';
-import { ChartIcon, PencilIcon, SparklesIcon, BrainIcon } from '../icons'; // Added BrainIcon
+import { ChartIcon, PencilIcon, SparklesIcon } from '../icons'; // Using PencilIcon for visual editor
 import { AGENTS } from '../../agentConfig';
 
 const NewTechIdentifier = React.lazy(() => import('./agents/NewTechIdentifier'));
 const HtmlVisualEditor = React.lazy(() => import('./agents/HtmlVisualEditor'));
 const TechQuadrantAnalysis = React.lazy(() => import('./agents/NewTechQuadrant'));
-const AutonomousTechAnalysis = React.lazy(() => import('./agents/AutonomousTechAnalysis')); // Import new agent
 
 export const AGENT_REGISTRY: AgentConfig[] = [
     {
@@ -37,16 +36,5 @@ export const AGENT_REGISTRY: AgentConfig[] = [
         icon: PencilIcon,
         component: HtmlVisualEditor,
         tags: ['HTML', '可视化编辑', '低代码']
-    },
-    {
-        id: 'autonomous-tech-analyst-v1',
-        name: '全自动技术分析师 (Alpha)',
-        description: '基于 Function Calling 的自主智能体。能够自主规划路径，调用检索工具，并直接在对话中渲染可视化报告。',
-        category: '数据分析',
-        icon: BrainIcon,
-        component: AutonomousTechAnalysis,
-        tags: ['Agent', 'Function Calling', 'Generative UI'],
-        isBeta: true,
-        allowedEmails: ['326575140@qq.com'] // Restricted Access
     }
 ];

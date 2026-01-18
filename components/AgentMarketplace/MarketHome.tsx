@@ -3,34 +3,25 @@ import React, { useState, useMemo } from 'react';
 import { AgentConfig } from './types';
 import { AGENT_REGISTRY } from './registry';
 import { SearchIcon, CubeIcon, SparklesIcon, LockClosedIcon } from '../icons';
-import { User } from '../../types';
 
 interface MarketHomeProps {
     onSelectAgent: (agentId: string) => void;
-    user?: User;
 }
 
 const CATEGORIES = ['全部', '数据分析', '内容创作', '办公提效', '开发工具', '其他'];
 
-export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent, user }) => {
+export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('全部');
 
     const filteredAgents = useMemo(() => {
         return AGENT_REGISTRY.filter(agent => {
-            // Permission Check
-            if (agent.allowedEmails && agent.allowedEmails.length > 0) {
-                if (!user || !agent.allowedEmails.includes(user.email)) {
-                    return false; // Hide if user not in whitelist
-                }
-            }
-
             const matchesSearch = agent.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                   agent.description.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesCategory = activeCategory === '全部' || agent.category === activeCategory;
             return matchesSearch && matchesCategory;
         });
-    }, [searchQuery, activeCategory, user]);
+    }, [searchQuery, activeCategory]);
 
     return (
         <div className="h-full overflow-y-auto bg-[#f8fafc] p-6 md:p-10">
