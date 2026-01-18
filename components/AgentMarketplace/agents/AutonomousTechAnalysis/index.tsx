@@ -77,7 +77,7 @@ export default function AutonomousTechAnalysis() {
                 { role: 'system', content: systemPrompt },
                 ...history.map(m => ({
                     role: m.role,
-                    content: m.content,
+                    content: m.content || '', // Ensure content is string
                     tool_calls: m.tool_calls,
                     tool_call_id: m.tool_call_id
                 }))
