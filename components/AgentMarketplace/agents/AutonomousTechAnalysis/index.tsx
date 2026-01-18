@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, UserIcon, ServerIcon, RefreshIcon, 
-    ArrowRightIcon, PuzzleIcon, DocumentTextIcon 
+    ArrowRightIcon, PuzzleIcon
 } from '../../../../components/icons';
 import { streamChatCompletions, getPrompts } from '../../../../api/stratify';
 import { searchSemanticSegments } from '../../../../api/intelligence';
@@ -21,7 +21,6 @@ interface Message {
 }
 
 const SCENARIO_ID = 'autonomous-tech-analysis'; // Virtual ID for fetching prompts
-// Updated model as requested
 const DEFAULT_MODEL = 'openrouter@xiaomi/mimo-v2-flash:free';
 
 export default function AutonomousTechAnalysis() {
@@ -74,15 +73,35 @@ export default function AutonomousTechAnalysis() {
 
     const processTurn = async (history: Message[]) => {
         try {
-            // Prepare messages for API (strip UI fields)
+            // Prepare messages for API (Strip UI fields and strictly sanitize for API)
             const apiMessages = [
                 { role: 'system', content: systemPrompt },
-                ...history.map(m => ({
-                    role: m.role,
-                    content: m.content || '', // Ensure content is string
-                    tool_calls: m.tool_calls,
-                    tool_call_id: m.tool_call_id
-                }))
+                ...history.map(m => {
+                    // Base message object
+                    const msg: any = {
+                        role: m.role,
+                        content: m.content || '' // API requires content to be string (even empty)
+                    };
+                    
+                    // If it's an assistant message with tool calls, we MUST format strictly
+                    if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
+                        msg.tool_calls = m.tool_calls.map(tc => ({
+                            id: tc.id,
+                            type: tc.type || 'function',
+                            function: {
+                                name: tc.function.name,
+                                arguments: tc.function.arguments // Must be a JSON string
+                            }
+                        }));
+                    }
+
+                    // If it's a tool response, it needs tool_call_id
+                    if (m.role === 'tool') {
+                        msg.tool_call_id = m.tool_call_id;
+                    }
+
+                    return msg;
+                })
             ];
 
             let assistantMsgContent = '';
@@ -129,8 +148,12 @@ export default function AutonomousTechAnalysis() {
                 ));
             });
 
-            // Convert map back to array
-            const toolCallsBuffer = Object.values(toolCallsMap);
+            // Convert map back to array and SANITIZE (remove index)
+            const toolCallsBuffer = Object.values(toolCallsMap).map((tc: any) => ({
+                id: tc.id,
+                type: tc.type,
+                function: tc.function
+            }));
 
             // 3. Handle Tool Execution (Post-Stream)
             if (toolCallsBuffer.length > 0) {
@@ -138,13 +161,16 @@ export default function AutonomousTechAnalysis() {
                 const finalAssistantMsg: Message = { 
                     id: responseMsgId, 
                     role: 'assistant', 
-                    content: assistantMsgContent,
+                    content: assistantMsgContent, // Keep content even if empty (required by some models)
                     tool_calls: toolCallsBuffer
                 };
                 
                 // Fix state to ensure history is correct
+                // We replace the last placeholder with the complete message
+                setMessages(prev => prev.map(m => m.id === responseMsgId ? finalAssistantMsg : m));
+                
+                // Construct new history for the NEXT turn
                 const newHistory = [...history, finalAssistantMsg];
-                setMessages(newHistory);
 
                 // Execute Tools
                 for (const toolCall of toolCallsBuffer) {
@@ -162,45 +188,40 @@ export default function AutonomousTechAnalysis() {
                     } catch (e) {
                          console.error("Tool Argument Parse Error:", e, argumentsStr);
                          result = `Error: Invalid JSON arguments from model. Raw: ${argumentsStr}`;
-                         // Add error message to history and skip execution
-                         const errorMsg: Message = {
-                            id: crypto.randomUUID(),
-                            role: 'tool',
-                            content: result,
-                            tool_call_id: toolCall.id,
-                         };
-                         newHistory.push(errorMsg);
-                         setMessages(prev => [...prev, errorMsg]);
-                         continue; 
                     }
 
-                    if (functionName === 'search_knowledge_base') {
-                        // --- SERVER API CALL ---
-                        setIsLoading(true); // Keep loading state
-                        try {
-                            const res = await searchSemanticSegments({
-                                query_text: args.query,
-                                start_date: args.start_date,
-                                end_date: args.end_date,
-                                limit: 5
-                            });
-                            result = JSON.stringify(res.items?.map(i => ({ title: i.title, content: i.content, date: i.publish_date })) || []);
-                        } catch (e: any) {
-                            result = `Error: ${e.message}`;
+                    if (!result) { // Only execute if no parse error
+                        if (functionName === 'search_knowledge_base') {
+                            // --- SERVER API CALL ---
+                            // Don't turn off loading, we are continuing
+                            try {
+                                const res = await searchSemanticSegments({
+                                    query_text: args.query,
+                                    start_date: args.start_date,
+                                    end_date: args.end_date,
+                                    limit: 5
+                                });
+                                result = JSON.stringify(res.items?.map(i => ({ title: i.title, content: i.content, date: i.publish_date })) || []);
+                                if (result === '[]') result = "No relevant information found in knowledge base.";
+                            } catch (e: any) {
+                                result = `Error calling search API: ${e.message}`;
+                            }
+                        } else if (functionName === 'render_visual_report') {
+                            // --- CLIENT UI RENDER ---
+                            result = "Visual Report rendered successfully to user interface.";
+                            uiComponent = (
+                                <div className="h-[500px] w-full border border-slate-200 rounded-xl overflow-hidden my-4 shadow-lg bg-white">
+                                    <VisualEditor 
+                                        initialHtml={args.html_content} 
+                                        onSave={() => {}} 
+                                        scale={0.6}
+                                        hideToolbar={true} // View-only initially
+                                    />
+                                </div>
+                            );
+                        } else {
+                            result = `Error: Unknown tool '${functionName}'`;
                         }
-                    } else if (functionName === 'render_visual_report') {
-                        // --- CLIENT UI RENDER ---
-                        result = "Report rendered successfully to user.";
-                        uiComponent = (
-                            <div className="h-[500px] w-full border border-slate-200 rounded-xl overflow-hidden my-4 shadow-lg">
-                                <VisualEditor 
-                                    initialHtml={args.html_content} 
-                                    onSave={() => {}} 
-                                    scale={0.6}
-                                    hideToolbar={true} // View-only initially
-                                />
-                            </div>
-                        );
                     }
 
                     // Append Tool Output to History
@@ -216,13 +237,14 @@ export default function AutonomousTechAnalysis() {
                     setMessages(prev => [...prev, toolMsg]);
                 }
 
-                // 4. Recursive Call (Feed tool outputs back to LLM)
+                // 4. Recursive Call (Feed tool outputs back to LLM to generate final response)
+                // IMPORTANT: We keep isLoading true
                 await processTurn(newHistory);
             }
 
         } catch (e) {
             console.error("Agent Loop Error", e);
-            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system', content: `Error: ${e}` }]);
+            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'system', content: `System Error: ${e}` }]);
         } finally {
             setIsLoading(false);
         }
