@@ -20,6 +20,15 @@ const getStatusIcon = (status: string) => {
     return <ClockIcon className="w-3 h-3" />;
 }
 
+// Correct file size formatting based on backend bytes
+const formatFileSize = (bytes?: number) => {
+    if (bytes === 0 || bytes === undefined) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 export const RecentDeepDives: React.FC<{ onNavigate: (view: View) => void }> = ({ onNavigate }) => {
     const [tasks, setTasks] = useState<DeepInsightTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -27,6 +36,7 @@ export const RecentDeepDives: React.FC<{ onNavigate: (view: View) => void }> = (
     useEffect(() => {
         const fetchRecent = async () => {
             try {
+                // Keep using getDeepInsightTasks as it already returns file_size mapped from full doc list
                 const res = await getDeepInsightTasks({ limit: 5, page: 1 });
                 setTasks(res.items || []);
             } catch (e) {
@@ -94,6 +104,8 @@ export const RecentDeepDives: React.FC<{ onNavigate: (view: View) => void }> = (
                                     </div>
                                     <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
                                         <span>{task.file_type.toUpperCase()}</span>
+                                        <span>•</span>
+                                        <span>{formatFileSize(task.file_size)}</span>
                                         <span>•</span>
                                         <span>{new Date(task.created_at).toLocaleDateString()}</span>
                                     </p>
