@@ -25,7 +25,7 @@ export interface VisualCanvasProps {
     canvasSize: { width: number; height: number };
 }
 
-// --- Editor Interaction Script ---
+// --- Editor Interaction Script (Optimized) ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
@@ -33,8 +33,9 @@ const EDITOR_SCRIPT = `
   let selectedEl = null;
   let isDragging = false;
   let isResizing = false;
-  let isEditing = false; // Explicit editing mode flag
+  let isEditing = false;
   let resizeHandle = null;
+  let ticking = false; // For RAF throttling
   
   // Dragging Coords
   let startX = 0, startY = 0;
@@ -42,9 +43,7 @@ const EDITOR_SCRIPT = `
   
   // Resizing Coords
   let startWidth = 0, startHeight = 0;
-  let startLeft = 0, startTop = 0; 
-  let originalRect = null;
-
+  
   window.visualEditorScale = 1;
 
   // --- Styles ---
@@ -64,7 +63,7 @@ const EDITOR_SCRIPT = `
         cursor: pointer !important; 
     }
     
-    /* Editing State - Clean look, native cursor */
+    /* Editing State */
     .ai-editor-editing {
         outline: 2px dashed #22c55e !important;
         cursor: text !important;
@@ -85,7 +84,7 @@ const EDITOR_SCRIPT = `
         height: 10px; 
         background: white; 
         border: 1px solid #3b82f6; 
-        z-index: 2147483647 !important; /* Resizers always on top */
+        z-index: 2147483647 !important;
         box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
         border-radius: 2px;
     }
@@ -103,12 +102,13 @@ const EDITOR_SCRIPT = `
     .ai-img-wrapper {
         display: inline-block;
         vertical-align: top;
+        position: relative;
     }
     .ai-img-wrapper img {
         width: 100% !important;
         height: 100% !important;
-        object-fit: fill !important; /* Allow free ratio resizing */
-        pointer-events: none; /* Prevent browser image drag */
+        object-fit: fill !important;
+        pointer-events: none;
     }
   \`;
   document.head.appendChild(style);
@@ -121,6 +121,7 @@ const EDITOR_SCRIPT = `
   }
 
   function pushHistory() {
+      // Debounce history updates slightly
       setTimeout(() => {
         if (selectedEl) {
              const comp = window.getComputedStyle(selectedEl);
@@ -130,7 +131,7 @@ const EDITOR_SCRIPT = `
         const wasSelected = selectedEl;
         const wasEditing = isEditing;
         
-        // Temp cleanup
+        // Temp cleanup for clean HTML export
         if (selectedEl) {
              selectedEl.classList.remove('ai-editor-selected');
              selectedEl.classList.remove('ai-editor-editing');
@@ -140,19 +141,18 @@ const EDITOR_SCRIPT = `
         
         const cleanHtml = document.documentElement.outerHTML;
         
-        // Restore
+        // Restore state
         if (wasSelected) {
             selectElement(wasSelected);
             if (wasEditing) enterEditMode(wasSelected);
         }
         
         window.parent.postMessage({ type: 'HISTORY_UPDATE', html: cleanHtml }, '*');
-      }, 20);
+      }, 50);
   }
 
   function createResizers(el) {
       removeResizers();
-      // Do not add resizers in text edit mode
       if (isEditing) return;
       
       const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
@@ -189,17 +189,13 @@ const EDITOR_SCRIPT = `
       startTranslateX = transform.x;
       startTranslateY = transform.y;
       
-      if (style.display === 'inline') {
-          selectedEl.style.display = 'inline-block';
-      }
-      
+      if (style.display === 'inline') selectedEl.style.display = 'inline-block';
       if (style.width === 'auto') selectedEl.style.width = rect.width + 'px';
       if (style.height === 'auto') selectedEl.style.height = rect.height + 'px';
   }
 
   function enterEditMode(el) {
       if (!['P','SPAN','H1','H2','H3','H4','H5','H6','DIV','LI'].includes(el.tagName)) return;
-      
       isEditing = true;
       el.contentEditable = 'true';
       el.classList.add('ai-editor-editing');
@@ -209,7 +205,6 @@ const EDITOR_SCRIPT = `
 
   function exitEditMode() {
       if (!isEditing || !selectedEl) return;
-      
       isEditing = false;
       selectedEl.contentEditable = 'false';
       selectedEl.classList.remove('ai-editor-editing');
@@ -223,9 +218,7 @@ const EDITOR_SCRIPT = `
       if (isResizing) return;
 
       if (isEditing) {
-          if (selectedEl && selectedEl.contains(e.target)) {
-              return;
-          }
+          if (selectedEl && selectedEl.contains(e.target)) return;
           exitEditMode();
       }
 
@@ -236,39 +229,32 @@ const EDITOR_SCRIPT = `
           const t = getTransform(selectedEl);
           startTranslateX = t.x;
           startTranslateY = t.y;
-          
           e.preventDefault(); 
       }
   });
 
-  window.addEventListener('mousemove', (e) => {
+  const onMouseMove = (e) => {
       const scale = window.visualEditorScale || 1;
       const dx = (e.clientX - startX) / scale;
       const dy = (e.clientY - startY) / scale;
 
-      // --- RESIZING LOGIC ---
       if (isResizing && selectedEl) {
-          e.preventDefault();
-          
           selectedEl.style.maxWidth = 'none';
           selectedEl.style.maxHeight = 'none';
-          selectedEl.style.flexShrink = '0';
           
           let newW = startWidth;
           let newH = startHeight;
           let newTx = startTranslateX;
           let newTy = startTranslateY;
 
-          if (resizeHandle.includes('e')) {
-               newW = Math.max(10, startWidth + dx);
-          } else if (resizeHandle.includes('w')) {
+          if (resizeHandle.includes('e')) newW = Math.max(10, startWidth + dx);
+          else if (resizeHandle.includes('w')) {
                newW = Math.max(10, startWidth - dx);
                newTx = startTranslateX + dx; 
           }
 
-          if (resizeHandle.includes('s')) {
-               newH = Math.max(10, startHeight + dy);
-          } else if (resizeHandle.includes('n')) {
+          if (resizeHandle.includes('s')) newH = Math.max(10, startHeight + dy);
+          else if (resizeHandle.includes('n')) {
                newH = Math.max(10, startHeight - dy);
                newTy = startTranslateY + dy;
           }
@@ -281,31 +267,30 @@ const EDITOR_SCRIPT = `
           }
       }
 
-      // --- DRAGGING LOGIC ---
       if (isDragging && selectedEl) {
-          e.preventDefault();
           selectedEl.style.transform = \`translate(\${startTranslateX + dx}px, \${startTranslateY + dy}px)\`;
+      }
+  };
+
+  window.addEventListener('mousemove', (e) => {
+      if ((isDragging || isResizing) && !ticking) {
+          window.requestAnimationFrame(() => {
+              onMouseMove(e);
+              ticking = false;
+          });
+          ticking = true;
       }
   });
 
   window.addEventListener('mouseup', () => {
-      if (isDragging) {
-          isDragging = false;
-          pushHistory();
-      }
-      if (isResizing) {
-          isResizing = false;
-          pushHistory();
-      }
+      if (isDragging) { isDragging = false; pushHistory(); }
+      if (isResizing) { isResizing = false; pushHistory(); }
   });
 
   // --- Selection & Double Click ---
   document.body.addEventListener('click', (e) => {
     if (e.target.classList.contains('ai-resizer')) return;
-    if (isEditing) {
-        e.stopPropagation();
-        return;
-    }
+    if (isEditing) { e.stopPropagation(); return; }
     e.stopPropagation();
 
     if (e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas') {
@@ -315,22 +300,18 @@ const EDITOR_SCRIPT = `
     
     let target = e.target;
     
+    // Auto-wrap images for better resizing
     if (target.tagName === 'IMG') {
         if (target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
              target = target.parentElement;
         } else {
-             // Create Wrapper
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
-             
              const comp = window.getComputedStyle(target);
-             const w = target.offsetWidth;
-             const h = target.offsetHeight;
-
              wrapper.style.cssText = comp.cssText;
              wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
-             wrapper.style.width = w + 'px';
-             wrapper.style.height = h + 'px';
+             wrapper.style.width = target.offsetWidth + 'px';
+             wrapper.style.height = target.offsetHeight + 'px';
              
              target.style.width = '100%';
              target.style.height = '100%';
@@ -347,9 +328,7 @@ const EDITOR_SCRIPT = `
         }
     }
     
-    if (selectedEl !== target) {
-        selectElement(target);
-    }
+    if (selectedEl !== target) selectElement(target);
     e.preventDefault(); 
   }, true);
 
@@ -364,19 +343,14 @@ const EDITOR_SCRIPT = `
   document.body.addEventListener('mouseover', (e) => {
       if (isResizing || isDragging || isEditing) return;
       if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target.id === 'canvas' || e.target === selectedEl) return;
-      
       let target = e.target;
-      if (target.tagName === 'IMG' && target.parentElement?.classList.contains('ai-img-wrapper')) {
-          target = target.parentElement;
-      }
+      if (target.tagName === 'IMG' && target.parentElement?.classList.contains('ai-img-wrapper')) target = target.parentElement;
       target.classList.add('ai-editor-hover');
   });
   
   document.body.addEventListener('mouseout', (e) => { 
       let target = e.target;
-      if (target.tagName === 'IMG' && target.parentElement?.classList.contains('ai-img-wrapper')) {
-          target = target.parentElement;
-      }
+      if (target.tagName === 'IMG' && target.parentElement?.classList.contains('ai-img-wrapper')) target = target.parentElement;
       target.classList.remove('ai-editor-hover'); 
   });
 
@@ -419,7 +393,6 @@ const EDITOR_SCRIPT = `
       selectedEl.classList.remove('ai-editor-hover');
       selectedEl.classList.add('ai-editor-selected');
       createResizers(selectedEl);
-      
       const comp = window.getComputedStyle(selectedEl);
       sendSelection(selectedEl, comp);
   }
@@ -440,17 +413,13 @@ const EDITOR_SCRIPT = `
   function scaleElementRecursive(el, factor) {
       if (!el || el.nodeType !== 1) return;
       const style = window.getComputedStyle(el);
-      
       const scaleProp = (prop) => {
           const val = style.getPropertyValue(prop);
           if (val && val.endsWith('px')) {
               const num = parseFloat(val);
-              if (!isNaN(num) && num !== 0) {
-                   el.style.setProperty(prop, (num * factor) + 'px');
-              }
+              if (!isNaN(num) && num !== 0) el.style.setProperty(prop, (num * factor) + 'px');
           }
       };
-
       scaleProp('font-size');
       scaleProp('line-height');
       scaleProp('padding-top');
@@ -462,7 +431,6 @@ const EDITOR_SCRIPT = `
       scaleProp('margin-left');
       scaleProp('margin-right');
       scaleProp('gap');
-
       Array.from(el.children).forEach(child => scaleElementRecursive(child, factor));
   }
 
@@ -474,11 +442,9 @@ const EDITOR_SCRIPT = `
     if (action === 'GET_HTML') {
         const wasSelected = selectedEl;
         if (selectedEl) deselect(true);
-        // Clean editables
         document.querySelectorAll('*[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
         document.querySelectorAll('.ai-editor-editing').forEach(el => el.classList.remove('ai-editor-editing'));
         removeResizers();
-        
         const cleanHtml = document.documentElement.outerHTML;
         if (wasSelected) selectElement(wasSelected);
         window.parent.postMessage({ type: 'HTML_RESULT', html: cleanHtml }, '*');
@@ -492,8 +458,8 @@ const EDITOR_SCRIPT = `
              wrapper.style.position = 'absolute';
              wrapper.style.left = '100px'; 
              wrapper.style.top = '100px';
-             wrapper.style.width = '400px'; // Set default width
-             wrapper.style.height = '300px'; // Set default height
+             wrapper.style.width = '400px'; // Safe default width
+             wrapper.style.height = '300px'; // Safe default height
              wrapper.style.zIndex = '50';
              
              const img = document.createElement('img');
@@ -526,8 +492,7 @@ const EDITOR_SCRIPT = `
     if (!selectedEl) return;
     
     if (action === 'SCALE_GROUP') {
-        const factor = value;
-        scaleElementRecursive(selectedEl, factor);
+        scaleElementRecursive(selectedEl, value);
         pushHistory();
     }
     else if (action === 'UPDATE_STYLE') { 
@@ -539,14 +504,8 @@ const EDITOR_SCRIPT = `
     }
     else if (action === 'LAYER') {
         const style = window.getComputedStyle(selectedEl);
-        if (style.position === 'static') {
-            selectedEl.style.setProperty('position', 'relative', 'important');
-        }
-        let currentZ = 0;
-        if (style.zIndex !== 'auto') {
-            const parsed = parseInt(style.zIndex, 10);
-            if (!isNaN(parsed)) currentZ = parsed;
-        }
+        if (style.position === 'static') selectedEl.style.setProperty('position', 'relative', 'important');
+        let currentZ = parseInt(style.zIndex, 10) || 0;
         const newZ = value === 'up' ? currentZ + 1 : currentZ - 1;
         selectedEl.style.setProperty('z-index', newZ.toString(), 'important');
         pushHistory();
@@ -562,13 +521,8 @@ const EDITOR_SCRIPT = `
     else if (action === 'DESELECT_FORCE') { deselect(); }
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
-        const currentTransform = clone.style.transform || '';
-        const match = currentTransform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
-        if (match) {
-             const x = parseFloat(match[1]) + 20;
-             const y = parseFloat(match[2]) + 20;
-             clone.style.transform = \`translate(\${x}px, \${y}px)\`;
-        }
+        const t = getTransform(selectedEl);
+        clone.style.transform = \`translate(\${t.x + 20}px, \${t.y + 20}px)\`;
         selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
         selectElement(clone);
         pushHistory();
@@ -662,6 +616,7 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
                     height: ${canvasSize.height}px !important;
                     max-width: none !important;
                     max-height: none !important;
+                    position: relative;
                 }
             `;
         }

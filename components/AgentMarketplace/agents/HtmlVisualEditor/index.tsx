@@ -3,11 +3,9 @@ import React, { useState, useEffect } from 'react';
 import VisualEditor from '../../../../components/shared/VisualEditor';
 import { 
     DownloadIcon, RefreshIcon, ArrowLeftIcon, 
-    PencilIcon, PhotoIcon, DuplicateIcon, CodeIcon,
-    ClipboardIcon, TrashIcon
+    PencilIcon, ClipboardIcon, TrashIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
-import { toBlob } from 'html-to-image';
 
 const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -60,7 +58,6 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
     const [scale, setScale] = useState(0.5);
     const [isPasting, setIsPasting] = useState(false);
 
-    // Auto-fit scale on mount
     useEffect(() => {
         const fit = () => {
             const containerWidth = window.innerWidth - 80;
@@ -98,7 +95,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
         try {
             const text = await navigator.clipboard.readText();
             if (text && (text.includes('<html') || text.includes('<div') || text.includes('<section') || text.includes('<body'))) {
-                // Ensure there's a canvas ID for editor logic if it's a full page
+                // Wrap simple div snippets in canvas structure if needed
                 let finalHtml = text;
                 if (!text.includes('id="canvas"')) {
                     finalHtml = text.replace(/<body(.*?)>/i, '<body$1><div id="canvas" class="w-[1600px] h-[900px] bg-white relative overflow-hidden mx-auto shadow-2xl">');
@@ -111,7 +108,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                 setHtml(finalHtml);
                 alert('已从剪贴板成功载入 HTML 结构');
             } else {
-                alert('剪贴板中未检测到有效的 HTML 代码，请确保复制了完整的 HTML 或 <div> 结构');
+                alert('剪贴板中未检测到有效的 HTML 代码');
             }
         } catch (err) {
             alert('读取剪贴板失败，请确保已授予剪贴板访问权限');

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import VisualEditor from '../../shared/VisualEditor';
-import { CodeIcon, EyeIcon } from '../../icons';
+import { CodeIcon, EyeIcon, ClipboardIcon, RefreshIcon } from '../../icons';
 
 const SAMPLE_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -116,25 +116,54 @@ const SAMPLE_HTML = `<!DOCTYPE html>
 export const HtmlDesign: React.FC = () => {
     const [html, setHtml] = useState(SAMPLE_HTML);
     const [mode, setMode] = useState<'editor' | 'preview'>('editor');
+    const [isPasting, setIsPasting] = useState(false);
+
+    const handlePaste = async () => {
+        setIsPasting(true);
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text && text.trim().length > 0) {
+                 setHtml(text);
+                 alert('已粘贴 HTML 代码');
+            }
+        } catch (e) {
+            alert('读取剪贴板失败');
+        } finally {
+            setIsPasting(false);
+        }
+    };
 
     return (
         <div className="h-full flex flex-col bg-slate-100">
             {/* Toolbar */}
             <div className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0">
                 <h2 className="text-lg font-bold text-slate-800">HTML 组件可视化设计</h2>
-                <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
+                <div className="flex gap-4 items-center">
                     <button 
-                        onClick={() => setMode('editor')}
-                        className={`px-4 py-2 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${mode === 'editor' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        onClick={handlePaste}
+                        disabled={isPasting}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors"
                     >
-                        <EyeIcon className="w-4 h-4"/> 可视化编辑
+                        {isPasting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <ClipboardIcon className="w-3.5 h-3.5" />}
+                        粘贴 HTML
                     </button>
-                    <button 
-                        onClick={() => setMode('preview')}
-                        className={`px-4 py-2 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${mode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <CodeIcon className="w-4 h-4"/> 源码预览
-                    </button>
+                    
+                    <div className="w-px h-4 bg-slate-200"></div>
+
+                    <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
+                        <button 
+                            onClick={() => setMode('editor')}
+                            className={`px-4 py-2 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${mode === 'editor' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <EyeIcon className="w-4 h-4"/> 可视化编辑
+                        </button>
+                        <button 
+                            onClick={() => setMode('preview')}
+                            className={`px-4 py-2 rounded-md text-xs font-bold flex items-center gap-2 transition-all ${mode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <CodeIcon className="w-4 h-4"/> 源码预览
+                        </button>
+                    </div>
                 </div>
             </div>
 
