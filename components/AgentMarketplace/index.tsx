@@ -3,6 +3,7 @@ import React, { useState, Suspense } from 'react';
 import { MarketHome } from './MarketHome';
 import { AgentLayout } from './AgentLayout';
 import { AGENT_REGISTRY } from './registry';
+import { AGENTS } from '../../agentConfig';
 
 const AgentMarketplace: React.FC = () => {
     const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
@@ -14,8 +15,9 @@ const AgentMarketplace: React.FC = () => {
     if (activeAgent) {
         const AgentComponent = activeAgent.component;
         
-        // For HTML Visual Editor, we bypass the default AgentLayout to allow custom merging of the header and toolbar
-        if (activeAgentId === 'html-visual-editor') {
+        // For HTML Visual Editor AND Tech Decision Assistant, we bypass the default AgentLayout 
+        // to allow custom integrated headers/layouts.
+        if (activeAgentId === 'html-visual-editor' || activeAgentId === AGENTS.TECH_DECISION_ASSISTANT) {
             return (
                 <Suspense fallback={
                     <div className="flex items-center justify-center h-full">

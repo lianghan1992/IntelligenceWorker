@@ -1,12 +1,13 @@
 
-import React, { useState } from 'react';
-import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon } from '../../../icons';
+import React, { useState, useEffect } from 'react';
+import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon } from '../../../icons';
 import { ChatPanel } from './ChatPanel';
 import { ReportCanvas } from './ReportCanvas';
 import { StepId, TechEvalSessionData, ChatMessage, ReportSection } from './types';
-import { getPromptDetail, streamChatCompletions } from '../../../../api/stratify';
+import { getPrompts, streamChatCompletions } from '../../../../api/stratify';
 import { searchSemanticSegments } from '../../../../api/intelligence';
 import { AGENTS } from '../../../../agentConfig';
+import { StratifyPrompt } from '../../../../types';
 
 interface TechDecisionAssistantProps {
     onBack?: () => void;
@@ -25,6 +26,9 @@ const STEPS: StepId[] = ['init', 'route', 'risk', 'solution', 'compare'];
 // Display steps (excluding init)
 const DISPLAY_STEPS: StepId[] = ['route', 'risk', 'solution', 'compare'];
 
+// The Scenario ID provided by user
+const SCENARIO_ID = 'd18630c7-d643-4a6d-ab8d-1af1731a35fb';
+
 const extractCleanHtml = (text: string) => {
     let cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
     const codeBlockMatch = cleanText.match(/```html\s*([\s\S]*?)```/i);
@@ -35,7 +39,7 @@ const extractCleanHtml = (text: string) => {
     return '';
 };
 
-// Component for Step Indicator (Moved from ReportCanvas)
+// Component for Step Indicator
 const StepIndicator: React.FC<{ status: string, index: number, title: string, isActive: boolean }> = ({ status, index, title, isActive }) => {
     let colorClass = 'bg-slate-100 text-slate-400 border-slate-200';
     if (status === 'done') colorClass = 'bg-green-100 text-green-700 border-green-200';
@@ -66,9 +70,33 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     });
     
     const [isGenerating, setIsGenerating] = useState(false);
+    const [promptMap, setPromptMap] = useState<Record<string, StratifyPrompt>>({});
+    const [isLoadingPrompts, setIsLoadingPrompts] = useState(true);
+    const [promptError, setPromptError] = useState<string | null>(null);
 
     const currentStepId = STEPS[data.currentStepIndex];
     const currentSection = data.sections[currentStepId];
+
+    // --- Load Prompts on Mount ---
+    useEffect(() => {
+        const loadPrompts = async () => {
+            setIsLoadingPrompts(true);
+            try {
+                const fetchedPrompts = await getPrompts({ scenario_id: SCENARIO_ID });
+                const map: Record<string, StratifyPrompt> = {};
+                fetchedPrompts.forEach(p => {
+                    map[p.name] = p;
+                });
+                setPromptMap(map);
+            } catch (err: any) {
+                console.error("Failed to load prompts:", err);
+                setPromptError("加载评估模型配置失败，请检查网络或联系管理员。");
+            } finally {
+                setIsLoadingPrompts(false);
+            }
+        };
+        loadPrompts();
+    }, []);
 
     // Helper: Add Message
     const addMessage = (role: 'user' | 'assistant', content: string) => {
@@ -87,18 +115,41 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         }));
     };
 
+    // --- Retrieve Model Config from Prompt ---
+    const getModelConfig = (promptName: string) => {
+        const prompt = promptMap[promptName];
+        if (!prompt) return null;
+        
+        // Construct model string "channel@model" if both exist
+        // Default fallback if not configured in prompt
+        let modelStr = 'zhipu@glm-4-flash'; 
+        if (prompt.channel_code && prompt.model_id) {
+            modelStr = `${prompt.channel_code}@${prompt.model_id}`;
+        }
+
+        return {
+            contentTemplate: prompt.content,
+            model: modelStr
+        };
+    };
+
     // --- STEP 0: Initialization ---
     const runInitStep = async (input: string) => {
+        const config = getModelConfig('tech_eval_init');
+        if (!config) {
+            addMessage('assistant', `❌ 错误：未找到提示词配置 [tech_eval_init]。请确认后台是否已配置该提示词。`);
+            return;
+        }
+
         setIsGenerating(true);
         updateSection('init', { status: 'generating' });
         
         try {
-            const prompt = await getPromptDetail('tech_eval_init');
-            const filledPrompt = prompt.content.replace('{{ user_input }}', input);
+            const filledPrompt = config.contentTemplate.replace('{{ user_input }}', input);
 
             let jsonBuffer = "";
             await streamChatCompletions({
-                model: 'zhipu@glm-4-flash',
+                model: config.model,
                 messages: [{ role: 'user', content: filledPrompt }],
                 stream: true,
                 temperature: 0.1
@@ -116,7 +167,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             } catch (e) {
                 console.error("JSON Parse Error", e);
                 // Fallback if simple extraction failed
-                parsed = { tech_name: input, search_queries: [input] };
+                parsed = { tech_name: input, search_queries: [input], definition: "自动解析失败，使用原始输入。" };
             }
 
             setData(prev => ({
@@ -142,6 +193,22 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
 
     // --- GENERIC GENERATION STEP ---
     const runGenerationStep = async (stepId: StepId, techName: string, queries: string[], userInstructions?: string) => {
+        const promptKeyMap: Record<StepId, string> = {
+            'init': 'tech_eval_init',
+            'route': 'tech_eval_step1_route',
+            'risk': 'tech_eval_step2_risk',
+            'solution': 'tech_eval_step3_solution',
+            'compare': 'tech_eval_step4_compare'
+        };
+
+        const promptKey = promptKeyMap[stepId];
+        const config = getModelConfig(promptKey);
+
+        if (!config) {
+            addMessage('assistant', `❌ 错误：未找到提示词配置 [${promptKey}]。`);
+            return;
+        }
+
         setIsGenerating(true);
         updateSection(stepId, { status: 'generating', markdown: '' });
         
@@ -161,25 +228,13 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 }
             }
 
-            // 2. Fetch Prompt
-            const promptMap: Record<StepId, string> = {
-                'init': 'tech_eval_init',
-                'route': 'tech_eval_step1_route',
-                'risk': 'tech_eval_step2_risk',
-                'solution': 'tech_eval_step3_solution',
-                'compare': 'tech_eval_step4_compare'
-            };
-            
-            const promptName = promptMap[stepId];
-            const promptTemplate = await getPromptDetail(promptName);
-            
-            // 3. Context Preparation
+            // 2. Prepare Context
             // Gather previous summaries if needed
             const prevSummary = stepId === 'risk' ? data.sections['route'].markdown.slice(0, 500) :
                                 stepId === 'solution' ? data.sections['risk'].markdown.slice(0, 500) :
                                 stepId === 'compare' ? (data.sections['route'].markdown + data.sections['risk'].markdown + data.sections['solution'].markdown).slice(0, 1000) : '';
 
-            let filledPrompt = promptTemplate.content
+            let filledPrompt = config.contentTemplate
                 .replace(/{{ tech_name }}/g, techName)
                 .replace(/{{ retrieved_info }}/g, ragContext || '暂无更多外部资料，请基于您的专业知识分析。')
                 .replace(/{{ step1_summary }}/g, prevSummary) // for risk
@@ -190,10 +245,10 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 filledPrompt += `\n\n**用户补充指令（请重点关注并修改）：**\n${userInstructions}`;
             }
 
-            // 4. Stream LLM
+            // 3. Stream LLM
             let fullContent = "";
             await streamChatCompletions({
-                model: 'zhipu@glm-4-flash',
+                model: config.model,
                 messages: [{ role: 'user', content: filledPrompt }],
                 stream: true,
                 temperature: 0.2
@@ -254,6 +309,35 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     const handleRegenerateStep = () => {
         runGenerationStep(currentStepId, data.techName, data.searchQueries, "请重新生成本节内容，尝试不同的分析角度。");
     };
+
+    if (isLoadingPrompts) {
+        return (
+             <div className="flex items-center justify-center h-full bg-[#f8fafc]">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                    <p className="text-slate-500 font-medium">正在加载评估模型配置...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (promptError) {
+         return (
+             <div className="flex items-center justify-center h-full bg-[#f8fafc]">
+                <div className="bg-red-50 border border-red-200 p-6 rounded-xl flex flex-col items-center gap-3 max-w-md text-center">
+                    <ShieldExclamationIcon className="w-10 h-10 text-red-500" />
+                    <h3 className="text-lg font-bold text-red-700">配置加载失败</h3>
+                    <p className="text-sm text-red-600">{promptError}</p>
+                    <button onClick={() => window.location.reload()} className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
+                        刷新重试
+                    </button>
+                    <button onClick={onBack} className="text-slate-400 text-xs hover:text-slate-600 underline">
+                        返回首页
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full bg-[#f8fafc]">
