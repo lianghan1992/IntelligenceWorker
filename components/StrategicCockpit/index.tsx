@@ -159,7 +159,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                 
                 {/* 1. Left Column: Intelligence List */}
                 <div className={`
-                    w-full md:w-[400px] flex-shrink-0 flex flex-col z-10 transition-transform duration-300 absolute md:static inset-0 h-full
+                    w-full md:w-[320px] flex-shrink-0 flex flex-col z-10 transition-transform duration-300 absolute md:static inset-0 h-full
                     bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
                     ${mobileTab === 'list' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
                 `}>

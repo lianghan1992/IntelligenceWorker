@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions, createSession } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
@@ -130,7 +129,7 @@ export const AIChatPanel: React.FC<{
         return [{ 
             id: 'init', 
             role: 'assistant', 
-            content: `我是您的 **AI 情报副驾驶**。\n📅 今天是 **${today}**。\n\n我专注于智能汽车领域的垂直情报分析，会自动检索知识库为您解答。`, 
+            content: `我是您的 **AI Copilot**。\n📅 今天是 **${today}**。\n\n我专注于智能汽车领域的垂直情报分析，会自动检索知识库为您解答。`, 
             timestamp: Date.now() 
         }];
     });
