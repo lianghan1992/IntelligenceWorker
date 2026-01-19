@@ -19,7 +19,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
     const [activeQuery, setActiveQuery] = useState<{ type: 'tag' | 'search' | 'all', value: string, label: string }>({ 
         type: 'all', 
-        value: '', // No value needed for 'all'
+        value: '', 
         label: '全部情报' 
     });
 
@@ -29,27 +29,18 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
-    const selectedArticleRef = useRef<InfoItem | null>(null);
+    
+    // Copilot Expand/Collapse State
+    const [isCopilotExpanded, setIsCopilotExpanded] = useState(true); // 默认展示
 
-    // Layout State for Mobile - Typed as string to avoid TS2367 narrowing errors
+    // Layout State for Mobile
     const [mobileTab, setMobileTab] = useState<string>('list');
 
-    useEffect(() => {
-        selectedArticleRef.current = selectedArticle;
-    }, [selectedArticle]);
-
-    // Initialize Default View - Ensuring 'all' is selected if it exists
+    // Initialize Default View
     useEffect(() => {
         if (lookCategories.some(c => c.key === 'all')) {
             setSelectedLook('all');
             setActiveQuery({ type: 'all', value: '', label: '全部情报' });
-        } else {
-             // Fallback to first category if 'all' is missing
-            const defaultCat = lookCategories[0];
-            if (defaultCat) {
-                setSelectedLook(defaultCat.key);
-                setActiveQuery({ type: 'tag', value: defaultCat.label, label: defaultCat.label });
-            }
         }
     }, []);
 
@@ -68,36 +59,16 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             let response;
 
             if (queryType === 'search') {
-                // General search
-                response = await searchArticlesFiltered({ 
-                    keyword: queryValue, 
-                    page, 
-                    limit 
-                });
+                response = await searchArticlesFiltered({ keyword: queryValue, page, limit });
             } else if (queryType === 'all') {
-                 // Fetch all articles without filters
-                 response = await searchArticlesFiltered({ 
-                    page, 
-                    limit 
-                });
+                 response = await searchArticlesFiltered({ page, limit });
             } else {
-                // Tag based search (New API Requirement)
-                // queryValue here is the tag name e.g. "新技术"
-                response = await getArticlesByTags({
-                    tags: [queryValue],
-                    page,
-                    size: limit
-                });
+                response = await getArticlesByTags({ tags: [queryValue], page, size: limit });
             }
             
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
             setArticles(response.items || []);
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
-
-            // Auto-select first article on desktop if none selected
-            if (window.innerWidth >= 1024 && page === 1 && response.items?.length > 0) {
-                setSelectedArticle(response.items[0]);
-            }
 
         } catch (err: any) {
             console.error(err);
@@ -107,9 +78,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         }
     }, []);
 
-    // Effect to trigger search when query changes
     useEffect(() => {
-        // Trigger fetch if type is 'all' OR if there is a value for other types
         if (activeQuery.type === 'all' || activeQuery.value) {
             fetchArticles(activeQuery.value, activeQuery.type as any, 1);
         }
@@ -117,11 +86,9 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
 
     // Handlers
     const handleNavChange = (value: string, label: string) => {
-        // When clicking nav items
         if (value === '全部') {
              setActiveQuery({ type: 'all', value: '', label: '全部情报' });
         } else {
-             // For other categories, treat label as the tag
              setActiveQuery({ type: 'tag', value: label, label: label });
         }
         setSelectedArticle(null);
@@ -138,6 +105,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const handleArticleSelect = (article: InfoItem) => {
         setSelectedArticle(article);
         setMobileTab('detail');
+        // 点击文章后，自动收起 AI Copilot
+        setIsCopilotExpanded(false);
     };
 
     const handlePageChange = (newPage: number) => {
@@ -149,15 +118,15 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const handleCopilotCitationClick = (item: InfoItem) => {
         setSelectedArticle(item);
         setMobileTab('detail'); 
+        setIsCopilotExpanded(false);
     };
 
     return (
         <div className="h-full flex flex-col bg-slate-100 font-sans overflow-hidden">
             
-            {/* --- Main 3-Column Layout --- */}
             <div className="flex-1 flex overflow-hidden relative md:p-3 md:gap-3">
                 
-                {/* 1. Left Column: Intelligence List */}
+                {/* 1. Left Column: Intelligence List (Narrowed to 320px) */}
                 <div className={`
                     w-full md:w-[320px] flex-shrink-0 flex flex-col z-10 transition-transform duration-300 absolute md:static inset-0 h-full
                     bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
@@ -176,7 +145,6 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                         onPageChange={handlePageChange}
                         onSearch={handleSearch}
                         isSidebarOpen={true}
-                        // Compass Props
                         categories={lookCategories}
                         selectedLook={selectedLook}
                         setSelectedLook={setSelectedLook}
@@ -187,7 +155,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     />
                 </div>
 
-                {/* 2. Middle Column: Detail View */}
+                {/* 2. Middle Column: Detail View (Auto flex space) */}
                 <div className={`
                     flex-1 flex flex-col min-w-0 transition-transform duration-300 absolute md:static inset-0 z-20 md:z-0
                     bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
@@ -199,36 +167,43 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     />
                 </div>
 
-                {/* 3. Right Column: AI Chat (Fixed) */}
+                {/* 3. Right Column: AI Copilot (Dynamic Width) */}
                 <div className={`
-                    w-full md:w-[400px] xl:w-[450px] flex-shrink-0 flex flex-col z-30 transition-transform duration-300 absolute md:static inset-0
-                    bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
-                    ${mobileTab === 'chat' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+                    hidden md:flex flex-col transition-all duration-500 ease-in-out flex-shrink-0
+                    bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden
+                    ${isCopilotExpanded ? 'w-[400px] xl:w-[450px]' : 'w-[50px]'}
                 `}>
-                     <AIChatPanel onReferenceClick={handleCopilotCitationClick} />
+                     <AIChatPanel 
+                        isExpanded={isCopilotExpanded} 
+                        onToggle={() => setIsCopilotExpanded(!isCopilotExpanded)}
+                        onReferenceClick={handleCopilotCitationClick} 
+                    />
+                </div>
+
+                {/* Mobile Copilot Overlay (Always Full) */}
+                <div className={`
+                    md:hidden w-full flex flex-col z-30 transition-transform duration-300 absolute inset-0
+                    bg-white
+                    ${mobileTab === 'chat' ? 'translate-x-0' : 'translate-x-full'}
+                `}>
+                     <AIChatPanel 
+                        isExpanded={true} 
+                        hideToggle={true}
+                        onReferenceClick={handleCopilotCitationClick} 
+                    />
                 </div>
             </div>
 
-            {/* --- Mobile Bottom Navigation --- */}
+            {/* Mobile Bottom Navigation */}
             {mobileTab !== 'detail' && (
                 <div className="md:hidden flex-shrink-0 h-14 bg-white border-t border-slate-200 flex justify-around items-center z-40 relative shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
-                    <button 
-                        onClick={() => setMobileTab('list')}
-                        className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'list' ? 'text-indigo-600' : 'text-slate-400'}`}
-                    >
+                    <button onClick={() => setMobileTab('list')} className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'list' ? 'text-indigo-600' : 'text-slate-400'}`}>
                         <span className="text-xs font-bold mt-1">列表</span>
                     </button>
-                    <button 
-                        onClick={() => setMobileTab('detail')}
-                        className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'detail' ? 'text-indigo-600' : 'text-slate-400'}`}
-                        disabled={!selectedArticle}
-                    >
+                    <button onClick={() => setMobileTab('detail')} disabled={!selectedArticle} className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'detail' ? 'text-indigo-600' : 'text-slate-400'}`}>
                         <span className="text-xs font-bold mt-1">正文</span>
                     </button>
-                    <button 
-                        onClick={() => setMobileTab('chat')}
-                        className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'chat' ? 'text-indigo-600' : 'text-slate-400'}`}
-                    >
+                    <button onClick={() => setMobileTab('chat')} className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'chat' ? 'text-indigo-600' : 'text-slate-400'}`}>
                         <span className="text-xs font-bold mt-1">AI助手</span>
                     </button>
                 </div>
