@@ -29,6 +29,13 @@ const DISPLAY_STEPS: StepId[] = ['route', 'risk', 'solution', 'compare'];
 // The Scenario ID provided by user
 const SCENARIO_ID = 'd18630c7-d643-4a6d-ab8d-1af1731a35fb';
 
+// --- Configuration for Retrieval ---
+const RETRIEVAL_CONFIG = {
+    pageSize: 40,        // User requested 40 segments
+    threshold: 0.3,      // Similarity threshold
+    maxSegments: 40
+};
+
 const extractCleanHtml = (text: string) => {
     let cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
     const codeBlockMatch = cleanText.match(/```html\s*([\s\S]*?)```/i);
@@ -133,6 +140,37 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         };
     };
 
+    // --- Helper: Execute Vector Search and Notify User ---
+    const executeRetrieval = async (queryStr: string): Promise<string> => {
+        // 1. Notify User: Start Search
+        addMessage('assistant', `🔍 正在检索本地知识库向量 (Top ${RETRIEVAL_CONFIG.pageSize})...\n关键词: ${queryStr}`);
+        
+        try {
+            const searchRes = await searchSemanticSegments({ 
+                query_text: queryStr, 
+                page: 1, 
+                page_size: RETRIEVAL_CONFIG.pageSize, // Explicitly requesting 40
+                similarity_threshold: RETRIEVAL_CONFIG.threshold
+            });
+
+            const items = searchRes.items || [];
+            
+            // 2. Notify User: Results found
+            if (items.length > 0) {
+                 addMessage('assistant', `✅ 检索完成：共找到 **${items.length}** 条相关分段。正在基于资料生成分析...`);
+                 // Return formatted context
+                 return items.map((it, idx) => `[资料${idx+1}] ${it.title}: ${it.content}`).join('\n\n');
+            } else {
+                 addMessage('assistant', `⚠️ 检索完成：未找到高度相关的本地资料 (Threshold: ${RETRIEVAL_CONFIG.threshold})。将基于模型通用知识生成。`);
+                 return "";
+            }
+        } catch (e: any) {
+            console.error("Vector search failed:", e);
+            addMessage('assistant', `❌ 向量检索服务异常: ${e.message}。将尝试直接生成。`);
+            return "";
+        }
+    };
+
     // --- STEP 0: Initialization ---
     const runInitStep = async (input: string) => {
         const config = getModelConfig('tech_eval_init');
@@ -145,7 +183,17 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         updateSection('init', { status: 'generating' });
         
         try {
-            const filledPrompt = config.contentTemplate.replace('{{ user_input }}', input);
+            // [NEW] 1. Perform Retrieval even for Init (to better understand valid tech names)
+            // Even though output is JSON, context helps correct tech names from local DB
+            const ragContext = await executeRetrieval(input);
+            
+            // Inject context manually if the prompt template supports it, or append to input
+            // Usually init prompt is strict JSON, so we append context as "Background Info"
+            const augmentedInput = ragContext 
+                ? `用户需求: ${input}\n\n参考背景资料:\n${ragContext.slice(0, 3000)}` // Limit context for init to avoid noise
+                : input;
+
+            const filledPrompt = config.contentTemplate.replace('{{ user_input }}', augmentedInput);
 
             let jsonBuffer = "";
             await streamChatCompletions({
@@ -213,19 +261,16 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         updateSection(stepId, { status: 'generating', markdown: '' });
         
         try {
-            // 1. RAG Search (Simulated or Real)
+            // [NEW] 1. RAG Search (Explicit Display to User)
             let ragContext = "";
-            if (!userInstructions) { // Only search on first run of the step
+            if (!userInstructions) { // Only search on first run of the step or standard flow
                 const queryStr = queries.join(' ') + ` ${stepId} 技术评估`;
-                const searchRes = await searchSemanticSegments({ 
-                    query_text: queryStr, 
-                    page: 1, 
-                    page_size: 5,
-                    similarity_threshold: 0.3
-                });
-                if (searchRes.items && searchRes.items.length > 0) {
-                    ragContext = searchRes.items.map((it, idx) => `[资料${idx+1}] ${it.title}: ${it.content}`).join('\n\n');
-                }
+                // Use helper to show UI feedback
+                ragContext = await executeRetrieval(queryStr);
+            } else {
+                 // For user instructions (refinement), we might search for specific instruction keywords
+                 addMessage('assistant', `🔍 针对修改指令进行增量检索...`);
+                 ragContext = await executeRetrieval(`${techName} ${userInstructions}`);
             }
 
             // 2. Prepare Context
