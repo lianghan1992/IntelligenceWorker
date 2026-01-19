@@ -611,7 +611,7 @@ export interface DeepInsightPagesResponse {
     total: number;
 }
 
-export interface StratifyPage {
+export interface ArabesquePage {
     page_index: number;
     title: string;
     content_markdown: string;
@@ -810,7 +810,6 @@ export interface LLMChannel {
     id: number;
     channel_code: string;
     name: string;
-    base_url: string;
     models: string; // comma separated
     is_active: boolean;
     config?: any;
