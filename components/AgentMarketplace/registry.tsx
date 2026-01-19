@@ -1,25 +1,14 @@
 
 import React from 'react';
 import { AgentConfig } from './types';
-import { ChartIcon, PencilIcon, SparklesIcon, ShieldCheckIcon } from '../icons'; // Using PencilIcon for visual editor
+import { PencilIcon, SparklesIcon, ShieldCheckIcon } from '../icons'; 
 import { AGENTS } from '../../agentConfig';
 
-const NewTechIdentifier = React.lazy(() => import('./agents/NewTechIdentifier'));
 const HtmlVisualEditor = React.lazy(() => import('./agents/HtmlVisualEditor'));
 const TechQuadrantAnalysis = React.lazy(() => import('./agents/NewTechQuadrant'));
 const TechDecisionAssistant = React.lazy(() => import('./agents/TechDecisionAssistant'));
 
 export const AGENT_REGISTRY: AgentConfig[] = [
-    {
-        id: AGENTS.NEW_TECH_IDENTIFIER,
-        name: '新技术识别 (旧版)',
-        description: '上传 CSV/Markdown，自动识别新技术并生成四象限分析 PPT。',
-        category: '数据分析',
-        icon: ChartIcon,
-        component: NewTechIdentifier,
-        tags: ['CSV分析', 'PPT生成', '技术评估'],
-        disabled: true 
-    },
     {
         id: '5e99897c-6d91-4c72-88e5-653ea162e52b',
         name: '新技术四象限分析',

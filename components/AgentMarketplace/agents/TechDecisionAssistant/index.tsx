@@ -1,7 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { AgentLayout } from '../../AgentLayout';
-import { ChartIcon } from '../../../icons';
+import React, { useState } from 'react';
+import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon } from '../../../icons';
 import { ChatPanel } from './ChatPanel';
 import { ReportCanvas } from './ReportCanvas';
 import { StepId, TechEvalSessionData, ChatMessage, ReportSection } from './types';
@@ -13,8 +12,9 @@ interface TechDecisionAssistantProps {
     onBack?: () => void;
 }
 
+// FIX: 'init' status should be 'pending' to allow input
 const DEFAULT_SECTIONS: Record<StepId, ReportSection> = {
-    init: { id: 'init', title: '初始化', status: 'done', markdown: '' },
+    init: { id: 'init', title: '初始化', status: 'pending', markdown: '' },
     route: { id: 'route', title: '技术路线', status: 'pending', markdown: '' },
     risk: { id: 'risk', title: '风险评估', status: 'pending', markdown: '' },
     solution: { id: 'solution', title: '解决方案', status: 'pending', markdown: '' },
@@ -22,6 +22,8 @@ const DEFAULT_SECTIONS: Record<StepId, ReportSection> = {
 };
 
 const STEPS: StepId[] = ['init', 'route', 'risk', 'solution', 'compare'];
+// Display steps (excluding init)
+const DISPLAY_STEPS: StepId[] = ['route', 'risk', 'solution', 'compare'];
 
 const extractCleanHtml = (text: string) => {
     let cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
@@ -31,6 +33,22 @@ const extractCleanHtml = (text: string) => {
     const rawStart = cleanText.search(/<!DOCTYPE|<html|<div|<section/i);
     if (rawStart !== -1) return cleanText.substring(rawStart);
     return '';
+};
+
+// Component for Step Indicator (Moved from ReportCanvas)
+const StepIndicator: React.FC<{ status: string, index: number, title: string, isActive: boolean }> = ({ status, index, title, isActive }) => {
+    let colorClass = 'bg-slate-100 text-slate-400 border-slate-200';
+    if (status === 'done') colorClass = 'bg-green-100 text-green-700 border-green-200';
+    else if (status === 'generating' || status === 'review') colorClass = 'bg-indigo-100 text-indigo-700 border-indigo-200';
+    
+    return (
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all whitespace-nowrap ${colorClass} ${isActive ? 'ring-2 ring-indigo-500/30 shadow-sm' : 'opacity-70'}`}>
+            <span className="w-5 h-5 rounded-full bg-white/50 flex items-center justify-center text-[10px]">{index + 1}</span>
+            <span className="hidden sm:inline">{title}</span>
+            {status === 'generating' && <RefreshIcon className="w-3 h-3 animate-spin"/>}
+            {status === 'done' && <CheckCircleIcon className="w-3.5 h-3.5"/>}
+        </div>
+    );
 };
 
 const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack }) => {
@@ -130,7 +148,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         try {
             // 1. RAG Search (Simulated or Real)
             let ragContext = "";
-            if (!userInstructions) { // Only search on first run of the step, or always? Let's search always for now to be robust.
+            if (!userInstructions) { // Only search on first run of the step
                 const queryStr = queries.join(' ') + ` ${stepId} 技术评估`;
                 const searchRes = await searchSemanticSegments({ 
                     query_text: queryStr, 
@@ -182,14 +200,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             }, (chunk) => {
                 if (chunk.content) {
                     fullContent += chunk.content;
-                    // Real-time update markdown (HTML extraction happens in render or post-process)
-                    // We strip the HTML block from markdown display if needed, but for now lets keep it raw or process it
-                    // Actually, ReportCanvas handles HTML extraction for the widget? 
-                    // Let's separate HTML here for cleaner storage
                     const cleanHtml = extractCleanHtml(fullContent);
-                    // Remove HTML code block from markdown to avoid duplication in text view
-                    // const cleanMarkdown = fullContent.replace(/```html[\s\S]*?```/gi, '').replace(/<html>[\s\S]*?<\/html>/gi, '');
-                    
                     updateSection(stepId, { 
                         markdown: fullContent, 
                         html: cleanHtml 
@@ -218,9 +229,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         } else if (currentSection.status === 'review') {
             // User wants to modify the current step
             runGenerationStep(currentStepId, data.techName, data.searchQueries, text);
-        } else {
-            // General chat or instructions while generating?
-            // If generating, input is disabled.
         }
     };
 
@@ -248,14 +256,54 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     };
 
     return (
-        <AgentLayout 
-            title="技术决策评估助手" 
-            icon={ChartIcon} 
-            onBack={onBack || (() => window.history.back())}
-        >
-            <div className="flex h-full overflow-hidden">
+        <div className="flex flex-col h-full bg-[#f8fafc]">
+            {/* Custom Unified Header */}
+            <div className="h-16 px-6 border-b border-slate-200 bg-white/80 backdrop-blur-sm flex items-center justify-between shadow-sm z-10 flex-shrink-0">
+                <div className="flex items-center gap-4">
+                    <button 
+                        onClick={onBack || (() => window.history.back())}
+                        className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors group"
+                        title="返回"
+                    >
+                        <ArrowLeftIcon className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                    </button>
+                    
+                    <div className="h-6 w-px bg-slate-200"></div>
+                    
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                            <ChartIcon className="w-4 h-4" />
+                        </div>
+                        <h1 className="text-lg font-bold text-slate-800 tracking-tight">技术决策评估助手</h1>
+                    </div>
+                </div>
+
+                {/* Steps & Status */}
+                <div className="flex items-center gap-6">
+                    {data.techName && (
+                        <div className="hidden md:flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                            <span className="text-xs text-slate-500 font-medium">评估对象:</span>
+                            <span className="text-sm font-bold text-slate-800">{data.techName}</span>
+                        </div>
+                    )}
+                    <div className="flex gap-2">
+                        {DISPLAY_STEPS.map((step, idx) => (
+                            <StepIndicator 
+                                key={step} 
+                                status={data.sections[step].status} 
+                                index={idx} 
+                                title={data.sections[step].title} 
+                                isActive={currentStepId === step}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex overflow-hidden">
                 {/* Left Canvas (60%) */}
-                <div className="flex-1 min-w-0 border-r border-slate-200">
+                <div className="flex-1 min-w-0 border-r border-slate-200 relative">
                     <ReportCanvas 
                         sections={data.sections}
                         currentStep={currentStepId}
@@ -276,7 +324,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     />
                 </div>
             </div>
-        </AgentLayout>
+        </div>
     );
 };
 
