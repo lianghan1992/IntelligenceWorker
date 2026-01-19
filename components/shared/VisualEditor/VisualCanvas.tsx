@@ -492,7 +492,8 @@ const EDITOR_SCRIPT = `
              wrapper.style.position = 'absolute';
              wrapper.style.left = '100px'; 
              wrapper.style.top = '100px';
-             wrapper.style.width = '300px';
+             wrapper.style.width = '400px'; // Set default width
+             wrapper.style.height = '300px'; // Set default height
              wrapper.style.zIndex = '50';
              
              const img = document.createElement('img');

@@ -4,7 +4,7 @@ import VisualEditor from '../../../../components/shared/VisualEditor';
 import { 
     DownloadIcon, RefreshIcon, ArrowLeftIcon, 
     PencilIcon, PhotoIcon, DuplicateIcon, CodeIcon,
-    ClipboardIcon
+    ClipboardIcon, TrashIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import { toBlob } from 'html-to-image';
@@ -97,16 +97,32 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
         setIsPasting(true);
         try {
             const text = await navigator.clipboard.readText();
-            if (text && (text.includes('<html') || text.includes('<div') || text.includes('<section'))) {
-                setHtml(text);
+            if (text && (text.includes('<html') || text.includes('<div') || text.includes('<section') || text.includes('<body'))) {
+                // Ensure there's a canvas ID for editor logic if it's a full page
+                let finalHtml = text;
+                if (!text.includes('id="canvas"')) {
+                    finalHtml = text.replace(/<body(.*?)>/i, '<body$1><div id="canvas" class="w-[1600px] h-[900px] bg-white relative overflow-hidden mx-auto shadow-2xl">');
+                    if (finalHtml.includes('</body>')) {
+                        finalHtml = finalHtml.replace('</body>', '</div></body>');
+                    } else {
+                        finalHtml += '</div>';
+                    }
+                }
+                setHtml(finalHtml);
                 alert('已从剪贴板成功载入 HTML 结构');
             } else {
-                alert('剪贴板中未检测到有效的 HTML 代码');
+                alert('剪贴板中未检测到有效的 HTML 代码，请确保复制了完整的 HTML 或 <div> 结构');
             }
         } catch (err) {
-            alert('读取剪贴板失败，请确保已授予权限');
+            alert('读取剪贴板失败，请确保已授予剪贴板访问权限');
         } finally {
             setIsPasting(false);
+        }
+    };
+
+    const handleReset = () => {
+        if (confirm('确定要清空当前设计并重置为默认模板吗？')) {
+            setHtml(DEFAULT_TEMPLATE);
         }
     };
 
@@ -133,16 +149,24 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
 
                 <div className="flex items-center gap-3">
                     <button 
+                        onClick={handleReset}
+                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                        title="重置画布"
+                    >
+                        <TrashIcon className="w-4 h-4" />
+                    </button>
+
+                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
+
+                    <button 
                         onClick={handlePasteHtml}
                         disabled={isPasting}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-indigo-600 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all active:scale-95 disabled:opacity-50"
                         title="从剪贴板读取并覆盖当前 HTML"
                     >
                         {isPasting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <ClipboardIcon className="w-3.5 h-3.5" />}
                         <span>粘贴代码更新</span>
                     </button>
-
-                    <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block"></div>
 
                     <button 
                         onClick={handleDownloadPdf}
