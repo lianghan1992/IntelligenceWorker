@@ -23,14 +23,11 @@ const fileToBase64 = (file: File): Promise<string> => {
     });
 };
 
-// 使用配置中的路径，结构为 /api/livestream/...
 const TASKS_PATH = `${LIVESTREAM_SERVICE_PATH}/tasks`;
 const PROMPTS_PATH = `${LIVESTREAM_SERVICE_PATH}/prompts`;
 
-
 // --- Livestream / Events API ---
 export const getLivestreamTasks = async (params: { page?: number; page_size?: number; size?: number; [key: string]: any }): Promise<PaginatedResponse<LivestreamTask>> => {
-    // Map 'page_size' to 'size' for the new API standard
     const apiParams = { ...params };
     if (apiParams.page_size) {
         apiParams.size = apiParams.page_size;
@@ -40,14 +37,51 @@ export const getLivestreamTasks = async (params: { page?: number; page_size?: nu
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${TASKS_PATH}${query}`);
 
-    // Map response to frontend type
     return {
         items: response.items,
         total: response.total,
         page: response.page,
-        limit: response.size, // Map 'size' back to 'limit'
-        totalPages: response.total_pages // Map 'total_pages' back to 'totalPages'
+        limit: response.size,
+        totalPages: response.total_pages
     };
+};
+
+/**
+ * 获取轻量化任务列表 (不含 Base64 封面)
+ */
+export const getLivestreamTasksLite = async (params: { page?: number; size?: number; company?: string }): Promise<PaginatedResponse<Partial<LivestreamTask>>> => {
+    const query = createApiQuery(params);
+    const response = await apiFetch<any>(`${TASKS_PATH}/lite${query}`);
+    return {
+        items: response.items,
+        total: response.total,
+        page: response.page,
+        limit: response.size,
+        totalPages: response.total_pages
+    };
+};
+
+/**
+ * 获取指定任务的封面图片
+ * 返回一个 Blob URL，调用者负责 revoke
+ */
+export const getLivestreamCover = async (taskId: string): Promise<string | null> => {
+    const url = `${TASKS_PATH}/${taskId}/cover`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    try {
+        const response = await fetch(url, { headers });
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        if (blob.size === 0) return null;
+        return URL.createObjectURL(blob);
+    } catch (e) {
+        return null;
+    }
 };
 
 export const getLivestreamTaskById = (taskId: string): Promise<LivestreamTask> =>
@@ -69,7 +103,7 @@ export const createLivestreamTask = async (data: {
         live_url: data.live_url,
         company: data.company,
         start_time: data.start_time,
-        summary_prompt: data.summary_prompt || undefined, // Send undefined if empty to let backend use default
+        summary_prompt: data.summary_prompt || undefined,
         direct_download: data.direct_download,
         cover_image_b64: cover_image_b64,
     };
@@ -151,10 +185,8 @@ export const getLivestreamPrompts = async (): Promise<string[]> => {
         if (data && Array.isArray(data.prompts)) {
             return data.prompts;
         }
-        console.warn("getLivestreamPrompts API did not return an object with a 'prompts' array. Received:", data);
         return [];
     } catch (e) {
-        console.warn("getLivestreamPrompts failed to parse JSON, returning empty array.", e);
         return [];
     }
 };

@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LivestreamTask } from '../../types';
-import { getLivestreamTasks } from '../../api';
+import { getLivestreamTasksLite } from '../../api';
 import { TaskCard } from './TaskCard';
 import { EventReportModal } from './EventReportModal';
 import { HeroSection } from './HeroSection';
+// Added RefreshIcon to imports
+import { RefreshIcon } from '../icons';
 
-// Helper to separate tasks into grid sections if needed
-const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClick: (task: LivestreamTask) => void; color: string; }> = ({ title, tasks, onCardClick, color }) => {
+const TaskSection: React.FC<{ title: string; tasks: Partial<LivestreamTask>[]; onCardClick: (task: Partial<LivestreamTask>) => void; color: string; }> = ({ title, tasks, onCardClick, color }) => {
     if (tasks.length === 0) {
         return null;
     }
@@ -31,7 +32,7 @@ const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClic
 };
 
 export const IndustryEvents: React.FC = () => {
-    const [tasks, setTasks] = useState<LivestreamTask[]>([]);
+    const [tasks, setTasks] = useState<Partial<LivestreamTask>[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
@@ -40,12 +41,11 @@ export const IndustryEvents: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch more items to fill both Hero and Grid
-            const response = await getLivestreamTasks({ page_size: 100, sort_by: 'created_at', order: 'desc' });
+            // 使用 lite 接口加载 100 条轻量级数据
+            const response = await getLivestreamTasksLite({ page: 1, size: 100 });
             if (response && Array.isArray(response.items)) {
                 setTasks(response.items);
             } else {
-                console.warn("IndustryEvents: API call did not return a valid paginated response. Defaulting to empty.");
                 setTasks([]);
             }
         } catch (err) {
@@ -59,115 +59,54 @@ export const IndustryEvents: React.FC = () => {
         loadTasks();
     }, [loadTasks]);
 
-    const { heroTasks, upcomingOthers, finishedOthers } = useMemo(() => {
-        // Logic: 
-        // 1. Hero gets Live, Upcoming (Next 24h), and maybe top recent highlights.
-        // 2. Grid gets everything else (History, future scheduled events).
-        // To simplify: Pass ALL tasks to Hero, Hero picks its playlist.
-        // BUT, we don't want to duplicate items in the grid below immediately if they are in Hero.
-        // Let's keep it simple: Hero shows "Highlights", Grid shows "Everything" (or "Past Events").
-        
-        // Refined Logic:
-        // Hero displays dynamic playlist.
-        // Grid displays: "Upcoming" (future > 24h) and "Past Events" (finished). 
-        // "Live" and "Imminent" are exclusive to Hero to reduce clutter.
-        
+    const { upcomingOthers, finishedOthers } = useMemo(() => {
         const now = new Date().getTime();
         const oneDay = 24 * 60 * 60 * 1000;
 
-        const isHeroWorthy = (t: LivestreamTask) => {
-            const s = t.status.toLowerCase();
-            if (['recording', 'downloading', 'stopping'].includes(s)) return true; // Live
-            if (['listening', 'scheduled', 'pending'].includes(s)) {
-                // Upcoming within 24h
+        const isHeroWorthy = (t: Partial<LivestreamTask>) => {
+            const s = t.status?.toLowerCase() || '';
+            if (['recording', 'downloading', 'stopping'].includes(s)) return true;
+            if (['listening', 'scheduled', 'pending'].includes(s) && t.start_time) {
                 return new Date(t.start_time).getTime() - now < oneDay; 
             }
             return false; 
         };
 
-        const heroWorthyTasks = tasks.filter(isHeroWorthy);
         const otherTasks = tasks.filter(t => !isHeroWorthy(t));
 
-        // Sort others
-        const upcomingOthers = otherTasks.filter(t => ['listening', 'scheduled', 'pending'].includes(t.status.toLowerCase()))
-            .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+        const upcomingOthers = otherTasks.filter(t => ['listening', 'scheduled', 'pending'].includes(t.status?.toLowerCase() || ''))
+            .sort((a, b) => (a.start_time && b.start_time) ? new Date(a.start_time).getTime() - new Date(b.start_time).getTime() : 0);
             
-        const finishedOthers = otherTasks.filter(t => !['listening', 'scheduled', 'pending'].includes(t.status.toLowerCase()))
-            .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()); // Newest finished first
+        const finishedOthers = otherTasks.filter(t => !['listening', 'scheduled', 'pending'].includes(t.status?.toLowerCase() || ''))
+            .sort((a, b) => (a.start_time && b.start_time) ? new Date(b.start_time).getTime() - new Date(a.start_time).getTime() : 0);
 
-        return { 
-            heroTasks: heroWorthyTasks.length > 0 ? heroWorthyTasks : [], // If no active, Hero handles fallback internally or we pass empty
-            upcomingOthers,
-            finishedOthers 
-        };
+        return { upcomingOthers, finishedOthers };
     }, [tasks]);
     
-    const handleTaskCardClick = (task: LivestreamTask) => {
-        const status = task.status.toLowerCase();
+    const handleTaskCardClick = (task: Partial<LivestreamTask>) => {
+        const status = task.status?.toLowerCase();
         if (status === 'completed' || status === 'finished') {
-            setSelectedEvent(task);
+            setSelectedEvent(task as LivestreamTask);
         }
     };
 
-    const renderContent = () => {
-        if (isLoading) return <div className="text-center py-20 text-gray-500"><div className="animate-pulse">正在加载行业事件...</div></div>;
-        if (error) return <div className="text-center py-20 text-red-500">加载失败: {error}</div>;
-        
-        const noTasks = tasks.length === 0;
-
-        if (noTasks) {
-             return (
-                <div className="flex-1 flex items-center justify-center text-center bg-white/50 backdrop-blur-sm rounded-3xl border-2 border-dashed border-gray-200 h-96">
-                    <div className="text-gray-400">
-                        <p className="font-semibold text-lg">暂无任何发布会任务</p>
-                    </div>
-                </div>
-            );
-        }
-
-        // If we have Hero tasks, show Hero. Otherwise, if we only have history, maybe just show grid?
-        // Actually, HeroSection has a fallback logic to show recent finished tasks if no live ones.
-        // So we simply pass all tasks to HeroSection, let it decide what to highlight, 
-        // and we render the full categorized list below for comprehensive browsing.
-        
-        return (
-            <div className="space-y-6 md:space-y-10 pb-20 md:pb-20">
-                {/* 1. Immersive Hero Area */}
-                <HeroSection tasks={tasks} onViewReport={handleTaskCardClick} />
-
-                {/* 2. Standard Grid Areas */}
-                <div className="px-4 md:px-2 space-y-8 md:space-y-12">
-                    {/* Show "Future" if not in Hero (e.g. next week) */}
-                    <TaskSection 
-                        title="后续日程" 
-                        tasks={upcomingOthers} 
-                        onCardClick={handleTaskCardClick} 
-                        color="#3b82f6" 
-                    />
-                    
-                    {/* Show "History" */}
-                    <TaskSection 
-                        title="往期回顾" 
-                        tasks={finishedOthers} 
-                        onCardClick={handleTaskCardClick} 
-                        color="#8b5cf6" 
-                    />
-                </div>
-            </div>
-        )
-    }
+    if (isLoading) return <div className="p-10 flex flex-col items-center justify-center h-full text-slate-400 gap-3"><RefreshIcon className="w-8 h-8 animate-spin" /><p className="font-bold">载入轻量级列表...</p></div>;
+    if (error) return <div className="text-center py-20 text-red-500">加载失败: {error}</div>;
 
     return (
         <>
             <div className="md:p-6 p-0 min-h-full flex flex-col relative bg-gray-50">
-                {renderContent()}
+                <div className="space-y-6 md:space-y-10 pb-20 md:pb-20">
+                    {/* Hero Section handles its own data selection from the passed tasks */}
+                    <HeroSection tasks={tasks as LivestreamTask[]} onViewReport={handleTaskCardClick} />
+
+                    <div className="px-4 md:px-2 space-y-8 md:space-y-12">
+                        <TaskSection title="后续日程" tasks={upcomingOthers} onCardClick={handleTaskCardClick} color="#3b82f6" />
+                        <TaskSection title="往期回顾" tasks={finishedOthers} onCardClick={handleTaskCardClick} color="#8b5cf6" />
+                    </div>
+                </div>
             </div>
-            {selectedEvent && (
-                <EventReportModal
-                    event={selectedEvent}
-                    onClose={() => setSelectedEvent(null)}
-                />
-            )}
+            {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
         </>
     );
 };

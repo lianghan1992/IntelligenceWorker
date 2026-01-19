@@ -1,34 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask } from '../../types';
 import { DocumentTextIcon, FilmIcon, PlayIcon } from '../icons';
+import { getLivestreamCover } from '../../api';
 
 interface TaskCardProps {
-    task: LivestreamTask;
+    task: Partial<LivestreamTask>;
     onViewReport: () => void;
 }
 
-// Simplified and robust helper to handle image data from the backend
-const getSafeImageSrc = (base64Data: string | null | undefined): string | null => {
-  if (!base64Data || base64Data.trim() === '' || base64Data.toLowerCase() === 'none' || base64Data.toLowerCase() === 'null') {
-    return null;
-  }
-  
-  // If it's already a data URI, return it directly.
-  if (base64Data.startsWith('data:image')) {
-    return base64Data;
-  }
-
-  // If it's a full external URL, return it.
-  if (base64Data.startsWith('http://') || base64Data.startsWith('https://')) {
-    return base64Data;
-  }
-
-  // Assume it's a raw base64 string and prepend the necessary prefix for JPG.
-  return `data:image/jpeg;base64,${base64Data}`;
-};
-
-
-const getStatusDetails = (status: string) => {
+const getStatusDetails = (status: string = '') => {
     const statusLower = status.toLowerCase();
 
     if (statusLower === 'recording' || statusLower === 'downloading') {
@@ -67,16 +48,30 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
     const isLive = statusDetails.type === 'live';
-    const hasReport = (task.status.toLowerCase() === 'completed' || task.status.toLowerCase() === 'finished');
+    const hasReport = (task.status?.toLowerCase() === 'completed' || task.status?.toLowerCase() === 'finished');
+    
     const [timeLeft, setTimeLeft] = useState('');
-    const imageUrl = getSafeImageSrc(task.cover_image_b64);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
+
+    // Fetch Cover Image Individually
+    useEffect(() => {
+        if (!task.id) return;
+        let active = true;
+        getLivestreamCover(task.id).then(url => {
+            if (active && url) {
+                setImageUrl(url);
+            }
+        });
+        return () => { active = false; if (imageUrl) URL.revokeObjectURL(imageUrl); }
+    }, [task.id]);
 
     useEffect(() => {
-        if (statusDetails.type !== 'upcoming') return;
+        if (statusDetails.type !== 'upcoming' || !task.start_time) return;
 
         const calculateTimeLeft = () => {
             const now = new Date().getTime();
-            const startTime = new Date(task.start_time).getTime();
+            const startTime = new Date(task.start_time!).getTime();
             const distance = startTime - now;
 
             if (distance < 0) return "即将开始";
@@ -92,43 +87,41 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
         };
         
         const timer = setInterval(() => {
-            const newTimeLeft = calculateTimeLeft();
-            if (newTimeLeft === "即将开始" && timeLeft !== "即将开始") {
-                // To avoid flicker, we can stop the timer and let the component re-render on next data fetch.
-                 clearInterval(timer);
-            }
-            setTimeLeft(newTimeLeft);
+            setTimeLeft(calculateTimeLeft());
         }, 1000);
 
-        // Initial call
         setTimeLeft(calculateTimeLeft());
-
         return () => clearInterval(timer);
-    }, [task.start_time, statusDetails.type, timeLeft]);
+    }, [task.start_time, statusDetails.type]);
 
 
-    const formattedDate = new Date(task.start_time).toLocaleString('zh-CN', {
+    const formattedDate = task.start_time ? new Date(task.start_time).toLocaleString('zh-CN', {
         year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-    }).replace(/\//g, '.');
+    }).replace(/\//g, '.') : '-';
 
     const handleReplayClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        window.open(task.live_url, '_blank', 'noopener,noreferrer');
+        if (task.live_url) window.open(task.live_url, '_blank', 'noopener,noreferrer');
     };
 
     return (
         <div
             onClick={hasReport ? onViewReport : undefined}
-            className={`group relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 ${hasReport ? 'cursor-pointer' : 'cursor-default'}`}
+            className={`group relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-700 animate-in fade-in slide-in-from-bottom-4 ${hasReport ? 'cursor-pointer' : 'cursor-default'} ${isImageLoaded ? 'opacity-100 translate-y-0' : 'opacity-80 translate-y-2'}`}
         >
             {imageUrl ? (
-                <img src={imageUrl} alt={task.task_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                <img 
+                    src={imageUrl} 
+                    alt={task.task_name} 
+                    onLoad={() => setIsImageLoaded(true)}
+                    className={`absolute inset-0 w-full h-full object-cover transition-all duration-1000 ${isImageLoaded ? 'scale-100 blur-0' : 'scale-110 blur-sm'} group-hover:scale-105`} 
+                />
             ) : (
                 <div className="absolute inset-0 w-full h-full bg-gray-800 flex items-center justify-center">
-                    <FilmIcon className="w-12 h-12 text-gray-600" />
+                    <FilmIcon className="w-12 h-12 text-gray-600 animate-pulse" />
                 </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
             
             <span className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full z-20 ${statusDetails.className}`}>
                  {statusDetails.text}
@@ -139,16 +132,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             )}
 
             <div className="absolute inset-0 flex flex-col justify-end p-4 text-white z-10">
-                <a 
-                  href={task.live_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  onClick={(e) => e.stopPropagation()} 
-                  className="text-lg font-bold drop-shadow-md leading-tight hover:underline"
-                >
+                <div className="text-lg font-bold drop-shadow-md leading-tight group-hover:text-indigo-300 transition-colors">
                   {task.task_name}
-                </a>
-                <p className="text-xs text-gray-200 mt-1.5 drop-shadow-sm">{formattedDate}</p>
+                </div>
+                <p className="text-xs text-gray-300 mt-1.5 drop-shadow-sm font-medium">{task.company} · {formattedDate}</p>
 
                 {isLive && (
                     <div className="mt-4">
@@ -157,7 +144,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition-all transform hover:scale-105"
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition-all transform hover:scale-105 active:scale-95"
                         >
                             <PlayIcon className="w-4 h-4" />
                             <span>观看直播</span>
@@ -170,17 +157,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
                         <button 
                             onClick={hasReport ? onViewReport : undefined}
                             disabled={!hasReport}
-                            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold bg-white/10 backdrop-blur-md rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold bg-white text-slate-900 rounded-lg hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm active:scale-95"
                         >
                             <DocumentTextIcon className="w-4 h-4" />
                             <span>{hasReport ? '查看报告' : '报告生成中'}</span>
                         </button>
                         <button 
                             onClick={handleReplayClick} 
-                            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold bg-white/10 backdrop-blur-md rounded-lg hover:bg-white/20 transition-colors"
+                            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold bg-white/10 backdrop-blur-md rounded-lg border border-white/20 hover:bg-white/20 transition-colors active:scale-95"
                         >
                             <FilmIcon className="w-4 h-4" />
-                            <span>查看回放</span>
+                            <span>回放</span>
                         </button>
                     </div>
                 )}
