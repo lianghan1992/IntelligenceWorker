@@ -68,7 +68,8 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
             id: doc.uuid, // Use uuid as id
             file_name: doc.original_filename,
             file_type: doc.mime_type ? (doc.mime_type === 'application/pdf' ? 'PDF' : doc.mime_type.split('/')[1].toUpperCase()) : 'FILE',
-            file_size: doc.file_size,
+            // Fix: Backend returns size in KB, convert to Bytes for frontend formatter
+            file_size: (doc.file_size || 0) * 1024,
             status: doc.status,
             total_pages: doc.page_count || 0,
             processed_pages: doc.process_progress ? Math.floor((doc.process_progress / 100) * (doc.page_count || 1)) : (doc.status === 'completed' ? doc.page_count : 0),
@@ -105,7 +106,8 @@ export const getDeepInsightTasksLight = async (params: any): Promise<{ items: De
             id: doc.id,
             file_name: doc.title,
             file_type: doc.mime_type ? (doc.mime_type === 'application/pdf' ? 'PDF' : 'DOC') : 'FILE',
-            file_size: doc.file_size || 0,
+            // Fix: Backend returns size in KB, convert to Bytes for frontend formatter
+            file_size: (doc.file_size || 0) * 1024,
             status: doc.status,
             total_pages: doc.page_count || 0, // Map page_count to total_pages
             processed_pages: doc.status === 'completed' ? (doc.page_count || 0) : 0, // Assume all pages processed if completed
@@ -135,7 +137,8 @@ export const getDeepInsightTask = async (taskId: string): Promise<DeepInsightTas
         id: doc.uuid,
         file_name: doc.original_filename,
         file_type: 'PDF', // Assuming PDF for now, backend detects type
-        file_size: doc.file_size,
+        // Fix: Backend returns size in KB, convert to Bytes
+        file_size: (doc.file_size || 0) * 1024,
         status: doc.status,
         total_pages: doc.page_count,
         processed_pages: doc.process_progress ? Math.floor((doc.process_progress / 100) * doc.page_count) : (doc.status === 'completed' ? doc.page_count : 0),

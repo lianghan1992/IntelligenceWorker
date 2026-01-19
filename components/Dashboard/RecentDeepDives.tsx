@@ -20,7 +20,7 @@ const getStatusIcon = (status: string) => {
     return <ClockIcon className="w-3 h-3" />;
 }
 
-// Correct file size formatting based on backend bytes
+// Correct file size formatting based on backend bytes (Frontend now normalized to Bytes)
 const formatFileSize = (bytes?: number) => {
     if (bytes === 0 || bytes === undefined) return '0 B';
     const k = 1024;
@@ -36,7 +36,7 @@ export const RecentDeepDives: React.FC<{ onNavigate: (view: View) => void }> = (
     useEffect(() => {
         const fetchRecent = async () => {
             try {
-                // Keep using getDeepInsightTasks as it already returns file_size mapped from full doc list
+                // getDeepInsightTasks now normalizes KB to Bytes
                 const res = await getDeepInsightTasks({ limit: 5, page: 1 });
                 setTasks(res.items || []);
             } catch (e) {
