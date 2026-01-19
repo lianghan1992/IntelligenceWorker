@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { TechItem, ModelConfig } from './index';
+import { TechItem } from './index';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { 
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
@@ -19,9 +19,6 @@ interface AnalysisWorkspaceProps {
     isGenerating: boolean;
     onStartGeneration: () => void;
     prompts?: StratifyPrompt[];
-    modelConfig: ModelConfig;
-    onModelConfigChange: (key: keyof ModelConfig, value: string) => void;
-    availableModels: { label: string; value: string }[];
     onRegenerateHtml: (item: TechItem) => void;
 }
 
@@ -44,15 +41,13 @@ const cleanUrl = (url?: string) => {
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ 
     articles, techList, setTechList, onOpenSelection, 
     isExtracting, isGenerating, onStartGeneration, prompts,
-    modelConfig, onModelConfigChange, availableModels,
     onRegenerateHtml
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
-    const [scale, setScale] = useState(1.0); // Default 1.0, but useEffect will adjust
+    const [scale, setScale] = useState(1.0); 
     const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
     
-    // Ref for the container to calculate scale
     const editorContainerRef = useRef<HTMLDivElement>(null);
     
     const activeItem = techList.find(t => t.id === activeTechId);
@@ -70,34 +65,24 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
             if (activeItem?.analysisState === 'done' && editorContainerRef.current) {
                 const { clientWidth, clientHeight } = editorContainerRef.current;
                 
-                // Canvas base dimensions
                 const BASE_WIDTH = 1600;
                 const BASE_HEIGHT = 900;
                 
-                // Reserve space for padding (p-10 = 40px * 2 = 80px) and VisualEditor Toolbar (approx 60px)
-                // VisualEditor structure: Toolbar (h-14 = 56px) + Canvas
                 const availableWidth = clientWidth - 80; 
                 const availableHeight = clientHeight - 56 - 80; 
                 
                 if (availableWidth > 0 && availableHeight > 0) {
                     const wRatio = availableWidth / BASE_WIDTH;
                     const hRatio = availableHeight / BASE_HEIGHT;
-                    // Fit completely visible with small margin
                     const fitScale = Math.min(wRatio, hRatio) * 0.95;
                     setScale(Math.max(0.1, fitScale));
                 }
             }
         };
 
-        // Initial calc
         calculateScale();
-        
-        // Recalc on resize
         window.addEventListener('resize', calculateScale);
-        
-        // Double check after render (sometimes layout shifts)
         const timer = setTimeout(calculateScale, 100);
-        
         return () => {
             window.removeEventListener('resize', calculateScale);
             clearTimeout(timer);
@@ -147,7 +132,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
         setTimeout(() => setCopyFeedback(null), 2000);
     };
     
-    // Calculate stats
     const selectedCount = techList.filter(t => t.isSelected).length;
     const processingCount = techList.filter(t => ['analyzing', 'generating_html'].includes(t.analysisState)).length;
 
@@ -160,10 +144,9 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                 </div>
             )}
 
-            {/* Left Sidebar: Extraction List & Controls */}
+            {/* Left Sidebar */}
             <div className="w-[450px] bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10 shadow-sm">
                 
-                {/* Header Actions */}
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                     <div className="flex justify-between items-center mb-3">
                         <h3 className="font-bold text-slate-700 flex items-center gap-2">
@@ -179,51 +162,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                         </button>
                     </div>
 
-                    {/* Model Configuration Panel */}
-                    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-4 space-y-3">
-                        <div className="flex items-center gap-2 text-xs font-bold text-slate-600 border-b border-slate-100 pb-2">
-                            <ServerIcon className="w-3.5 h-3.5 text-indigo-500" />
-                            模型配置策略
-                        </div>
-                        
-                        <div className="grid grid-cols-1 gap-2">
-                            <div className="flex items-center justify-between">
-                                <label className="text-[10px] text-slate-400 font-medium">识别 (Extract)</label>
-                                <select
-                                    value={modelConfig.extraction}
-                                    onChange={(e) => onModelConfigChange('extraction', e.target.value)}
-                                    disabled={isExtracting || isGenerating}
-                                    className="bg-slate-50 border border-slate-200 text-[10px] rounded px-2 py-1 w-40 outline-none focus:border-indigo-300 disabled:opacity-50"
-                                >
-                                    {availableModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                                </select>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <label className="text-[10px] text-slate-400 font-medium">内容 (Generate)</label>
-                                <select
-                                    value={modelConfig.analysis}
-                                    onChange={(e) => onModelConfigChange('analysis', e.target.value)}
-                                    disabled={isExtracting || isGenerating}
-                                    className="bg-slate-50 border border-slate-200 text-[10px] rounded px-2 py-1 w-40 outline-none focus:border-indigo-300 disabled:opacity-50"
-                                >
-                                    {availableModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                                </select>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <label className="text-[10px] text-slate-400 font-medium">绘图 (HTML)</label>
-                                <select
-                                    value={modelConfig.html}
-                                    onChange={(e) => onModelConfigChange('html', e.target.value)}
-                                    disabled={isExtracting || isGenerating}
-                                    className="bg-slate-50 border border-slate-200 text-[10px] rounded px-2 py-1 w-40 outline-none focus:border-indigo-300 disabled:opacity-50"
-                                >
-                                    {availableModels.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Progress Bar (Extraction) */}
+                    {/* Progress Bar */}
                     {isExtracting && (
                         <div className="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100 animate-pulse">
                             <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 mb-1">
@@ -236,7 +175,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                         </div>
                     )}
 
-                    {/* Bulk Actions */}
                     <div className="flex items-center justify-between">
                          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-500 hover:text-slate-800">
                              <input 
@@ -302,7 +240,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                             <h4 className={`font-bold text-sm truncate pr-2 flex-1 ${activeTechId === item.id ? 'text-indigo-700' : 'text-slate-800'}`}>{item.name}</h4>
                                             {item.analysisState === 'done' && <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />}
                                             
-                                            {/* Regenerate Button */}
                                             {item.analysisState === 'done' && (
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); onRegenerateHtml(item); }}
@@ -338,7 +275,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                             </div>
                                         </div>
                                         
-                                        {/* Status Bar */}
                                         <div className="pt-1 border-t border-slate-50 flex items-center justify-between text-[10px]">
                                              <div className="font-mono flex items-center gap-1.5">
                                                 {item.analysisState === 'idle' && <span className="text-slate-400">待分析</span>}
@@ -357,7 +293,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                 </div>
             </div>
 
-            {/* Right Workspace (Dark Themed) */}
+            {/* Right Workspace */}
             <div className="flex-1 bg-[#0f172a] relative overflow-hidden flex flex-col">
                 {!activeItem ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
@@ -366,14 +302,8 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                     </div>
                 ) : (
                     <>
-                         {/* View Logic: 
-                            1. Idle/Processing -> Show Logs or Info
-                            2. Done -> Show Visual Editor 
-                         */}
-                         
                          {activeItem.analysisState === 'done' && activeItem.htmlContent ? (
                              <div className="flex flex-col h-full w-full">
-                                 {/* Toolbar (Dark) */}
                                  <div className="h-14 px-6 bg-[#1e293b] border-b border-slate-700 flex justify-between items-center shadow-sm z-20 flex-shrink-0">
                                      <div className="flex items-center gap-2 text-white font-bold">
                                          <CheckCircleIcon className="w-5 h-5 text-green-400" />
@@ -401,7 +331,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                      </div>
                                  </div>
                                  
-                                 {/* Editor Area - Fit to Container */}
                                  <div className="flex-1 bg-[#0f172a] relative overflow-hidden w-full" ref={editorContainerRef}>
                                      <div className="w-full h-full flex items-center justify-center">
                                          <VisualEditor 
@@ -415,10 +344,8 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                  </div>
                              </div>
                          ) : (
-                             // Processing / Idle View
                              <div className="flex flex-col h-full p-8 overflow-y-auto custom-scrollbar">
                                  <div className="max-w-3xl mx-auto w-full space-y-6">
-                                     {/* Header Card */}
                                      <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm relative overflow-hidden">
                                          <div className="flex items-center justify-between gap-4 mb-6">
                                              <div className="flex items-center gap-4">
@@ -461,7 +388,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                          </div>
                                      </div>
 
-                                     {/* Logs Terminal */}
                                      {(activeItem.analysisState !== 'idle' || (activeItem.logs && activeItem.logs.length > 0)) && (
                                          <div className="bg-[#0f172a] rounded-2xl p-6 border border-slate-700 shadow-xl overflow-hidden">
                                              <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">

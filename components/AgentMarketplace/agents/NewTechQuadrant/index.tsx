@@ -25,18 +25,8 @@ export interface TechItem {
 }
 
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
-// ⚡️ Changed to free model as requested
-const TARGET_MODEL = 'openrouter@xiaomi/mimo-v2-flash:free';
-
-export const AVAILABLE_MODELS = [
-    { label: 'Mimo V2 Flash (Free)', value: TARGET_MODEL },
-];
-
-export interface ModelConfig {
-    extraction: string;
-    analysis: string;
-    html: string;
-}
+// ⚡️ Changed back to Zhipu GLM-4.5-Flash
+const TARGET_MODEL = 'zhipu@glm-4.5-flash';
 
 // Helper: Robustly extract JSON array from text
 const extractJsonArray = (text: string): any[] | null => {
@@ -117,16 +107,12 @@ const extractCleanHtml = (text: string): string => {
     }
 
     // 2. Locate the start of HTML
-    // Covers <!DOCTYPE html>, <html>, or even just <div if partial
     const startMatch = clean.search(/<!DOCTYPE\s+html|<html/i);
     if (startMatch !== -1) {
         clean = clean.substring(startMatch);
     } else {
-        // Fallback for when no doctype/html tag is present but looks like HTML
         const divMatch = clean.search(/<div|<section|<body/i);
         if (divMatch !== -1) {
-            // It might be a fragment, try to use it as is or wrap it? 
-            // For now, assume VisualEditor handles fragments if they are valid elements
             clean = clean.substring(divMatch);
         }
     }
@@ -137,8 +123,6 @@ const extractCleanHtml = (text: string): string => {
         clean = clean.substring(0, endMatch + 7);
     }
     
-    // 4. Cleanup escaped characters if LLM messed up (basic ones)
-    // Sometimes LLMs return \&lt; instead of < inside code blocks
     if (clean.startsWith('&lt;!DOCTYPE')) {
         clean = clean.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
     }
@@ -158,37 +142,11 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [resetTrigger, setResetTrigger] = useState(0);
     const [prompts, setPrompts] = useState<StratifyPrompt[]>([]);
 
-    // Model Selection State (Granular)
-    const [modelConfig, setModelConfig] = useState<ModelConfig>({
-        extraction: TARGET_MODEL,
-        analysis: TARGET_MODEL,
-        html: TARGET_MODEL
-    });
-
     useEffect(() => {
         getPrompts({ scenario_id: SCENARIO_ID })
             .then(setPrompts)
             .catch(err => console.error("Failed to load scenario prompts", err));
-        
-        // Load model preference
-        const savedConfigStr = localStorage.getItem('ntq_model_config');
-        if (savedConfigStr) {
-            try {
-                const saved = JSON.parse(savedConfigStr);
-                // Force update to target model if needed, or respect saved but prefer target for now
-                // Given the requirement, we force usage logic below, UI config is just for display/future
-                setModelConfig(prev => ({ ...prev, ...saved }));
-            } catch (e) {}
-        }
     }, []);
-
-    const handleModelConfigChange = (key: keyof ModelConfig, value: string) => {
-        setModelConfig(prev => {
-            const next = { ...prev, [key]: value };
-            localStorage.setItem('ntq_model_config', JSON.stringify(next));
-            return next;
-        });
-    };
 
     // Unified LLM Call Helper
     const callLlm = async (messages: any[], onChunk?: (text: string) => void): Promise<string> => {
@@ -197,8 +155,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             model: TARGET_MODEL,
             messages: messages,
             stream: true,
-            enable_billing: false, // ⚡️ Explicitly disable billing as requested
-            temperature: 0.1 // Low temp for analysis tasks
+            enable_billing: false, // ⚡️ explicitly disable billing
+            temperature: 0.1 
         }, (data) => {
             if (data.content) {
                 fullText += data.content;
@@ -209,7 +167,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     };
 
     // --- Phase 1: Extraction ---
-    // User selected articles, now we process them one by one to find new tech.
     const handleArticlesConfirmed = (articles: ArticlePublic[]) => {
         setSelectedArticles(articles);
         setIsSelectionModalOpen(false);
@@ -227,12 +184,11 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             }
 
             for (const article of articles) {
-                const contentSnippet = article.content.slice(0, 3000); // Limit context window
+                const contentSnippet = article.content.slice(0, 3000); 
                 const articleContext = `标题: ${article.title}\nURL: ${article.original_url || ''}\n发布时间: ${article.publish_date}\n\n正文:\n${contentSnippet}`;
                 const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
 
                 try {
-                    // Use Extraction Model via Wrapper
                     const text = await callLlm([{ role: 'user', content: fullPrompt }]);
                     const items = extractJsonArray(text);
                     
@@ -245,7 +201,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                             status: item.status || '未知',
                             original_url: item.original_url || article.original_url || '',
                             sourceArticleTitle: article.title,
-                            isSelected: true, // Default selected for next step
+                            isSelected: true, 
                             analysisState: 'idle'
                         }));
                         
@@ -264,9 +220,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     };
 
     // --- Phase 2: Generation ---
-    // User selected items from TechList, now we generate deep analysis for them sequentially.
     const startGeneration = async () => {
-        // 1. Filter: Keep ONLY selected items
         const selectedList = techList.filter(t => t.isSelected);
         
         if (selectedList.length === 0) {
@@ -274,16 +228,11 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             return;
         }
 
-        // Update state to remove unselected items immediately
         setTechList(selectedList);
 
-        // 2. Identify items that actually need processing (skip done/processing)
         const itemsToProcess = selectedList.filter(t => t.analysisState !== 'done' && t.analysisState !== 'generating_html');
 
-        if (itemsToProcess.length === 0) {
-             // All selected are already done, nothing to do
-             return;
-        }
+        if (itemsToProcess.length === 0) return;
 
         setIsGenerating(true);
 
@@ -297,11 +246,9 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         }
 
         for (const item of itemsToProcess) {
-            // Update UI to show analyzing
             setTechList(prev => prev.map(t => t.id === item.id ? { ...t, analysisState: 'analyzing', logs: ['开始深度分析...'] } : t));
 
             try {
-                // --- Step 2.1: RAG Search ---
                 setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), '正在检索背景资料...'] } : t));
                 
                 const queryText = `${item.name} ${item.description}`;
@@ -321,10 +268,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     }
                 } catch(e) { console.warn("RAG failed", e); }
                 
-                // Update log with RAG count
                 setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), `RAG 检索完成: 找到 ${retrievedCount} 条相关资料`] } : t));
-
-                // --- Step 2.2: Generate Markdown Report ---
                 setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), 'AI 正在撰写报告...'] } : t));
                 
                 let filledReportPrompt = reportPrompt.content
@@ -332,7 +276,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     .replace('{{ tech_info }}', item.description)
                     .replace('{{ retrieved_info }}', retrievedInfo);
 
-                // Use Analysis Model with Streaming
                 let accumulatedMarkdown = "";
                 const reportMd = await callLlm(
                     [{ role: 'user', content: filledReportPrompt }],
@@ -344,7 +287,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 
                 if (!reportMd) throw new Error("报告生成返回空");
                 
-                // Transition to review/html generation state (automatic)
                 setTechList(prev => prev.map(t => t.id === item.id ? { 
                     ...t, 
                     markdownContent: reportMd,
@@ -352,10 +294,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     logs: [...(t.logs||[]), '报告撰写完成，正在生成可视化 HTML...']
                 } : t));
 
-                // --- Step 2.3: Generate HTML ---
                 const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', reportMd);
                 
-                // Use HTML Model with Streaming
                 let accumulatedHtmlCode = "";
                 const rawHtml = await callLlm(
                     [{ role: 'user', content: filledHtmlPrompt }],
@@ -367,10 +307,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 
                 if (!rawHtml) throw new Error("HTML 生成返回空");
                 
-                // Extract clean HTML using robust helper
                 const cleanHtml = extractCleanHtml(rawHtml);
 
-                // Finalize
                 setTechList(prev => prev.map(t => t.id === item.id ? { 
                     ...t, 
                     htmlContent: cleanHtml,
@@ -407,14 +345,13 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setTechList(prev => prev.map(t => t.id === item.id ? { 
             ...t, 
             analysisState: 'generating_html', 
-            htmlCode: '', // Clear previous code
+            htmlCode: '', 
             logs: [...(t.logs||[]), '正在重新生成 HTML...'] 
         } : t));
 
         try {
             const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', item.markdownContent);
             
-            // Use HTML Model with Streaming
             let accumulatedHtmlCode = "";
             const rawHtml = await callLlm(
                 [{ role: 'user', content: filledHtmlPrompt }],
@@ -426,7 +363,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             
             if (!rawHtml) throw new Error("HTML 生成返回空");
             
-            // Extract clean HTML using robust helper
             const cleanHtml = extractCleanHtml(rawHtml);
 
             setTechList(prev => prev.map(t => t.id === item.id ? { 
@@ -460,9 +396,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 isGenerating={isGenerating}
                 onStartGeneration={startGeneration}
                 prompts={prompts}
-                modelConfig={modelConfig}
-                onModelConfigChange={handleModelConfigChange}
-                availableModels={AVAILABLE_MODELS}
                 onRegenerateHtml={regenerateHtml}
             />
 
