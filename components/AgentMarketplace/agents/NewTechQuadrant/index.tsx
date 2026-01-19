@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ArticleSelectionStep } from './ArticleSelectionStep';
 import { AnalysisWorkspace } from './AnalysisWorkspace';
@@ -31,8 +32,8 @@ export interface ExtractionProgress {
 }
 
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
-// ⚡️ Changed back to Zhipu GLM-4.5-Flash
-const TARGET_MODEL = 'zhipu@glm-4.5-flash';
+// 默认兜底模型，仅在提示词未配置时使用
+const FALLBACK_MODEL = 'zhipu@glm-4.5-flash';
 
 // Helper: Robustly extract JSON array from text
 const extractJsonArray = (text: string): any[] | null => {
@@ -156,13 +157,13 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }, []);
 
     // Unified LLM Call Helper
-    const callLlm = async (messages: any[], onChunk?: (text: string) => void): Promise<string> => {
+    const callLlm = async (model: string, messages: any[], onChunk?: (text: string) => void): Promise<string> => {
         let fullText = "";
         await streamChatCompletions({
-            model: TARGET_MODEL,
+            model: model,
             messages: messages,
             stream: true,
-            enable_billing: false, // ⚡️ explicitly disable billing
+            enable_billing: false,
             temperature: 0.1 
         }, (data) => {
             if (data.content) {
@@ -171,6 +172,15 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             }
         });
         return fullText;
+    };
+
+    // 获取提示词配置的模型路径
+    const getModelFromPrompt = (promptName: string): string => {
+        const p = prompts.find(item => item.name === promptName);
+        if (p && p.channel_code && p.model_id) {
+            return `${p.channel_code}@${p.model_id}`;
+        }
+        return FALLBACK_MODEL;
     };
 
     // --- Phase 1: Extraction ---
@@ -185,17 +195,18 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setExtractionProgress({ current: 0, total: articles.length, currentTitle: '' });
         
         try {
-            const extractPrompt = prompts.find(p => p.name === '新技术识别提示词');
+            const promptName = '新技术识别提示词';
+            const extractPrompt = prompts.find(p => p.name === promptName);
             if (!extractPrompt || !extractPrompt.content) {
-                alert("未找到'新技术识别提示词'，请联系管理员。");
+                alert(`未找到'${promptName}'，请联系管理员。`);
                 setIsExtracting(false);
                 return;
             }
 
+            const model = getModelFromPrompt(promptName);
+
             for (let i = 0; i < articles.length; i++) {
                 const article = articles[i];
-                
-                // 更新进度状态
                 setExtractionProgress({
                     current: i + 1,
                     total: articles.length,
@@ -207,7 +218,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
 
                 try {
-                    const text = await callLlm([{ role: 'user', content: fullPrompt }]);
+                    const text = await callLlm(model, [{ role: 'user', content: fullPrompt }]);
                     const items = extractJsonArray(text);
                     
                     if (items && Array.isArray(items)) {
@@ -255,14 +266,19 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
         setIsGenerating(true);
 
-        const reportPrompt = prompts.find(p => p.name === '新技术四象限编写');
-        const htmlPrompt = prompts.find(p => p.name === '新技术四象限html生成');
+        const reportPromptName = '新技术四象限编写';
+        const htmlPromptName = '新技术四象限html生成';
+        const reportPrompt = prompts.find(p => p.name === reportPromptName);
+        const htmlPrompt = prompts.find(p => p.name === htmlPromptName);
 
         if (!reportPrompt || !htmlPrompt) {
             alert("缺少必要的提示词配置 (编写/HTML生成)");
             setIsGenerating(false);
             return;
         }
+
+        const reportModel = getModelFromPrompt(reportPromptName);
+        const htmlModel = getModelFromPrompt(htmlPromptName);
 
         for (const item of itemsToProcess) {
             setTechList(prev => prev.map(t => t.id === item.id ? { ...t, analysisState: 'analyzing', logs: ['开始深度分析...'] } : t));
@@ -297,6 +313,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
                 let accumulatedMarkdown = "";
                 const reportMd = await callLlm(
+                    reportModel,
                     [{ role: 'user', content: filledReportPrompt }],
                     (chunk) => {
                         accumulatedMarkdown += chunk;
@@ -317,6 +334,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 
                 let accumulatedHtmlCode = "";
                 const rawHtml = await callLlm(
+                    htmlModel,
                     [{ role: 'user', content: filledHtmlPrompt }],
                     (chunk) => {
                         accumulatedHtmlCode += chunk;
@@ -355,11 +373,14 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             return;
         }
 
-        const htmlPrompt = prompts.find(p => p.name === '新技术四象限html生成');
+        const promptName = '新技术四象限html生成';
+        const htmlPrompt = prompts.find(p => p.name === promptName);
         if (!htmlPrompt) {
             alert("未找到 HTML 生成提示词");
             return;
         }
+
+        const htmlModel = getModelFromPrompt(promptName);
 
         setTechList(prev => prev.map(t => t.id === item.id ? { 
             ...t, 
@@ -373,6 +394,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             
             let accumulatedHtmlCode = "";
             const rawHtml = await callLlm(
+                htmlModel,
                 [{ role: 'user', content: filledHtmlPrompt }],
                 (chunk) => {
                     accumulatedHtmlCode += chunk;
