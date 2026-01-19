@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import VisualEditor from '../../../../components/shared/VisualEditor';
 import { 
     DownloadIcon, RefreshIcon, ArrowLeftIcon, 
-    PencilIcon, PhotoIcon, DuplicateIcon
+    PencilIcon, PhotoIcon, DuplicateIcon, CodeIcon,
+    ClipboardIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import { toBlob } from 'html-to-image';
@@ -57,6 +58,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
     const [html, setHtml] = useState(DEFAULT_TEMPLATE);
     const [isExporting, setIsExporting] = useState(false);
     const [scale, setScale] = useState(0.5);
+    const [isPasting, setIsPasting] = useState(false);
 
     // Auto-fit scale on mount
     useEffect(() => {
@@ -74,7 +76,6 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
     const handleDownloadPdf = async () => {
         setIsExporting(true);
         try {
-            // 按照要求，导出时传入默认 1600 * 900 尺寸
             const blob = await generatePdf(html, `visual_design_${new Date().getTime()}`, { 
                 width: 1600, 
                 height: 900 
@@ -89,6 +90,23 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
             alert('PDF 导出失败');
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    const handlePasteHtml = async () => {
+        setIsPasting(true);
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text && (text.includes('<html') || text.includes('<div') || text.includes('<section'))) {
+                setHtml(text);
+                alert('已从剪贴板成功载入 HTML 结构');
+            } else {
+                alert('剪贴板中未检测到有效的 HTML 代码');
+            }
+        } catch (err) {
+            alert('读取剪贴板失败，请确保已授予权限');
+        } finally {
+            setIsPasting(false);
         }
     };
 
@@ -114,10 +132,17 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="hidden lg:flex items-center gap-2 text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200 mr-2">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                        实时自动保存
-                    </div>
+                    <button 
+                        onClick={handlePasteHtml}
+                        disabled={isPasting}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-indigo-600 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                        title="从剪贴板读取并覆盖当前 HTML"
+                    >
+                        {isPasting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <ClipboardIcon className="w-3.5 h-3.5" />}
+                        <span>粘贴代码更新</span>
+                    </button>
+
+                    <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block"></div>
 
                     <button 
                         onClick={handleDownloadPdf}

@@ -56,8 +56,6 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { 
         outline: 2px solid #3b82f6 !important; 
         outline-offset: 0px; 
-        /* Ensure specific z-index is respected by not forcing it here unless needed for visibility */
-        /* position: relative;  <-- Don't force this globally, handled in logic */
     }
     
     /* Hover Effect */
@@ -438,7 +436,7 @@ const EDITOR_SCRIPT = `
       }
   }
 
-  // --- Recursive Scale Logic (FIXED) ---
+  // --- Recursive Scale Logic ---
   function scaleElementRecursive(el, factor) {
       if (!el || el.nodeType !== 1) return;
       const style = window.getComputedStyle(el);
@@ -492,7 +490,8 @@ const EDITOR_SCRIPT = `
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              wrapper.style.position = 'absolute';
-             wrapper.style.left = '100px'; top = '100px';
+             wrapper.style.left = '100px'; 
+             wrapper.style.top = '100px';
              wrapper.style.width = '300px';
              wrapper.style.zIndex = '50';
              
@@ -538,27 +537,17 @@ const EDITOR_SCRIPT = `
         pushHistory(); 
     }
     else if (action === 'LAYER') {
-        // Robust Layer Adjustment Logic
         const style = window.getComputedStyle(selectedEl);
-        
-        // 1. Force position if currently static
         if (style.position === 'static') {
             selectedEl.style.setProperty('position', 'relative', 'important');
         }
-        
-        // 2. Parse current Z-Index (handle 'auto')
         let currentZ = 0;
         if (style.zIndex !== 'auto') {
             const parsed = parseInt(style.zIndex, 10);
             if (!isNaN(parsed)) currentZ = parsed;
         }
-
-        // 3. Calculate new Z-Index
         const newZ = value === 'up' ? currentZ + 1 : currentZ - 1;
-        
-        // 4. Apply
         selectedEl.style.setProperty('z-index', newZ.toString(), 'important');
-        
         pushHistory();
     }
     else if (action === 'UPDATE_TRANSFORM') {
