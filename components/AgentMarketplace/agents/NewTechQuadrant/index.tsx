@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ArticleSelectionStep } from './ArticleSelectionStep';
 import { AnalysisWorkspace } from './AnalysisWorkspace';
@@ -26,10 +25,11 @@ export interface TechItem {
 }
 
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
-const TARGET_MODEL = 'zhipu@glm-4.5-flash';
+// ⚡️ Changed to free model as requested
+const TARGET_MODEL = 'openrouter@xiaomi/mimo-v2-flash:free';
 
 export const AVAILABLE_MODELS = [
-    { label: 'GLM-4.5 Flash (Zhipu)', value: TARGET_MODEL },
+    { label: 'Mimo V2 Flash (Free)', value: TARGET_MODEL },
 ];
 
 export interface ModelConfig {
@@ -197,7 +197,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             model: TARGET_MODEL,
             messages: messages,
             stream: true,
-            enable_billing: false, // Explicitly disable billing
+            enable_billing: false, // ⚡️ Explicitly disable billing as requested
             temperature: 0.1 // Low temp for analysis tasks
         }, (data) => {
             if (data.content) {

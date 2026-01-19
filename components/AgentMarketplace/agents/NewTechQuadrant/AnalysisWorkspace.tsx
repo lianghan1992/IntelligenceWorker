@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { TechItem, ModelConfig } from './index';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
@@ -139,7 +138,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
          }
     };
     
-    const handleCopyContent = (e: React.MouseEvent, content: string, label: string) => {
+    const handleCopyContent = (e: React.MouseEvent | React.UIEvent, content: string, label: string) => {
         e.stopPropagation();
         e.preventDefault();
         if (!content) return;
@@ -381,6 +380,16 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                          {activeItem.name} - 分析报告
                                      </div>
                                      <div className="flex items-center gap-3">
+                                         {/* ⚡️ Added Copy Markdown Button */}
+                                         {activeItem.markdownContent && (
+                                             <button 
+                                                 onClick={(e) => handleCopyContent(e, activeItem.markdownContent!, '分析报告')}
+                                                 className="px-3 py-1.5 bg-slate-700 text-slate-200 hover:bg-slate-600 rounded-lg text-xs font-bold transition-all border border-slate-600 flex items-center gap-1.5"
+                                             >
+                                                 <DocumentTextIcon className="w-3.5 h-3.5"/>
+                                                 复制内容 (Markdown)
+                                             </button>
+                                         )}
                                          <button 
                                              onClick={handleDownload}
                                              disabled={isDownloading}
@@ -410,18 +419,29 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                              <div className="flex flex-col h-full p-8 overflow-y-auto custom-scrollbar">
                                  <div className="max-w-3xl mx-auto w-full space-y-6">
                                      {/* Header Card */}
-                                     <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm">
-                                         <div className="flex items-center gap-4 mb-6">
-                                             <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
-                                                 <DatabaseIcon className="w-8 h-8" />
+                                     <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm relative overflow-hidden">
+                                         <div className="flex items-center justify-between gap-4 mb-6">
+                                             <div className="flex items-center gap-4">
+                                                <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                                                    <DatabaseIcon className="w-8 h-8" />
+                                                </div>
+                                                <div>
+                                                    <h2 className="text-2xl font-extrabold text-slate-800">{activeItem.name}</h2>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase">{activeItem.field}</span>
+                                                        {activeItem.sourceArticleTitle && <span className="text-xs text-slate-400">Ref: {activeItem.sourceArticleTitle}</span>}
+                                                    </div>
+                                                </div>
                                              </div>
-                                             <div>
-                                                 <h2 className="text-2xl font-extrabold text-slate-800">{activeItem.name}</h2>
-                                                 <div className="flex items-center gap-2 mt-1">
-                                                     <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase">{activeItem.field}</span>
-                                                     {activeItem.sourceArticleTitle && <span className="text-xs text-slate-400">Ref: {activeItem.sourceArticleTitle}</span>}
-                                                 </div>
-                                             </div>
+                                             {/* ⚡️ Copy button for streaming markdown */}
+                                             {activeItem.markdownDetail && (
+                                                 <button 
+                                                     onClick={(e) => handleCopyContent(e, activeItem.markdownDetail!, '报告正文')}
+                                                     className="px-3 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-bold border border-slate-200 transition-all flex items-center gap-1.5"
+                                                 >
+                                                     <DocumentTextIcon className="w-3.5 h-3.5"/> 复制正文
+                                                 </button>
+                                             )}
                                          </div>
 
                                          <div className="space-y-6">
