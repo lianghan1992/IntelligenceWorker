@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DeepInsightTask, DeepInsightPage } from '../../../types';
 import { 
     getDeepInsightTask, 
@@ -8,7 +8,8 @@ import {
     getDeepInsightTaskStatus,
     fetchDeepInsightCover,
     regenerateDeepInsightSummary,
-    regenerateDeepInsightCover
+    regenerateDeepInsightCover,
+    fetchDeepInsightPageImage
 } from '../../../api';
 import { ChevronLeftIcon, RefreshIcon, DownloadIcon, DocumentTextIcon, PhotoIcon, SparklesIcon } from '../../icons';
 
@@ -38,6 +39,45 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         failed: '失败'
     };
     return <span className={`px-2 py-0.5 rounded text-xs font-medium ${styles[status] || 'bg-gray-100'}`}>{labels[status] || status}</span>;
+};
+
+// Admin Page Preview Component (Simplified Lazy Load)
+const AdminPageThumbnail: React.FC<{ docId: string; pageIndex: number }> = ({ docId, pageIndex }) => {
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [isVisible, setIsVisible] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(([entry]) => {
+            if (entry.isIntersecting) {
+                setIsVisible(true);
+                observer.disconnect();
+            }
+        });
+        if (ref.current) observer.observe(ref.current);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (!isVisible) return;
+        let active = true;
+        
+        fetchDeepInsightPageImage(docId, pageIndex).then(url => {
+            if (active && url) setImageUrl(url);
+        });
+
+        return () => { active = false; if(imageUrl) URL.revokeObjectURL(imageUrl); }
+    }, [isVisible, docId, pageIndex]);
+
+    return (
+        <div ref={ref} className="w-full h-full flex items-center justify-center bg-gray-100">
+            {imageUrl ? (
+                <img src={imageUrl} alt={`Page ${pageIndex}`} className="w-full h-full object-contain" loading="lazy"/>
+            ) : (
+                <DocumentTextIcon className="w-8 h-8 text-gray-300 opacity-50" />
+            )}
+        </div>
+    );
 };
 
 export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
@@ -238,16 +278,14 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                         {pages.map((page) => (
                             <div key={page.id} className="bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all">
-                                <div className="aspect-[3/4] bg-gray-100 relative overflow-hidden border-b flex items-center justify-center">
-                                    <DocumentTextIcon className="w-12 h-12 text-gray-300 opacity-50" />
+                                <div className="aspect-[3/4] bg-gray-50 relative overflow-hidden border-b flex items-center justify-center">
+                                    <AdminPageThumbnail docId={taskId} pageIndex={page.page_index} />
+                                    
                                     <div className="absolute bottom-2 left-0 right-0 text-center">
-                                        <span className="text-xs font-mono text-gray-400 bg-white/80 px-2 py-0.5 rounded backdrop-blur-sm">
+                                        <span className="text-xs font-mono text-gray-500 bg-white/90 px-2 py-0.5 rounded backdrop-blur-sm border shadow-sm">
                                             Page {page.page_index}
                                         </span>
                                     </div>
-                                </div>
-                                <div className="p-2 bg-white text-center">
-                                     <span className="text-xs text-gray-400">预览图暂未生成</span>
                                 </div>
                             </div>
                         ))}

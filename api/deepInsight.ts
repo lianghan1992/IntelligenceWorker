@@ -68,7 +68,7 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
             id: doc.uuid, // Use uuid as id
             file_name: doc.original_filename,
             file_type: doc.mime_type ? (doc.mime_type === 'application/pdf' ? 'PDF' : doc.mime_type.split('/')[1].toUpperCase()) : 'FILE',
-            // Fix: Backend returns size in KB, convert to Bytes for frontend formatter
+            // Backend returns KB, convert to Bytes for frontend consistency
             file_size: (doc.file_size || 0) * 1024,
             status: doc.status,
             total_pages: doc.page_count || 0,
@@ -106,7 +106,7 @@ export const getDeepInsightTasksLight = async (params: any): Promise<{ items: De
             id: doc.id,
             file_name: doc.title,
             file_type: doc.mime_type ? (doc.mime_type === 'application/pdf' ? 'PDF' : 'DOC') : 'FILE',
-            // Fix: Backend returns size in KB, convert to Bytes for frontend formatter
+            // Backend returns KB, convert to Bytes for frontend consistency
             file_size: (doc.file_size || 0) * 1024,
             status: doc.status,
             total_pages: doc.page_count || 0, // Map page_count to total_pages
@@ -137,7 +137,7 @@ export const getDeepInsightTask = async (taskId: string): Promise<DeepInsightTas
         id: doc.uuid,
         file_name: doc.original_filename,
         file_type: 'PDF', // Assuming PDF for now, backend detects type
-        // Fix: Backend returns size in KB, convert to Bytes
+        // Backend returns KB, convert to Bytes
         file_size: (doc.file_size || 0) * 1024,
         status: doc.status,
         total_pages: doc.page_count,

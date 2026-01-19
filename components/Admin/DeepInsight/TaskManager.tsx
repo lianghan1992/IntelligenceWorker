@@ -29,6 +29,15 @@ const WhiteSpinner: React.FC = () => (
     </svg>
 );
 
+const formatBytes = (bytes?: number, decimals = 2) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const styles: any = {
@@ -254,7 +263,7 @@ export const TaskManager: React.FC = () => {
                                 onClick={() => executeBatchAction('summary')}
                                 disabled={isBatchProcessing}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-200"
-                             >
+                            >
                                 {isBatchProcessing && batchActionType === 'summary' ? <Spinner /> : <SparklesIcon className="w-3.5 h-3.5" />}
                                 生成摘要
                              </button>
@@ -263,7 +272,7 @@ export const TaskManager: React.FC = () => {
                                 onClick={() => executeBatchAction('cover')}
                                 disabled={isBatchProcessing}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors border border-purple-200"
-                             >
+                            >
                                 {isBatchProcessing && batchActionType === 'cover' ? <Spinner /> : <PhotoIcon className="w-3.5 h-3.5" />}
                                 生成封面
                              </button>
@@ -272,7 +281,7 @@ export const TaskManager: React.FC = () => {
                                 onClick={() => setConfirmBatchDelete(true)}
                                 disabled={isBatchProcessing}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors border border-red-200"
-                             >
+                            >
                                 {isBatchProcessing && batchActionType === 'delete' ? <Spinner /> : <TrashIcon className="w-3.5 h-3.5" />}
                                 批量删除
                              </button>
@@ -329,6 +338,7 @@ export const TaskManager: React.FC = () => {
                                 <th className="px-6 py-3 w-16">封面</th>
                                 <th className="px-6 py-3">文件名称</th>
                                 <th className="px-6 py-3">类型</th>
+                                <th className="px-6 py-3">文件大小</th>
                                 <th className="px-6 py-3">状态</th>
                                 <th className="px-6 py-3">进度</th>
                                 <th className="px-6 py-3">上传时间</th>
@@ -337,7 +347,7 @@ export const TaskManager: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {!isLoading && tasks.length === 0 ? (
-                                <tr><td colSpan={8} className="text-center py-10 text-gray-400">暂无任务</td></tr>
+                                <tr><td colSpan={9} className="text-center py-10 text-gray-400">暂无任务</td></tr>
                             ) : (
                                 tasks.map(task => (
                                     <tr 
@@ -361,6 +371,7 @@ export const TaskManager: React.FC = () => {
                                             {task.file_name}
                                         </td>
                                         <td className="px-6 py-4 uppercase">{task.file_type}</td>
+                                        <td className="px-6 py-4 font-mono text-xs">{formatBytes(task.file_size)}</td>
                                         <td className="px-6 py-4"><StatusBadge status={task.status} /></td>
                                         <td className="px-6 py-4">
                                             {task.total_pages > 0 
