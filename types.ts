@@ -1,4 +1,3 @@
-
 export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'marketplace' | 'admin';
 
 export interface User {

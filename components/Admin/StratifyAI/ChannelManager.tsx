@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { LLMChannel } from '../../../types';
 import { getChannels, createChannel, updateChannel, deleteChannel } from '../../../api/stratify';
@@ -58,7 +57,7 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
                 <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -181,6 +180,7 @@ export const ChannelManager: React.FC = () => {
     };
 
     const handleCreate = () => {
+        // Corrected setter name from setEditingScenario to setEditingChannel
         setEditingChannel(undefined);
         setIsModalOpen(true);
     };

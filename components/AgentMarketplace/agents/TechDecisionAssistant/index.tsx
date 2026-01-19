@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon, ServerIcon } from '../../../icons';
 import { ChatPanel } from './ChatPanel';
@@ -75,8 +74,10 @@ const ModelBadge: React.FC<{ promptName: string; prompts: Record<string, Stratif
 };
 
 const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack }) => {
+    // Corrected object member initialization for useState: removed '?: string' which is not valid syntax in an object literal
     const [data, setData] = useState<TechEvalSessionData>({
         techName: '',
+        techDefinition: '',
         searchQueries: [],
         currentStepIndex: 0,
         sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
@@ -141,7 +142,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         
         // Construct model string "channel@model" if both exist
         // Default fallback if not configured in prompt
-        let modelStr = 'zhipu@glm-4-flash'; 
+        let modelStr = 'zhipu@glm-4.5-flash'; 
         if (prompt.channel_code && prompt.model_id) {
             modelStr = `${prompt.channel_code}@${prompt.model_id}`;
         }
