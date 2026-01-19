@@ -7,9 +7,11 @@ import {
     getDeepInsightCategories,
     getDeepInsightTasksStats,
     deleteDeepInsightTask,
-    fetchDeepInsightCover
+    fetchDeepInsightCover,
+    regenerateDeepInsightSummary,
+    regenerateDeepInsightCover
 } from '../../../api';
-import { PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon } from '../../icons';
+import { PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon, SparklesIcon, PhotoIcon, CheckCircleIcon } from '../../icons';
 import { TaskDetail } from './TaskDetail';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -19,6 +21,14 @@ const Spinner: React.FC = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+const WhiteSpinner: React.FC = () => (
+    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const styles: any = {
@@ -68,6 +78,12 @@ export const TaskManager: React.FC = () => {
     const [uploadCategoryId, setUploadCategoryId] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Multi-select & Batch Actions State
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const [batchActionType, setBatchActionType] = useState<'delete' | 'summary' | 'cover' | null>(null);
+    const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+
     const fetchStats = useCallback(async () => {
         try {
             const data = await getDeepInsightTasksStats();
@@ -88,6 +104,7 @@ export const TaskManager: React.FC = () => {
             } else {
                 setTasks([]);
             }
+            setSelectedIds(new Set()); // Reset selection on fetch
         } catch (err: any) {
             console.warn("Fetch tasks warning:", err);
             setError(err.message || '获取任务列表失败');
@@ -142,6 +159,56 @@ export const TaskManager: React.FC = () => {
         setViewState('detail');
     };
 
+    // --- Multi-select Logic ---
+    const toggleSelectAll = () => {
+        if (selectedIds.size === tasks.length && tasks.length > 0) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(tasks.map(t => t.id)));
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        const newSet = new Set(selectedIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedIds(newSet);
+    };
+
+    // --- Batch Action Handlers ---
+    const executeBatchAction = async (action: 'summary' | 'cover' | 'delete') => {
+        if (selectedIds.size === 0) return;
+        
+        setIsBatchProcessing(true);
+        setBatchActionType(action);
+        const ids = Array.from(selectedIds);
+        
+        try {
+            if (action === 'delete') {
+                // Delete actions loop
+                // Since API is singular, we loop. Ideally backend supports batch.
+                const promises = ids.map(id => deleteDeepInsightTask(id));
+                await Promise.all(promises);
+                alert(`成功删除 ${ids.length} 个任务`);
+                setConfirmBatchDelete(false);
+            } else if (action === 'summary') {
+                const promises = ids.map(id => regenerateDeepInsightSummary(id));
+                await Promise.all(promises);
+                alert(`已触发 ${ids.length} 个任务的摘要重新生成`);
+            } else if (action === 'cover') {
+                const promises = ids.map(id => regenerateDeepInsightCover(id));
+                await Promise.all(promises);
+                alert(`已触发 ${ids.length} 个任务的封面重新生成`);
+            }
+            fetchTasks(); // Refresh list
+        } catch (e: any) {
+            alert(`批量操作部分失败: ${e.message}`);
+        } finally {
+            setIsBatchProcessing(false);
+            setBatchActionType(null);
+        }
+    };
+
     if (viewState === 'detail' && selectedTaskId) {
         return <TaskDetail taskId={selectedTaskId} onBack={() => { setViewState('list'); setSelectedTaskId(null); fetchTasks(); }} />;
     }
@@ -177,29 +244,66 @@ export const TaskManager: React.FC = () => {
             {/* Toolbar */}
             <div className="bg-white p-4 rounded-lg border mb-4 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <select 
-                        value={uploadCategoryId} 
-                        onChange={e => setUploadCategoryId(e.target.value)}
-                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 min-w-[150px]"
-                    >
-                        <option value="">选择分类 (可选)</option>
-                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleUpload} 
-                        className="hidden" 
-                        accept=".pdf,.ppt,.pptx"
-                    />
-                    <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                        className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2 disabled:bg-blue-300 transition-colors w-full sm:w-auto justify-center"
-                    >
-                        {isUploading ? <Spinner /> : <PlusIcon className="w-4 h-4" />}
-                        上传文档 (PDF/PPT)
-                    </button>
+                    {selectedIds.size > 0 ? (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                             <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-100 mr-2">
+                                已选 {selectedIds.size} 项
+                             </div>
+                             
+                             <button 
+                                onClick={() => executeBatchAction('summary')}
+                                disabled={isBatchProcessing}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-200"
+                             >
+                                {isBatchProcessing && batchActionType === 'summary' ? <Spinner /> : <SparklesIcon className="w-3.5 h-3.5" />}
+                                生成摘要
+                             </button>
+                             
+                             <button 
+                                onClick={() => executeBatchAction('cover')}
+                                disabled={isBatchProcessing}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors border border-purple-200"
+                             >
+                                {isBatchProcessing && batchActionType === 'cover' ? <Spinner /> : <PhotoIcon className="w-3.5 h-3.5" />}
+                                生成封面
+                             </button>
+                             
+                             <button 
+                                onClick={() => setConfirmBatchDelete(true)}
+                                disabled={isBatchProcessing}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors border border-red-200"
+                             >
+                                {isBatchProcessing && batchActionType === 'delete' ? <Spinner /> : <TrashIcon className="w-3.5 h-3.5" />}
+                                批量删除
+                             </button>
+                        </div>
+                    ) : (
+                        <>
+                            <select 
+                                value={uploadCategoryId} 
+                                onChange={e => setUploadCategoryId(e.target.value)}
+                                className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 min-w-[150px]"
+                            >
+                                <option value="">选择分类 (可选)</option>
+                                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleUpload} 
+                                className="hidden" 
+                                accept=".pdf,.ppt,.pptx"
+                            />
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading}
+                                className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2 disabled:bg-blue-300 transition-colors w-full sm:w-auto justify-center"
+                            >
+                                {isUploading ? <WhiteSpinner /> : <PlusIcon className="w-4 h-4" />}
+                                上传文档 (PDF/PPT)
+                            </button>
+                        </>
+                    )}
                 </div>
                 <button onClick={fetchTasks} className="p-2.5 bg-white border rounded-lg hover:bg-gray-100 text-gray-600" title="刷新列表">
                     <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -212,8 +316,16 @@ export const TaskManager: React.FC = () => {
             <div className="flex-1 bg-white rounded-lg border shadow-sm overflow-hidden flex flex-col">
                 <div className="overflow-y-auto flex-1">
                     <table className="w-full text-sm text-left text-gray-500">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 border-b z-10">
                             <tr>
+                                <th className="px-4 py-3 w-10 text-center">
+                                    <input 
+                                        type="checkbox" 
+                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        checked={tasks.length > 0 && selectedIds.size === tasks.length}
+                                        onChange={toggleSelectAll}
+                                    />
+                                </th>
                                 <th className="px-6 py-3 w-16">封面</th>
                                 <th className="px-6 py-3">文件名称</th>
                                 <th className="px-6 py-3">类型</th>
@@ -223,12 +335,24 @@ export const TaskManager: React.FC = () => {
                                 <th className="px-6 py-3 text-center">操作</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-gray-100">
                             {!isLoading && tasks.length === 0 ? (
-                                <tr><td colSpan={7} className="text-center py-10 text-gray-400">暂无任务</td></tr>
+                                <tr><td colSpan={8} className="text-center py-10 text-gray-400">暂无任务</td></tr>
                             ) : (
                                 tasks.map(task => (
-                                    <tr key={task.id} className="bg-white border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleTaskClick(task.id)}>
+                                    <tr 
+                                        key={task.id} 
+                                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${selectedIds.has(task.id) ? 'bg-indigo-50/40' : ''}`}
+                                        onClick={() => handleTaskClick(task.id)}
+                                    >
+                                        <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                            <input 
+                                                type="checkbox" 
+                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                checked={selectedIds.has(task.id)}
+                                                onChange={() => toggleSelect(task.id)}
+                                            />
+                                        </td>
                                         <td className="px-6 py-3">
                                             {/* Try to show thumbnail even if not completed, might fall back to icon */}
                                             <TaskThumbnail taskId={task.id} />
@@ -276,6 +400,20 @@ export const TaskManager: React.FC = () => {
                     message="确定要删除此任务及其所有处理数据吗？此操作不可撤销。"
                     onConfirm={handleDelete}
                     onCancel={() => setDeleteId(null)}
+                    confirmText="删除"
+                    variant="destructive"
+                />
+            )}
+            
+            {confirmBatchDelete && (
+                <ConfirmationModal
+                    title="批量删除任务"
+                    message={`确定要删除选中的 ${selectedIds.size} 个任务吗？所有相关数据将永久丢失。`}
+                    onConfirm={() => executeBatchAction('delete')}
+                    onCancel={() => setConfirmBatchDelete(false)}
+                    confirmText={`确认删除 ${selectedIds.size} 项`}
+                    variant="destructive"
+                    isLoading={isBatchProcessing && batchActionType === 'delete'}
                 />
             )}
         </div>

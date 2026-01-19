@@ -181,7 +181,8 @@ const ReportCard: React.FC<{
     task: DeepInsightTask; 
     categoryName: string;
     onRead: () => void;
-}> = ({ task, categoryName, onRead }) => {
+    index: number;
+}> = ({ task, categoryName, onRead, index }) => {
     const isCompleted = ['completed', 'finished', 'success'].includes(task.status.toLowerCase());
     
     // Deterministic gradient based on id
@@ -198,7 +199,13 @@ const ReportCard: React.FC<{
     }, [task.id]);
 
     return (
-        <article className="group flex flex-col bg-white rounded-xl border border-slate-200 overflow-visible hover:border-blue-300/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/5 h-full relative z-0 hover:z-10">
+        <article 
+            className="group flex flex-col bg-white rounded-xl border border-slate-200 overflow-visible hover:border-blue-300/50 transition-all duration-500 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/5 h-full relative z-0 hover:z-10 animate-in fade-in slide-in-from-bottom-4"
+            style={{ 
+                animationDelay: `${index * 80}ms`,
+                animationFillMode: 'both' 
+            }}
+        >
             {/* Cover Area */}
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-100 rounded-t-xl group-cursor-pointer" onClick={isCompleted ? onRead : undefined}>
                 {coverUrl ? (
@@ -350,9 +357,6 @@ export const DeepDives: React.FC = () => {
                 page, 
                 category_name: selectedCategoryName || undefined, // Use name as per new API spec
                 // Light API doesn't support generic search yet in standard params, assuming keyword is for filtering logic if backend supports it.
-                // If not, we might need to filter client side or use the heavier API if search is needed.
-                // Assuming light API supports basic filtering or we ignore search for now in light mode.
-                // For now, let's assume no keyword search support in light API, or add it if needed.
             });
             
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
@@ -525,12 +529,13 @@ export const DeepDives: React.FC = () => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {sortedTasks.map((task) => {
+                            {sortedTasks.map((task, index) => {
                                 // Light API returns point_name as category_name directly
                                 const categoryName = task.category_name || '未分类';
                                 return (
                                     <ReportCard
                                         key={task.id}
+                                        index={index}
                                         task={task}
                                         categoryName={categoryName}
                                         onRead={() => setReaderTask(task)}
