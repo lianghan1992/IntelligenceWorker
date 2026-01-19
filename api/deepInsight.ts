@@ -107,14 +107,14 @@ export const getDeepInsightTasksLight = async (params: any): Promise<{ items: De
             file_type: doc.mime_type ? (doc.mime_type === 'application/pdf' ? 'PDF' : 'DOC') : 'FILE',
             file_size: doc.file_size || 0,
             status: doc.status,
-            total_pages: doc.page_count || 0,
+            total_pages: doc.page_count || 0, // Map page_count to total_pages
             processed_pages: doc.status === 'completed' ? (doc.page_count || 0) : 0, // Assume all pages processed if completed
             category_id: '', // Light API returns point_name, not ID
             category_name: doc.point_name,
             created_at: doc.publish_date || new Date().toISOString(),
             updated_at: doc.publish_date || new Date().toISOString(),
-            summary: '', // Not provided
-            cover_image: doc.cover_url_template // Optional: can be used for lazy loading logic if we changed it, but fetchCover API works by ID too.
+            summary: '', // Not provided in light list
+            cover_image: doc.cover_url_template // Optional: can be used for lazy loading
         }));
 
         return {
