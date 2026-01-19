@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions, createSession } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
@@ -187,6 +188,7 @@ export const AIChatPanel: React.FC<{
                 ? retrievedItems.map((item, idx) => `[资料${idx + 1}] ${item.title}: ${item.content}`).join('\n\n')
                 : "（未找到直接相关资料，请基于已有知识库回答）";
 
+            // Fix: Replace undefined variable 'currentMessagePayload' with 'currentInput'
             await streamChatCompletions({
                 model: MODEL_ID,
                 messages: [

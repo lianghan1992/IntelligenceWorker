@@ -31,7 +31,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
     
     // Copilot Expand/Collapse State
-    const [isCopilotExpanded, setIsCopilotExpanded] = useState(true); // 默认展示
+    const [isCopilotExpanded, setIsCopilotExpanded] = useState(true); // 初始进入展示
 
     // Layout State for Mobile
     const [mobileTab, setMobileTab] = useState<string>('list');
@@ -67,8 +67,14 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             }
             
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
-            setArticles(response.items || []);
+            const items = response.items || [];
+            setArticles(items);
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
+
+            // ⚡️ 核心优化：首次进入或切换分类时，默认选中第一篇文章展示
+            if (page === 1 && items.length > 0 && !selectedArticle) {
+                setSelectedArticle(items[0]);
+            }
 
         } catch (err: any) {
             console.error(err);
@@ -76,7 +82,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [selectedArticle]);
 
     useEffect(() => {
         if (activeQuery.type === 'all' || activeQuery.value) {
@@ -91,7 +97,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         } else {
              setActiveQuery({ type: 'tag', value: label, label: label });
         }
-        setSelectedArticle(null);
+        setSelectedArticle(null); // Reset selection to trigger auto-select first from new list
         setMobileTab('list');
     };
 
@@ -105,7 +111,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const handleArticleSelect = (article: InfoItem) => {
         setSelectedArticle(article);
         setMobileTab('detail');
-        // 点击文章后，自动收起 AI Copilot
+        // ⚡️ 用户主动点击某篇文章后，收起 AI Copilot 腾出空间
         setIsCopilotExpanded(false);
     };
 
