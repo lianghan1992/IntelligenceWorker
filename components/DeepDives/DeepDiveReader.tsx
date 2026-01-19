@@ -3,10 +3,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DeepInsightTask, DeepInsightPage } from '../../types';
 import { 
     downloadDeepInsightOriginalPdf, 
-    fetchDeepInsightPageImage
+    fetchDeepInsightPageImage,
+    getDeepInsightTask
 } from '../../api/deepInsight';
 import { 
-    CloseIcon, DownloadIcon, DocumentTextIcon, PlusIcon, TagIcon
+    CloseIcon, DownloadIcon, DocumentTextIcon, PlusIcon, TagIcon, RefreshIcon
 } from '../icons';
 
 interface DeepDiveReaderProps {
@@ -104,21 +105,42 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
     const [isDownloading, setIsDownloading] = useState(false);
     const [scale, setScale] = useState(1.0);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    
+    // Store full task details (including correct page count)
+    const [activeTask, setActiveTask] = useState<DeepInsightTask>(task);
+    const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+    // Fetch full details on mount to ensure we have page count
+    useEffect(() => {
+        const loadFullDetails = async () => {
+            // Only fetch if page count seems missing or zero, or just always fetch to be safe
+            setIsLoadingDetails(true);
+            try {
+                const details = await getDeepInsightTask(task.id);
+                setActiveTask(prev => ({ ...prev, ...details }));
+            } catch (e) {
+                console.error("Failed to load document details", e);
+            } finally {
+                setIsLoadingDetails(false);
+            }
+        };
+        loadFullDetails();
+    }, [task.id]);
 
     // Generate page numbers based on total_pages count
     const pageIndices = useMemo(() => {
-        const count = task.total_pages || 0;
+        const count = activeTask.total_pages || 0;
         return Array.from({ length: count }, (_, i) => i + 1);
-    }, [task.total_pages]);
+    }, [activeTask.total_pages]);
 
     const handleDownload = async () => {
         setIsDownloading(true);
         try {
-            const blob = await downloadDeepInsightOriginalPdf(task.id);
+            const blob = await downloadDeepInsightOriginalPdf(activeTask.id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${task.file_name}`;
+            a.download = `${activeTask.file_name}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -131,7 +153,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
     };
 
     return (
-        <div className="fixed inset-0 z-40 flex flex-col bg-[#f6f7f8] text-slate-900 font-sans animate-in fade-in duration-200 pt-16 sm:pt-[72px]">
+        <div className="fixed inset-0 z-[100] flex flex-col bg-[#f6f7f8] text-slate-900 font-sans animate-in fade-in duration-200">
             
             {/* Reader Toolbar */}
             <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-4 md:px-6 py-3 shadow-sm h-14 flex-shrink-0 z-10">
@@ -141,13 +163,13 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                             <TagIcon className="w-4 h-4" />
                         </div>
                         <h2 className="text-sm md:text-base font-bold leading-tight tracking-tight truncate max-w-[120px] md:max-w-xs">
-                            {task.category_name || '文档详情'}
+                            {activeTask.category_name || '文档详情'}
                         </h2>
                     </div>
                     <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
                         <span className="text-slate-300">|</span>
-                        <span className="font-medium text-slate-700 truncate max-w-md" title={task.file_name}>
-                            {task.file_name}
+                        <span className="font-medium text-slate-700 truncate max-w-md" title={activeTask.file_name}>
+                            {activeTask.file_name}
                         </span>
                     </div>
                 </div>
@@ -174,7 +196,11 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
 
                     <div className="flex items-center gap-3">
                          <div className="hidden md:flex items-center gap-2 text-sm text-slate-500 mr-2">
-                            <span>共 {task.total_pages} 页</span>
+                            {isLoadingDetails ? (
+                                <span className="flex items-center gap-1 text-xs"><RefreshIcon className="w-3 h-3 animate-spin"/> 获取页数...</span>
+                            ) : (
+                                <span>共 {activeTask.total_pages} 页</span>
+                            )}
                         </div>
                         <div className="hidden md:block h-4 w-px bg-slate-300 mx-1"></div>
                         <button onClick={onClose} className="p-1.5 hover:bg-slate-200 rounded-full text-slate-600 transition-colors">
@@ -197,14 +223,23 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                             {pageIndices.length > 0 ? (
                                 <div className="flex flex-col items-center min-h-full pb-20">
                                     {pageIndices.map(index => (
-                                        <PageImage key={index} docId={task.id} pageIndex={index} scale={scale} />
+                                        <PageImage key={index} docId={activeTask.id} pageIndex={index} scale={scale} />
                                     ))}
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
-                                    <DocumentTextIcon className="w-16 h-16 opacity-20" />
-                                    <p>该文档暂无预览页面或正在处理中 (Pages: {task.total_pages})</p>
-                                    <button onClick={handleDownload} className="text-blue-600 hover:underline text-sm">下载原文件查看</button>
+                                    {isLoadingDetails ? (
+                                        <>
+                                            <div className="w-10 h-10 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+                                            <p className="text-sm">正在获取文档详情...</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <DocumentTextIcon className="w-16 h-16 opacity-20" />
+                                            <p>该文档暂无预览页面或正在处理中</p>
+                                            <button onClick={handleDownload} className="text-blue-600 hover:underline text-sm">下载原文件查看</button>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -215,14 +250,14 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                         
                         <div className="flex flex-col gap-4">
                             <h1 className="text-xl font-bold text-slate-900 leading-tight break-words">
-                                {task.file_name}
+                                {activeTask.file_name}
                             </h1>
                             <div className="flex flex-wrap gap-2">
                                 <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                                    {task.file_type}
+                                    {activeTask.file_type}
                                 </span>
                                 <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                                    {formatFileSize(task.file_size)}
+                                    {formatFileSize(activeTask.file_size)}
                                 </span>
                             </div>
                         </div>
@@ -238,9 +273,9 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
 
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                             <h3 className="font-bold text-slate-700 mb-2 text-sm">AI 摘要</h3>
-                            {task.summary ? (
+                            {activeTask.summary ? (
                                 <div className="text-xs text-slate-600 leading-relaxed space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-                                    {task.summary}
+                                    {activeTask.summary}
                                 </div>
                             ) : (
                                 <p className="text-xs text-slate-400 italic">暂无摘要信息</p>
