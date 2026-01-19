@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../../types';
 import { 
@@ -42,18 +41,54 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         completed: '完成',
         failed: '失败'
     };
-    return <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${styles[status] || 'bg-gray-100'}`}>{labels[status] || status}</span>;
+    return <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${styles[status] || 'bg-gray-100 text-gray-600'}`}>{labels[status] || status}</span>;
 };
 
-const TaskThumbnail: React.FC<{ taskId: string }> = ({ taskId }) => {
+const TaskThumbnail: React.FC<{ taskId: string; index: number }> = ({ taskId, index }) => {
     const [url, setUrl] = useState<string | null>(null);
+    const [isLoaded, setIsLoaded] = useState(false);
+    const [shouldLoad, setShouldLoad] = useState(false);
+
+    // 实现顺序/延迟加载效果
     useEffect(() => {
+        const timer = setTimeout(() => {
+            setShouldLoad(true);
+        }, index * 100); // 每个任务延迟 100ms 加载
+        return () => clearTimeout(timer);
+    }, [index]);
+
+    useEffect(() => {
+        if (!shouldLoad) return;
         let active = true;
-        fetchDeepInsightCover(taskId).then(u => { if(active && u) setUrl(u); });
+        fetchDeepInsightCover(taskId).then(u => { 
+            if(active && u) {
+                setUrl(u);
+                setIsLoaded(true);
+            }
+        });
         return () => { active = false; if(url) URL.revokeObjectURL(url); }
-    }, [taskId]);
-    if (!url) return <div className="w-8 h-10 bg-gray-100 rounded border flex items-center justify-center"><DocumentTextIcon className="w-4 h-4 text-gray-300" /></div>;
-    return <img src={url} alt="Cover" className="w-8 h-10 object-cover rounded border shadow-sm" />;
+    }, [taskId, shouldLoad]);
+
+    return (
+        <div className="w-24 aspect-video bg-slate-100 rounded border overflow-hidden flex items-center justify-center shadow-sm relative group">
+            {url ? (
+                <img 
+                    src={url} 
+                    alt="Cover" 
+                    className={`w-full h-full object-cover transition-all duration-700 ${isLoaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-105 blur-sm'}`} 
+                />
+            ) : (
+                <div className="flex flex-col items-center gap-1 opacity-20 group-hover:opacity-40 transition-opacity">
+                    <DocumentTextIcon className="w-5 h-5 text-slate-400" />
+                    <span className="text-[8px] font-bold">PDF</span>
+                </div>
+            )}
+            {/* 扫描线动画 */}
+            {shouldLoad && !isLoaded && (
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-indigo-500/5 to-transparent h-1/2 w-full animate-scan pointer-events-none"></div>
+            )}
+        </div>
+    );
 }
 
 export const TaskManager: React.FC = () => {
@@ -120,6 +155,14 @@ export const TaskManager: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col space-y-4">
+            <style>{`
+                @keyframes scan {
+                    0% { transform: translateY(-100%); }
+                    100% { transform: translateY(200%); }
+                }
+                .animate-scan { animation: scan 2s linear infinite; }
+            `}</style>
+
             {/* Compact Stats Row */}
             <div className="flex flex-wrap items-center gap-3">
                 <div className="bg-indigo-600 rounded-xl px-4 py-2 text-white shadow-sm flex items-center gap-3">
@@ -179,8 +222,9 @@ export const TaskManager: React.FC = () => {
                     <table className="w-full text-sm text-left text-gray-500">
                         <thead className="text-[10px] text-slate-400 uppercase font-black tracking-widest bg-slate-50 sticky top-0 border-b z-10">
                             <tr>
-                                <th className="px-6 py-3 w-16">封面</th>
+                                <th className="px-6 py-3 w-32">封面 (16:9)</th>
                                 <th className="px-6 py-3">文件名称</th>
+                                <th className="px-6 py-3 w-28">大小</th>
                                 <th className="px-6 py-3 w-32">分类</th>
                                 <th className="px-6 py-3 w-24">状态</th>
                                 <th className="px-6 py-3 w-24">进度</th>
@@ -190,16 +234,19 @@ export const TaskManager: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {tasks.length === 0 && !isLoading ? (
-                                <tr><td colSpan={7} className="text-center py-20 text-slate-300 italic">暂无记录</td></tr>
+                                <tr><td colSpan={8} className="text-center py-20 text-slate-300 italic">暂无记录</td></tr>
                             ) : (
-                                tasks.map(task => (
+                                tasks.map((task, index) => (
                                     <tr 
                                         key={task.id} 
                                         className="hover:bg-slate-50 cursor-pointer transition-colors group"
                                         onClick={() => { setSelectedTaskId(task.id); setViewState('detail'); }}
                                     >
-                                        <td className="px-6 py-3"><TaskThumbnail taskId={task.id} /></td>
+                                        <td className="px-6 py-3"><TaskThumbnail taskId={task.id} index={index} /></td>
                                         <td className="px-6 py-3 font-bold text-slate-700 truncate max-w-xs">{task.file_name}</td>
+                                        <td className="px-6 py-3 text-[10px] font-mono font-bold text-slate-500">
+                                            {formatBytes(task.file_size)}
+                                        </td>
                                         <td className="px-6 py-3">
                                             <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold text-slate-500 border border-slate-200">
                                                 {task.category_name || '未分类'}
