@@ -40,6 +40,13 @@ export const AGENTS = {
      * 功能：基于 RAG (检索增强生成) 的问答助手，支持互联网搜索和知识库检索。
      */
     STRATEGIC_COPILOT: '3a2b1c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d',
+
+    /**
+     * 技术决策评估助手
+     * 位置：效率集市
+     * 功能：分步式深度技术评估专家，生成图文并茂的评估报告。
+     */
+    TECH_DECISION_ASSISTANT: 'd18630c7-d643-4a6d-ab8d-1af1731a35fb',
 } as const;
 
 /**
@@ -50,4 +57,5 @@ export const AGENT_NAMES = {
     [AGENTS.REPORT_GENERATOR]: 'AI报告生成',
     [AGENTS.NEW_TECH_IDENTIFIER]: '新技术识别',
     [AGENTS.STRATEGIC_COPILOT]: 'AI情报助手',
+    [AGENTS.TECH_DECISION_ASSISTANT]: '技术决策评估',
 };

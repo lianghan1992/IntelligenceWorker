@@ -1,12 +1,13 @@
 
 import React from 'react';
 import { AgentConfig } from './types';
-import { ChartIcon, PencilIcon, SparklesIcon } from '../icons'; // Using PencilIcon for visual editor
+import { ChartIcon, PencilIcon, SparklesIcon, ShieldCheckIcon } from '../icons'; // Using PencilIcon for visual editor
 import { AGENTS } from '../../agentConfig';
 
 const NewTechIdentifier = React.lazy(() => import('./agents/NewTechIdentifier'));
 const HtmlVisualEditor = React.lazy(() => import('./agents/HtmlVisualEditor'));
 const TechQuadrantAnalysis = React.lazy(() => import('./agents/NewTechQuadrant'));
+const TechDecisionAssistant = React.lazy(() => import('./agents/TechDecisionAssistant'));
 
 export const AGENT_REGISTRY: AgentConfig[] = [
     {
@@ -36,5 +37,14 @@ export const AGENT_REGISTRY: AgentConfig[] = [
         icon: PencilIcon,
         component: HtmlVisualEditor,
         tags: ['HTML', '可视化编辑', '低代码']
+    },
+    {
+        id: AGENTS.TECH_DECISION_ASSISTANT,
+        name: '技术决策评估助手',
+        description: '专为汽车行业技术专家设计。采用分步思维链，深度评估技术路线、识别工程风险并提供解决方案。支持图文混排交付。',
+        category: '数据分析',
+        icon: ShieldCheckIcon,
+        component: TechDecisionAssistant,
+        tags: ['技术评估', '风险排查', '图表生成', '深度长文']
     }
 ];
