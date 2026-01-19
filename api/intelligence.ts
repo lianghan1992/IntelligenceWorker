@@ -607,3 +607,19 @@ export const chatGemini = async (
         })
     });
 };
+
+// --- New Doc Listing API for Optimization ---
+export const getUploadedDocsStats = async (pointNames?: string[]): Promise<{ point_name: string; count: number }[]> => {
+    let url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/stats/by-point`;
+    if (pointNames && pointNames.length > 0) {
+        const params = new URLSearchParams();
+        pointNames.forEach(n => params.append('point_names', n));
+        url += `?${params.toString()}`;
+    }
+    return apiFetch(url);
+};
+
+export const getUploadedDocsLight = async (params: { page?: number; size?: number; point_name?: string; publish_date?: string }): Promise<any> => {
+    const query = createApiQuery(params);
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/list-light${query}`);
+};

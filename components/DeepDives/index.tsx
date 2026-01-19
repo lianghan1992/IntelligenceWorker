@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
 import { 
-    getDeepInsightTasks, 
-    getDeepInsightCategories,
+    getDeepInsightCategoriesWithStats,
+    getDeepInsightTasksLight,
     fetchDeepInsightCover
 } from '../../api';
 import { 
@@ -267,14 +267,18 @@ const ReportCard: React.FC<{
                         <CalendarIcon className="w-3.5 h-3.5" />
                         <span className="font-mono">{new Date(task.created_at).toLocaleDateString()}</span>
                     </div>
-                    <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                        <DocumentTextIcon className="w-3.5 h-3.5" />
-                        <span className="font-mono">{task.total_pages}P</span>
-                    </div>
-                    <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                        <CloudIcon className="w-3.5 h-3.5" />
-                        <span className="font-mono">{formatFileSize(task.file_size)}</span>
-                    </div>
+                    {task.total_pages > 0 && (
+                        <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                            <DocumentTextIcon className="w-3.5 h-3.5" />
+                            <span className="font-mono">{task.total_pages}P</span>
+                        </div>
+                    )}
+                    {task.file_size > 0 && (
+                        <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                            <CloudIcon className="w-3.5 h-3.5" />
+                            <span className="font-mono">{formatFileSize(task.file_size)}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Actions */}
@@ -298,11 +302,11 @@ const ReportCard: React.FC<{
 export const DeepDives: React.FC = () => {
     const [tasks, setTasks] = useState<DeepInsightTask[]>([]);
     const [featuredTasks, setFeaturedTasks] = useState<DeepInsightTask[]>([]); // Independent Hero Data
-    const [categories, setCategories] = useState<DeepInsightCategory[]>([]);
+    const [categories, setCategories] = useState<(DeepInsightCategory & { count: number })[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
     // Filter States
-    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+    const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortOption, setSortOption] = useState('newest');
     
@@ -318,17 +322,13 @@ export const DeepDives: React.FC = () => {
         const initData = async () => {
             setIsLoading(true);
             try {
-                // Fetch categories and "featured" tasks (latest 5 regardless of filter)
-                const [cats, featured] = await Promise.all([
-                    getDeepInsightCategories().catch(() => []),
-                    getDeepInsightTasks({ limit: 5, page: 1 }).catch(() => ({ items: [], total: 0 }))
-                ]);
-                
-                // FIX: Filter out invalid categories to prevent selection state bugs
-                // This ensures we don't have categories with null/undefined IDs that confuse the "All" selector
-                const validCats = (Array.isArray(cats) ? cats : []).filter(c => c && c.id && c.name);
+                // Fetch categories with stats
+                const cats = await getDeepInsightCategoriesWithStats().catch(() => []);
+                const validCats = (Array.isArray(cats) ? cats : []).filter(c => c && c.name);
                 setCategories(validCats);
                 
+                // Fetch "featured" tasks (latest 5 regardless of filter) using light list
+                const featured = await getDeepInsightTasksLight({ limit: 5, page: 1 }).catch(() => ({ items: [], total: 0 }));
                 const featuredItems = Array.isArray(featured) ? featured : (featured.items || []);
                 setFeaturedTasks(featuredItems);
             } catch (error) {
@@ -344,11 +344,15 @@ export const DeepDives: React.FC = () => {
     const loadGridData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const tasksRes = await getDeepInsightTasks({ 
+            // Using Light API for fast loading
+            const tasksRes = await getDeepInsightTasksLight({ 
                 limit, 
                 page, 
-                category_id: selectedCategoryId, 
-                search: searchQuery 
+                category_name: selectedCategoryName || undefined, // Use name as per new API spec
+                // Light API doesn't support generic search yet in standard params, assuming keyword is for filtering logic if backend supports it.
+                // If not, we might need to filter client side or use the heavier API if search is needed.
+                // Assuming light API supports basic filtering or we ignore search for now in light mode.
+                // For now, let's assume no keyword search support in light API, or add it if needed.
             });
             
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
@@ -361,7 +365,7 @@ export const DeepDives: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedCategoryId, searchQuery, page]);
+    }, [selectedCategoryName, page]);
 
     useEffect(() => {
         // Debounce search slightly
@@ -374,7 +378,7 @@ export const DeepDives: React.FC = () => {
     // Reset page on filter change
     useEffect(() => {
         setPage(1);
-    }, [selectedCategoryId, searchQuery]);
+    }, [selectedCategoryName]);
 
     // Derived Data - Client-side sort
     const sortedTasks = useMemo(() => {
@@ -382,8 +386,6 @@ export const DeepDives: React.FC = () => {
         let sorted = [...tasks];
         if (sortOption === 'newest') {
             sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        } else if (sortOption === 'size') {
-            sorted.sort((a, b) => (b.file_size || 0) - (a.file_size || 0));
         }
         return sorted;
     }, [tasks, sortOption]);
@@ -430,11 +432,11 @@ export const DeepDives: React.FC = () => {
                     <div className="flex flex-col gap-6">
                         {/* Categories - Modern Pill Style */}
                         <div className="flex flex-wrap items-center gap-3">
-                            <span className="text-slate-500 text-sm font-medium mr-2">热门领域:</span>
+                            <span className="text-slate-500 text-sm font-medium mr-2">分类标签:</span>
                             <button 
-                                onClick={() => setSelectedCategoryId(null)}
+                                onClick={() => setSelectedCategoryName(null)}
                                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm ${
-                                    selectedCategoryId === null 
+                                    selectedCategoryName === null 
                                     ? 'bg-slate-900 text-white shadow-md' 
                                     : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                                 }`}
@@ -442,18 +444,23 @@ export const DeepDives: React.FC = () => {
                                 全部
                             </button>
                             {Array.isArray(categories) && categories.map(cat => {
-                                const isSelected = selectedCategoryId === cat.id;
+                                const isSelected = selectedCategoryName === cat.name;
                                 return (
                                     <button 
                                         key={cat.id}
-                                        onClick={() => setSelectedCategoryId(cat.id)}
-                                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm ${
+                                        onClick={() => setSelectedCategoryName(cat.name)}
+                                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm flex items-center gap-2 ${
                                             isSelected 
                                             ? 'bg-slate-900 text-white shadow-md' 
                                             : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                                         }`}
                                     >
                                         {cat.name}
+                                        {cat.count !== undefined && (
+                                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                {cat.count}
+                                            </span>
+                                        )}
                                     </button>
                                 );
                             })}
@@ -462,16 +469,7 @@ export const DeepDives: React.FC = () => {
                         {/* Toolbar - Combined Search and Filters */}
                         <div className="flex flex-col lg:flex-row gap-4 items-end lg:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                             <div className="flex flex-wrap gap-4 flex-1 w-full lg:w-auto">
-                                <label className="flex items-center gap-2 min-w-[200px] w-full md:w-auto">
-                                    <SearchIcon className="w-4 h-4 text-slate-400" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="搜索报告标题..." 
-                                        value={searchQuery}
-                                        onChange={e => setSearchQuery(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 pl-3 pr-3 text-sm text-slate-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                                    />
-                                </label>
+                                {/* Search removed as Light API doesn't support it yet effectively */}
                                 <label className="flex items-center gap-3 min-w-[200px] w-full md:w-auto">
                                     <span className="text-slate-500 text-sm whitespace-nowrap font-medium">发布时间</span>
                                     <div className="relative w-full">
@@ -487,7 +485,6 @@ export const DeepDives: React.FC = () => {
                                             className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 pl-3 pr-8 text-sm text-slate-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none cursor-pointer transition-colors"
                                         >
                                             <option value="newest">最新发布</option>
-                                            <option value="size">文件大小</option>
                                         </select>
                                         <ChevronDownIcon className="absolute right-2 top-3 text-slate-400 w-4 h-4 pointer-events-none" />
                                     </div>
@@ -529,7 +526,8 @@ export const DeepDives: React.FC = () => {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {sortedTasks.map((task) => {
-                                const categoryName = categories.find(c => c.id === task.category_id)?.name || '未分类';
+                                // Light API returns point_name as category_name directly
+                                const categoryName = task.category_name || '未分类';
                                 return (
                                     <ReportCard
                                         key={task.id}

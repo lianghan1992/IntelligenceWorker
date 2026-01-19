@@ -428,6 +428,7 @@ export interface DeepInsightCategory {
     id: string;
     name: string;
     created_at: string;
+    count?: number; // Added count field
 }
 
 export interface TaskPhase {

@@ -11,7 +11,9 @@ import {
     getUploadedDocCover,
     regenerateDocumentSummary,
     regenerateDocumentCover,
-    deleteUploadedDoc
+    deleteUploadedDoc,
+    getUploadedDocsStats,
+    getUploadedDocsLight
 } from './intelligence';
 
 // --- Categories ---
@@ -26,6 +28,25 @@ export const getDeepInsightCategories = async (): Promise<DeepInsightCategory[]>
         }));
     } catch (e) {
         console.warn("Failed to fetch categories (tags), using empty list:", e);
+        return [];
+    }
+};
+
+export const getDeepInsightCategoriesWithStats = async (): Promise<(DeepInsightCategory & { count: number })[]> => {
+    try {
+        const [tags, statList] = await Promise.all([getDocTags(), getUploadedDocsStats()]);
+        
+        return tags.map(tag => {
+            const stat = statList.find(s => s.point_name === tag.name);
+            return {
+                id: tag.uuid,
+                name: tag.name,
+                created_at: tag.created_at,
+                count: stat ? stat.count : 0
+            };
+        });
+    } catch (e) {
+        console.warn("Failed to fetch categories with stats:", e);
         return [];
     }
 };
@@ -67,6 +88,43 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
         };
     } catch (e) {
         console.warn("Failed to fetch tasks (docs), returning empty result:", e);
+        return { items: [], total: 0, page: 1, limit: params.limit || 20 };
+    }
+};
+
+export const getDeepInsightTasksLight = async (params: any): Promise<{ items: DeepInsightTask[], total: number, page: number, limit: number }> => {
+    try {
+        const res = await getUploadedDocsLight({
+            page: params.page || 1,
+            size: params.limit || 20,
+            point_name: params.category_name, // Changed from ID to Name based on API
+            publish_date: params.publish_date // If needed
+        });
+
+        const items: DeepInsightTask[] = res.items.map((doc: any) => ({
+            id: doc.id,
+            file_name: doc.title,
+            file_type: doc.mime_type ? (doc.mime_type === 'application/pdf' ? 'PDF' : 'DOC') : 'FILE',
+            file_size: 0, // Not provided by light API
+            status: doc.status,
+            total_pages: 0, // Not provided by light API
+            processed_pages: 0,
+            category_id: '', // Light API returns point_name, not ID
+            category_name: doc.point_name,
+            created_at: doc.publish_date || new Date().toISOString(),
+            updated_at: doc.publish_date || new Date().toISOString(),
+            summary: '', // Not provided
+            cover_image: doc.cover_url_template // Optional: can be used for lazy loading logic if we changed it, but fetchCover API works by ID too.
+        }));
+
+        return {
+            items,
+            total: res.total,
+            page: res.page,
+            limit: res.size
+        };
+    } catch (e) {
+        console.warn("Failed to fetch light tasks:", e);
         return { items: [], total: 0, page: 1, limit: params.limit || 20 };
     }
 };
