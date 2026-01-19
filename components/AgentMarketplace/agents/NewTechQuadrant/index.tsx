@@ -24,6 +24,12 @@ export interface TechItem {
     logs?: string[];
 }
 
+export interface ExtractionProgress {
+    current: number;
+    total: number;
+    currentTitle: string;
+}
+
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
 // ⚡️ Changed back to Zhipu GLM-4.5-Flash
 const TARGET_MODEL = 'zhipu@glm-4.5-flash';
@@ -137,6 +143,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [techList, setTechList] = useState<TechItem[]>([]);
     
     const [isExtracting, setIsExtracting] = useState(false);
+    const [extractionProgress, setExtractionProgress] = useState<ExtractionProgress | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     
     const [resetTrigger, setResetTrigger] = useState(0);
@@ -175,6 +182,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     const performExtraction = async (articles: ArticlePublic[]) => {
         setIsExtracting(true);
+        setExtractionProgress({ current: 0, total: articles.length, currentTitle: '' });
+        
         try {
             const extractPrompt = prompts.find(p => p.name === '新技术识别提示词');
             if (!extractPrompt || !extractPrompt.content) {
@@ -183,7 +192,16 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 return;
             }
 
-            for (const article of articles) {
+            for (let i = 0; i < articles.length; i++) {
+                const article = articles[i];
+                
+                // 更新进度状态
+                setExtractionProgress({
+                    current: i + 1,
+                    total: articles.length,
+                    currentTitle: article.title
+                });
+
                 const contentSnippet = article.content.slice(0, 3000); 
                 const articleContext = `标题: ${article.title}\nURL: ${article.original_url || ''}\n发布时间: ${article.publish_date}\n\n正文:\n${contentSnippet}`;
                 const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
@@ -216,6 +234,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             alert("提取过程发生错误");
         } finally {
             setIsExtracting(false);
+            setExtractionProgress(null);
         }
     };
 
@@ -393,6 +412,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     setIsSelectionModalOpen(true);
                 }} 
                 isExtracting={isExtracting}
+                extractionProgress={extractionProgress}
                 isGenerating={isGenerating}
                 onStartGeneration={startGeneration}
                 prompts={prompts}

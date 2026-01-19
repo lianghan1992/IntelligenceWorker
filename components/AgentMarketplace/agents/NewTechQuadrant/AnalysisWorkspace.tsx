@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { TechItem } from './index';
+import { TechItem, ExtractionProgress } from './index';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { 
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
@@ -16,6 +16,7 @@ interface AnalysisWorkspaceProps {
     setTechList: React.Dispatch<React.SetStateAction<TechItem[]>>;
     onOpenSelection: () => void;
     isExtracting: boolean;
+    extractionProgress: ExtractionProgress | null;
     isGenerating: boolean;
     onStartGeneration: () => void;
     prompts?: StratifyPrompt[];
@@ -40,7 +41,7 @@ const cleanUrl = (url?: string) => {
 
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ 
     articles, techList, setTechList, onOpenSelection, 
-    isExtracting, isGenerating, onStartGeneration, prompts,
+    isExtracting, extractionProgress, isGenerating, onStartGeneration, prompts,
     onRegenerateHtml
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
@@ -162,15 +163,39 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                         </button>
                     </div>
 
-                    {/* Progress Bar */}
-                    {isExtracting && (
-                        <div className="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100 animate-pulse">
-                            <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 mb-1">
-                                <RefreshIcon className="w-4 h-4 animate-spin"/>
-                                正在分析文章提取技术点...
+                    {/* Enhanced Extraction Progress Card */}
+                    {isExtracting && extractionProgress && (
+                        <div className="mb-4 bg-white p-4 rounded-xl border border-indigo-200 shadow-sm animate-in slide-in-from-top-2">
+                            <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center gap-2 text-xs font-bold text-indigo-600">
+                                    <RefreshIcon className="w-4 h-4 animate-spin"/>
+                                    AI 正在智能提取
+                                </div>
+                                <div className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100">
+                                    {extractionProgress.current} / {extractionProgress.total} 篇
+                                </div>
                             </div>
-                            <div className="h-1.5 w-full bg-indigo-200 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-500 w-1/2 animate-[progress_2s_infinite]"></div>
+                            
+                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mb-3">
+                                <div className="flex items-start gap-2">
+                                    <DocumentTextIcon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                                    <p className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-2" title={extractionProgress.currentTitle}>
+                                        {extractionProgress.currentTitle || '准备加载...'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-indigo-500 transition-all duration-500 ease-out"
+                                        style={{ width: `${(extractionProgress.current / extractionProgress.total) * 100}%` }}
+                                    ></div>
+                                </div>
+                                <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                                    <span>总体进度: {Math.round((extractionProgress.current / extractionProgress.total) * 100)}%</span>
+                                    <span>剩余 {extractionProgress.total - extractionProgress.current} 篇</span>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -202,9 +227,11 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                     {techList.length === 0 ? (
                         <div className="text-center py-20 text-slate-400 text-sm">
                             {isExtracting ? (
-                                <div className="flex flex-col items-center gap-2">
-                                    <RefreshIcon className="w-8 h-8 text-indigo-300 animate-spin"/>
-                                    <p>AI 正在阅读文章并提取技术点...</p>
+                                <div className="flex flex-col items-center gap-2 mt-10">
+                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
+                                        <BrainIcon className="w-6 h-6 text-indigo-300 animate-pulse" />
+                                    </div>
+                                    <p className="text-indigo-400 font-medium mt-2">AI 正在深度阅读资料...</p>
                                 </div>
                             ) : (
                                 <>
