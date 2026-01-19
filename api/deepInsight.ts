@@ -84,7 +84,8 @@ export const getDeepInsightTask = async (taskId: string): Promise<DeepInsightTas
         category_id: doc.point_uuid,
         category_name: doc.point_name,
         created_at: doc.created_at,
-        updated_at: doc.updated_at || doc.created_at, // detail might not have updated_at
+        // Fix: Cast to any to access updated_at which might not be in the strict type definition yet
+        updated_at: (doc as any).updated_at || doc.created_at,
         summary: doc.summary,
         cover_image: doc.cover_image
     };
