@@ -500,10 +500,13 @@ export const getUploadedDocDetail = async (id: string): Promise<UploadedDocument
     return { ...res, uuid: res.id, file_size: res.file_size || 0, page_count: res.page_count || 0 };
 }
 
-export const uploadDocs = (data: { files: File[], point_id: string, publish_date?: string }): Promise<void> => {
+export const uploadDocs = (data: { files: File[], point_id?: string, publish_date?: string }): Promise<any> => {
     const formData = new FormData();
     data.files.forEach(f => formData.append('files', f));
-    formData.append('point_id', data.point_id);
+    // Updated: Use 'point_uuid' instead of 'point_id' in FormData to match backend spec
+    if (data.point_id) {
+        formData.append('point_uuid', data.point_id);
+    }
     if (data.publish_date) formData.append('publish_date', data.publish_date);
     return apiFetch(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, { method: 'POST', body: formData });
 }

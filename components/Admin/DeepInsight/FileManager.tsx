@@ -75,8 +75,10 @@ export const FileManager: React.FC = () => {
         setIsUploading(true);
         try {
             const filesArray: File[] = Array.from(fileList);
-            await uploadDeepInsightFiles(filesArray);
+            // Pass selected category ID for auto-classification/tagging
+            await uploadDeepInsightFiles(filesArray, selectedCategory || undefined);
             await fetchData();
+            alert('上传成功');
         } catch (err: any) {
             alert(`上传失败: ${err.message}`);
         } finally {

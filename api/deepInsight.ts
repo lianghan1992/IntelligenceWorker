@@ -121,10 +121,10 @@ export const fetchDeepInsightPageImage = async (taskId: string, pageIndex: numbe
 
 // Upload Wrapper
 export const uploadDeepInsightTask = async (file: File, category_id?: string): Promise<{ id: string }> => {
-    // Note: uploadDocs returns void or promise. We assume void from intelligence.ts signature.
-    // If backend returns ID, intelligence.ts should be updated, but for now we assume async process.
-    // point_id is mapped to category_id
-    await uploadDocs({ files: [file], point_id: category_id || '' });
+    const res = await uploadDocs({ files: [file], point_id: category_id });
+    if (Array.isArray(res) && res.length > 0) {
+        return { id: res[0].id || 'pending-refresh' };
+    }
     return { id: 'pending-refresh' };
 };
 
@@ -147,7 +147,12 @@ export const createDeepInsightCategory = async (name: string): Promise<any> => {
 export const deleteDeepInsightCategory = async (id: string): Promise<any> => { throw new Error("Use Tag Manager in Admin"); };
 export const getDeepInsightUploads = async (): Promise<any> => { return []; }; // Deprecated
 export const deleteDeepInsightUpload = async (name: string): Promise<any> => { return {}; }; // Deprecated
-export const uploadDeepInsightFiles = async (files: File[]): Promise<void> => { }; // Deprecated
+
+// Updated to use uploadDocs correctly
+export const uploadDeepInsightFiles = async (files: File[], category_id?: string): Promise<void> => { 
+    await uploadDocs({ files, point_id: category_id });
+};
+
 export const startDeepInsightTask = async (id: string): Promise<any> => { return {}; }; // Auto started now
 export const createDeepInsightTask = async (fileName: string, categoryId?: string): Promise<{ id: string }> => { return { id: 'deprecated' }; }; // Deprecated stub
 
