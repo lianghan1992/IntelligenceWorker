@@ -2,11 +2,10 @@
 import React, { useState } from 'react';
 import { TaskManager } from './TaskManager';
 import { CategoryManager } from './CategoryManager';
-import { GeminiSettings } from './GeminiSettings';
 import { FileManager } from './FileManager';
-import { DocumentTextIcon, ViewGridIcon, GearIcon, CloudIcon } from '../../icons';
+import { DocumentTextIcon, ViewGridIcon, CloudIcon } from '../../icons';
 
-type SubView = 'tasks' | 'files' | 'categories' | 'settings';
+type SubView = 'tasks' | 'files' | 'categories';
 
 export const DeepInsightManager: React.FC = () => {
     const [subView, setSubView] = useState<SubView>('tasks');
@@ -53,18 +52,6 @@ export const DeepInsightManager: React.FC = () => {
                             <ViewGridIcon className="w-5 h-5" />
                             分类管理
                         </button>
-                        <button
-                            onClick={() => setSubView('settings')}
-                            className={`
-                                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
-                                ${subView === 'settings' 
-                                    ? 'border-blue-500 text-blue-600' 
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                            `}
-                        >
-                            <GearIcon className="w-5 h-5" />
-                            Gemini 配置
-                        </button>
                     </nav>
                 </div>
             </div>
@@ -73,7 +60,6 @@ export const DeepInsightManager: React.FC = () => {
                 {subView === 'tasks' && <TaskManager />}
                 {subView === 'files' && <FileManager />}
                 {subView === 'categories' && <CategoryManager />}
-                {subView === 'settings' && <GeminiSettings />}
             </div>
         </div>
     );

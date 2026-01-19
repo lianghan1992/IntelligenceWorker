@@ -4,12 +4,13 @@ import { DeepInsightTask, DeepInsightPage } from '../../../types';
 import { 
     getDeepInsightTask, 
     getDeepInsightTaskPages, 
-    downloadDeepInsightPagePdf, 
     downloadDeepInsightBundle,
     getDeepInsightTaskStatus,
-    fetchDeepInsightCover
+    fetchDeepInsightCover,
+    regenerateDeepInsightSummary,
+    regenerateDeepInsightCover
 } from '../../../api';
-import { ChevronLeftIcon, RefreshIcon, DownloadIcon, DocumentTextIcon, CloseIcon } from '../../icons';
+import { ChevronLeftIcon, RefreshIcon, DownloadIcon, DocumentTextIcon, PhotoIcon, SparklesIcon } from '../../icons';
 
 interface TaskDetailProps {
     taskId: string;
@@ -47,6 +48,10 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 });
     const [downloading, setDownloading] = useState(false);
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
+    
+    // Action loading states
+    const [isRegeneratingSummary, setIsRegeneratingSummary] = useState(false);
+    const [isRegeneratingCover, setIsRegeneratingCover] = useState(false);
 
     const fetchData = useCallback(async (silent = false) => {
         if (!silent) setIsLoading(true);
@@ -54,15 +59,21 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
             const taskData = await getDeepInsightTask(taskId);
             setTask(taskData);
             
-            const pagesData = await getDeepInsightTaskPages(taskId, pagination.page, pagination.limit);
-            setPages(pagesData.items || []);
-            setPagination(p => ({ ...p, total: pagesData.total }));
+            // Generate dummy pages for grid view based on total_pages since backend doesn't list pages
+            const dummyPages = Array.from({ length: taskData.total_pages }).map((_, i) => ({
+                id: `page-${i + 1}`,
+                page_index: i + 1,
+                status: 'completed' // Assuming pages are ready if task is completed
+            }));
+            
+            setPages(dummyPages);
+            setPagination(p => ({ ...p, total: taskData.total_pages }));
         } catch (err: any) {
             setError(err.message || '加载详情失败');
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [taskId, pagination.page, pagination.limit]);
+    }, [taskId]);
 
     useEffect(() => {
         fetchData();
@@ -72,8 +83,6 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
             if (task?.status === 'processing' || task?.status === 'pending') {
                 try {
                     const statusSnapshot = await getDeepInsightTaskStatus(taskId);
-                    
-                    // If status changed or new pages processed, refresh full data
                     if (
                         statusSnapshot.status !== task.status || 
                         statusSnapshot.processed_pages !== task.processed_pages
@@ -91,28 +100,14 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
 
     useEffect(() => {
         let active = true;
-        if (task?.status === 'completed') {
+        // Always try to fetch cover if task exists
+        if (task) {
             fetchDeepInsightCover(taskId).then(url => {
                 if (active && url) setCoverUrl(url);
             });
         }
         return () => { active = false; if (coverUrl) URL.revokeObjectURL(coverUrl); };
-    }, [task?.status, taskId]);
-
-    const handleDownloadPage = async (pageIndex: number) => {
-        try {
-            const blob = await downloadDeepInsightPagePdf(taskId, pageIndex);
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `page_${pageIndex}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-        } catch (e) {
-            alert('下载失败');
-        }
-    };
+    }, [taskId, isRegeneratingCover]); // Reload when cover regenerated
 
     const handleDownloadBundle = async () => {
         if (!task) return;
@@ -122,14 +117,40 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${task.file_name}_bundle.pdf`;
+            a.download = `${task.file_name}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
         } catch (e) {
-            alert('下载合稿失败');
+            alert('下载失败');
         } finally {
             setDownloading(false);
+        }
+    };
+
+    const handleRegenSummary = async () => {
+        setIsRegeneratingSummary(true);
+        try {
+            await regenerateDeepInsightSummary(taskId);
+            alert('摘要生成任务已触发');
+            fetchData(true);
+        } catch (e: any) {
+            alert('操作失败: ' + e.message);
+        } finally {
+            setIsRegeneratingSummary(false);
+        }
+    };
+
+    const handleRegenCover = async () => {
+        setIsRegeneratingCover(true);
+        try {
+            await regenerateDeepInsightCover(taskId);
+            alert('封面生成任务已触发');
+            // Cover URL effect will pick up change eventually
+        } catch (e: any) {
+            alert('操作失败: ' + e.message);
+        } finally {
+            setIsRegeneratingCover(false);
         }
     };
 
@@ -140,31 +161,49 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
     return (
         <div className="h-full flex flex-col bg-gray-50">
             {/* Header */}
-            <div className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm">
-                <div className="flex items-center gap-6">
-                    <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <div className="bg-white border-b px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm gap-4">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
                         <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
                     </button>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
                         {coverUrl ? (
-                            <img src={coverUrl} alt="Cover" className="w-12 h-16 object-cover rounded border shadow-sm" />
+                            <img src={coverUrl} alt="Cover" className="w-12 h-16 object-cover rounded border shadow-sm flex-shrink-0" />
                         ) : (
-                            <div className="w-12 h-16 bg-gray-100 rounded border flex items-center justify-center">
+                            <div className="w-12 h-16 bg-gray-100 rounded border flex items-center justify-center flex-shrink-0">
                                 <DocumentTextIcon className="w-6 h-6 text-gray-300" />
                             </div>
                         )}
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                {task.file_name}
+                        <div className="min-w-0">
+                            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 truncate">
+                                <span className="truncate">{task.file_name}</span>
                                 <StatusBadge status={task.status} />
                             </h2>
                             <p className="text-xs text-gray-500 mt-1">
-                                ID: {task.id} • {task.processed_pages} / {task.total_pages} 页 • 更新于 {new Date(task.updated_at).toLocaleString('zh-CN')}
+                                {task.processed_pages} / {task.total_pages} 页 • {task.category_name || '未分类'} • {new Date(task.updated_at).toLocaleString('zh-CN')}
                             </p>
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
+                
+                <div className="flex items-center gap-2 self-end md:self-auto">
+                    <button 
+                        onClick={handleRegenSummary}
+                        disabled={isRegeneratingSummary}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+                        title="重新生成智能摘要"
+                    >
+                        {isRegeneratingSummary ? <Spinner /> : <SparklesIcon className="w-5 h-5" />}
+                    </button>
+                    <button 
+                        onClick={handleRegenCover}
+                        disabled={isRegeneratingCover}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-100"
+                        title="重新生成封面"
+                    >
+                        {isRegeneratingCover ? <Spinner /> : <PhotoIcon className="w-5 h-5" />}
+                    </button>
+                    <div className="w-px h-4 bg-gray-300 mx-1"></div>
                     <button onClick={() => fetchData()} className="p-2 hover:bg-gray-100 rounded-full text-gray-500" title="刷新">
                         <RefreshIcon className="w-5 h-5" />
                     </button>
@@ -172,74 +211,49 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
                         <button 
                             onClick={handleDownloadBundle}
                             disabled={downloading}
-                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
                         >
                             {downloading ? <Spinner /> : <DownloadIcon className="w-4 h-4" />}
-                            下载完整PDF
+                            下载原文
                         </button>
                     )}
                 </div>
             </div>
 
+            {/* Summary Block */}
+            {task.summary && (
+                <div className="px-6 py-4 bg-white border-b border-gray-100">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">AI 智能摘要</h4>
+                    <p className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        {task.summary}
+                    </p>
+                </div>
+            )}
+
             {/* Pages Grid */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                 {pages.length === 0 ? (
-                    <div className="text-center py-20 text-gray-500">暂无页面数据或正在解析中...</div>
+                    <div className="text-center py-20 text-gray-500">正在解析文档页面...</div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                         {pages.map((page) => (
                             <div key={page.id} className="bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-all">
-                                <div className="aspect-[3/4] bg-gray-100 relative overflow-hidden border-b">
-                                    {/* Image Placeholder - In real app, display image_path if available (needs auth proxy usually) */}
-                                    <div className="absolute inset-0 flex items-center justify-center text-gray-300">
-                                        <DocumentTextIcon className="w-12 h-12 opacity-20" />
-                                        <span className="text-xs absolute mt-8 font-mono text-gray-400">PAGE {page.page_index}</span>
-                                    </div>
-                                    {/* Status Overlay */}
-                                    <div className="absolute top-2 right-2">
-                                        <StatusBadge status={page.status} />
+                                <div className="aspect-[3/4] bg-gray-100 relative overflow-hidden border-b flex items-center justify-center">
+                                    <DocumentTextIcon className="w-12 h-12 text-gray-300 opacity-50" />
+                                    <div className="absolute bottom-2 left-0 right-0 text-center">
+                                        <span className="text-xs font-mono text-gray-400 bg-white/80 px-2 py-0.5 rounded backdrop-blur-sm">
+                                            Page {page.page_index}
+                                        </span>
                                     </div>
                                 </div>
-                                <div className="p-3 flex justify-between items-center bg-white">
-                                    <span className="text-xs text-gray-500">第 {page.page_index} 页</span>
-                                    <button 
-                                        onClick={() => handleDownloadPage(page.page_index)}
-                                        disabled={page.status !== 'completed'}
-                                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded disabled:opacity-30 disabled:hover:bg-transparent"
-                                        title="下载单页PDF"
-                                    >
-                                        <DownloadIcon className="w-4 h-4" />
-                                    </button>
+                                <div className="p-2 bg-white text-center">
+                                     <span className="text-xs text-gray-400">预览图暂未生成</span>
                                 </div>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
-
-            {/* Pagination */}
-            {pagination.total > 0 && (
-                <div className="bg-white border-t p-4 flex justify-between items-center text-sm">
-                    <span className="text-gray-600">共 {pagination.total} 页</span>
-                    <div className="flex gap-2">
-                        <button 
-                            disabled={pagination.page <= 1} 
-                            onClick={() => setPagination(p => ({...p, page: p.page - 1}))}
-                            className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50"
-                        >
-                            上一页
-                        </button>
-                        <span className="px-2 py-1 text-gray-600">{pagination.page}</span>
-                        <button 
-                            disabled={pagination.page * pagination.limit >= pagination.total} 
-                            onClick={() => setPagination(p => ({...p, page: p.page + 1}))}
-                            className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50"
-                        >
-                            下一页
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

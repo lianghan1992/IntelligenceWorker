@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { SourceConfig } from './Intelligence/SourceConfig';
 import { ArticleList } from './Intelligence/ArticleList';
@@ -6,11 +5,10 @@ import { ServiceStatus } from './Intelligence/ServiceStatus';
 import { SegmentManager } from './Intelligence/SegmentManager';
 import { LlmTaskManager } from './Intelligence/LlmTaskManager';
 import { GenericAnalysisManager } from './Intelligence/GenericAnalysisManager';
-import { DocumentManager } from './Intelligence/DocumentManager';
-import { ServerIcon, ViewListIcon, ChartIcon, PuzzleIcon, BrainIcon, SparklesIcon, DocumentTextIcon } from '../icons';
+import { ServerIcon, ViewListIcon, ChartIcon, PuzzleIcon, BrainIcon, SparklesIcon } from '../icons';
 
 export const IntelligenceDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'status' | 'config' | 'articles' | 'segments' | 'llm' | 'analysis' | 'documents'>('status');
+    const [activeTab, setActiveTab] = useState<'status' | 'config' | 'articles' | 'segments' | 'llm' | 'analysis'>('status');
 
     return (
         <div className="h-full flex flex-col bg-slate-50/30 p-4 md:p-6">
@@ -52,18 +50,6 @@ export const IntelligenceDashboard: React.FC = () => {
                         >
                             <ViewListIcon className="w-5 h-5" />
                             文章库
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('documents')}
-                            className={`
-                                whitespace-nowrap pb-3 md:pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
-                                ${activeTab === 'documents' 
-                                    ? 'border-indigo-600 text-indigo-600' 
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                            `}
-                        >
-                            <DocumentTextIcon className="w-5 h-5" />
-                            文档管理
                         </button>
                         <button
                             onClick={() => setActiveTab('segments')}
@@ -109,7 +95,6 @@ export const IntelligenceDashboard: React.FC = () => {
                 {activeTab === 'status' && <ServiceStatus />}
                 {activeTab === 'config' && <SourceConfig />}
                 {activeTab === 'articles' && <ArticleList />}
-                {activeTab === 'documents' && <DocumentManager />}
                 {activeTab === 'segments' && <SegmentManager />}
                 {activeTab === 'llm' && <LlmTaskManager />}
                 {activeTab === 'analysis' && <GenericAnalysisManager />}
