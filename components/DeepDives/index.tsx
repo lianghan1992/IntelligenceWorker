@@ -273,7 +273,7 @@ const ReportCard: React.FC<{
                             <span className="font-mono">{task.total_pages}P</span>
                         </div>
                     )}
-                    {task.file_size > 0 && (
+                    {(task.file_size || 0) > 0 && (
                         <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
                             <CloudIcon className="w-3.5 h-3.5" />
                             <span className="font-mono">{formatFileSize(task.file_size)}</span>
