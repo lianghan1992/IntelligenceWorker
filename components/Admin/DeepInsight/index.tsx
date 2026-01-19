@@ -1,65 +1,23 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { TaskManager } from './TaskManager';
-import { CategoryManager } from './CategoryManager';
-import { FileManager } from './FileManager';
-import { DocumentTextIcon, ViewGridIcon, CloudIcon } from '../../icons';
-
-type SubView = 'tasks' | 'files' | 'categories';
+import { DocumentTextIcon } from '../../icons';
 
 export const DeepInsightManager: React.FC = () => {
-    const [subView, setSubView] = useState<SubView>('tasks');
-
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50/50">
             <div className="flex-shrink-0 mb-6">
-                <h1 className="text-2xl font-bold text-gray-800 mb-4">深度洞察管理</h1>
-                <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar">
-                        <button
-                            onClick={() => setSubView('tasks')}
-                            className={`
-                                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
-                                ${subView === 'tasks' 
-                                    ? 'border-blue-500 text-blue-600' 
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                            `}
-                        >
-                            <DocumentTextIcon className="w-5 h-5" />
-                            文档任务
-                        </button>
-                        <button
-                            onClick={() => setSubView('files')}
-                            className={`
-                                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
-                                ${subView === 'files' 
-                                    ? 'border-blue-500 text-blue-600' 
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                            `}
-                        >
-                            <CloudIcon className="w-5 h-5" />
-                            文件管理
-                        </button>
-                        <button
-                            onClick={() => setSubView('categories')}
-                            className={`
-                                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
-                                ${subView === 'categories' 
-                                    ? 'border-blue-500 text-blue-600' 
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                            `}
-                        >
-                            <ViewGridIcon className="w-5 h-5" />
-                            分类管理
-                        </button>
-                    </nav>
-                </div>
+                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                    <DocumentTextIcon className="w-8 h-8 text-indigo-600" />
+                    深度洞察文档库
+                </h1>
+                <p className="text-sm text-gray-500 mt-1 ml-11">
+                    管理已上传的行业研报与技术文档，配置分类标签，监控解析状态。
+                </p>
             </div>
 
             <div className="flex-1 overflow-hidden">
-                {subView === 'tasks' && <TaskManager />}
-                {subView === 'files' && <FileManager />}
-                {subView === 'categories' && <CategoryManager />}
+                <TaskManager />
             </div>
         </div>
     );

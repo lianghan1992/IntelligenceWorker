@@ -4,16 +4,16 @@ import { DeepInsightTask, DeepInsightCategory } from '../../../types';
 import { 
     getDeepInsightTasks, 
     uploadDeepInsightTask, 
-    getDeepInsightCategories,
-    getDeepInsightTasksStats,
+    getDeepInsightCategoriesWithStats,
     deleteDeepInsightTask,
     fetchDeepInsightCover,
     regenerateDeepInsightSummary,
     regenerateDeepInsightCover
 } from '../../../api';
-import { PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon, SparklesIcon, PhotoIcon, CheckCircleIcon } from '../../icons';
+import { PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon, SparklesIcon, PhotoIcon, CheckCircleIcon, ViewGridIcon, CloudIcon, ChartIcon } from '../../icons';
 import { TaskDetail } from './TaskDetail';
 import { ConfirmationModal } from '../ConfirmationModal';
+import { CategoryManagerModal } from './CategoryManager'; // Import the new modal
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -37,7 +37,6 @@ const formatBytes = (bytes?: number, decimals = 2) => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
-
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const styles: any = {
@@ -76,8 +75,8 @@ export const TaskManager: React.FC = () => {
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     
     const [tasks, setTasks] = useState<DeepInsightTask[]>([]);
-    const [categories, setCategories] = useState<DeepInsightCategory[]>([]);
-    const [stats, setStats] = useState<{ total: number; completed: number; failed: number; processing: number; pending: number } | null>(null);
+    const [categories, setCategories] = useState<(DeepInsightCategory & { count: number })[]>([]);
+    const [totalDocs, setTotalDocs] = useState(0);
     
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -93,46 +92,45 @@ export const TaskManager: React.FC = () => {
     const [batchActionType, setBatchActionType] = useState<'delete' | 'summary' | 'cover' | null>(null);
     const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 
-    const fetchStats = useCallback(async () => {
+    // Modal State
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+    // Fetch Stats & Categories
+    const fetchDashboardStats = useCallback(async () => {
         try {
-            const data = await getDeepInsightTasksStats();
-            setStats(data);
-        } catch (e) { console.error("Failed to fetch stats", e); }
+            const cats = await getDeepInsightCategoriesWithStats();
+            setCategories(cats || []);
+        } catch (e) {
+            console.error("Failed to fetch category stats", e);
+        }
     }, []);
 
     const fetchTasks = useCallback(async () => {
         setIsLoading(true);
         setError('');
         try {
-            fetchStats();
             const response = await getDeepInsightTasks({ page: 1, limit: 50 });
             if (Array.isArray(response)) {
                 setTasks(response);
             } else if (response && Array.isArray(response.items)) {
                 setTasks(response.items);
+                setTotalDocs(response.total); // Use actual API total
             } else {
                 setTasks([]);
             }
             setSelectedIds(new Set()); // Reset selection on fetch
+            fetchDashboardStats(); // Refresh stats when tasks change
         } catch (err: any) {
             console.warn("Fetch tasks warning:", err);
             setError(err.message || '获取任务列表失败');
         } finally {
             setIsLoading(false);
         }
-    }, [fetchStats]);
-
-    const fetchCategories = useCallback(async () => {
-        try {
-            const data = await getDeepInsightCategories();
-            setCategories(data || []);
-        } catch (e) { console.error(e); }
-    }, []);
+    }, [fetchDashboardStats]);
 
     useEffect(() => {
         fetchTasks();
-        fetchCategories();
-    }, [fetchTasks, fetchCategories]);
+    }, [fetchTasks]);
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -141,9 +139,8 @@ export const TaskManager: React.FC = () => {
         setIsUploading(true);
         setError('');
         try {
-            // The API call now handles the multi-step process (upload -> create -> start)
             await uploadDeepInsightTask(file, uploadCategoryId || undefined);
-            fetchTasks(); // Refresh list
+            fetchTasks(); 
         } catch (err: any) {
             setError(err.message || '上传失败');
         } finally {
@@ -194,8 +191,6 @@ export const TaskManager: React.FC = () => {
         
         try {
             if (action === 'delete') {
-                // Delete actions loop
-                // Since API is singular, we loop. Ideally backend supports batch.
                 const promises = ids.map(id => deleteDeepInsightTask(id));
                 await Promise.all(promises);
                 alert(`成功删除 ${ids.length} 个任务`);
@@ -209,7 +204,7 @@ export const TaskManager: React.FC = () => {
                 await Promise.all(promises);
                 alert(`已触发 ${ids.length} 个任务的封面重新生成`);
             }
-            fetchTasks(); // Refresh list
+            fetchTasks(); 
         } catch (e: any) {
             alert(`批量操作部分失败: ${e.message}`);
         } finally {
@@ -222,33 +217,64 @@ export const TaskManager: React.FC = () => {
         return <TaskDetail taskId={selectedTaskId} onBack={() => { setViewState('list'); setSelectedTaskId(null); fetchTasks(); }} />;
     }
 
+    // Sort categories by count desc
+    const topCategories = [...categories].sort((a, b) => b.count - a.count).slice(0, 4);
+
     return (
         <div className="h-full flex flex-col">
-            {/* Stats Overview */}
-            {stats && (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
-                        <span className="text-2xl font-bold text-gray-800">{stats.total}</span>
-                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">总任务</span>
+            {/* Stats Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                {/* Total Docs Card */}
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg shadow-indigo-200 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                        <DocumentTextIcon className="w-20 h-20 text-white" />
                     </div>
-                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
-                        <span className="text-2xl font-bold text-yellow-600">{stats.pending}</span>
-                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">等待中</span>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
-                        <span className="text-2xl font-bold text-blue-600">{stats.processing}</span>
-                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">处理中</span>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
-                        <span className="text-2xl font-bold text-green-600">{stats.completed}</span>
-                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">已完成</span>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
-                        <span className="text-2xl font-bold text-red-600">{stats.failed}</span>
-                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">失败</span>
+                    <div className="relative z-10">
+                        <div className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">Total Documents</div>
+                        <div className="text-4xl font-black">{totalDocs}</div>
+                        <div className="mt-4 text-[10px] bg-white/20 inline-block px-2 py-0.5 rounded font-medium">
+                            Auto Processed
+                        </div>
                     </div>
                 </div>
-            )}
+
+                {/* Categories Overview */}
+                <div className="md:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-center">
+                    <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700 flex items-center gap-2">
+                            <ChartIcon className="w-5 h-5 text-indigo-500" /> 分类概览
+                        </h4>
+                        <button 
+                            onClick={() => setIsCategoryModalOpen(true)}
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                        >
+                            <ViewGridIcon className="w-3.5 h-3.5" /> 管理分类
+                        </button>
+                    </div>
+                    <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                        {topCategories.length === 0 ? (
+                             <div className="text-sm text-slate-400 italic">暂无分类数据</div>
+                        ) : (
+                            topCategories.map(cat => (
+                                <div key={cat.id} className="flex-1 min-w-[140px] bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-between group hover:border-indigo-200 transition-all">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs text-slate-500 font-medium truncate max-w-[100px]" title={cat.name}>{cat.name}</span>
+                                        <span className="text-lg font-black text-slate-800">{cat.count}</span>
+                                    </div>
+                                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-400 group-hover:text-indigo-500 transition-colors shadow-sm">
+                                        <DocumentTextIcon className="w-4 h-4" />
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                        {categories.length > 4 && (
+                            <div className="flex items-center justify-center px-4 text-xs text-slate-400 font-medium bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                +{categories.length - 4} 更多
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
 
             {/* Toolbar */}
             <div className="bg-white p-4 rounded-lg border mb-4 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -306,15 +332,15 @@ export const TaskManager: React.FC = () => {
                             <button 
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploading}
-                                className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2 disabled:bg-blue-300 transition-colors w-full sm:w-auto justify-center"
+                                className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2 disabled:bg-blue-300 transition-colors w-full sm:w-auto justify-center shadow-md shadow-blue-200"
                             >
-                                {isUploading ? <WhiteSpinner /> : <PlusIcon className="w-4 h-4" />}
+                                {isUploading ? <WhiteSpinner /> : <CloudIcon className="w-4 h-4" />}
                                 上传文档 (PDF/PPT)
                             </button>
                         </>
                     )}
                 </div>
-                <button onClick={fetchTasks} className="p-2.5 bg-white border rounded-lg hover:bg-gray-100 text-gray-600" title="刷新列表">
+                <button onClick={fetchTasks} className="p-2.5 bg-white border rounded-lg hover:bg-gray-100 text-gray-600 transition-colors" title="刷新列表">
                     <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
                 </button>
             </div>
@@ -323,7 +349,7 @@ export const TaskManager: React.FC = () => {
 
             {/* Task List */}
             <div className="flex-1 bg-white rounded-lg border shadow-sm overflow-hidden flex flex-col">
-                <div className="overflow-y-auto flex-1">
+                <div className="overflow-y-auto flex-1 custom-scrollbar">
                     <table className="w-full text-sm text-left text-gray-500">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 border-b z-10">
                             <tr>
@@ -339,6 +365,7 @@ export const TaskManager: React.FC = () => {
                                 <th className="px-6 py-3">文件名称</th>
                                 <th className="px-6 py-3">类型</th>
                                 <th className="px-6 py-3">文件大小</th>
+                                <th className="px-6 py-3">分类</th>
                                 <th className="px-6 py-3">状态</th>
                                 <th className="px-6 py-3">进度</th>
                                 <th className="px-6 py-3">上传时间</th>
@@ -347,7 +374,7 @@ export const TaskManager: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {!isLoading && tasks.length === 0 ? (
-                                <tr><td colSpan={9} className="text-center py-10 text-gray-400">暂无任务</td></tr>
+                                <tr><td colSpan={10} className="text-center py-20 text-gray-400">暂无任务</td></tr>
                             ) : (
                                 tasks.map(task => (
                                     <tr 
@@ -364,27 +391,31 @@ export const TaskManager: React.FC = () => {
                                             />
                                         </td>
                                         <td className="px-6 py-3">
-                                            {/* Try to show thumbnail even if not completed, might fall back to icon */}
                                             <TaskThumbnail taskId={task.id} />
                                         </td>
                                         <td className="px-6 py-4 font-medium text-gray-900">
                                             {task.file_name}
                                         </td>
-                                        <td className="px-6 py-4 uppercase">{task.file_type}</td>
+                                        <td className="px-6 py-4 uppercase text-xs font-mono">{task.file_type}</td>
                                         <td className="px-6 py-4 font-mono text-xs">{formatBytes(task.file_size)}</td>
-                                        <td className="px-6 py-4"><StatusBadge status={task.status} /></td>
                                         <td className="px-6 py-4">
+                                            <span className="bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-500 border border-slate-200">
+                                                {task.category_name || 'Uncategorized'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4"><StatusBadge status={task.status} /></td>
+                                        <td className="px-6 py-4 text-xs font-mono">
                                             {task.total_pages > 0 
-                                                ? `${task.processed_pages} / ${task.total_pages} (${Math.round(task.processed_pages/task.total_pages*100)}%)`
+                                                ? `${task.processed_pages} / ${task.total_pages}`
                                                 : '-'
                                             }
                                         </td>
-                                        <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
+                                        <td className="px-6 py-4 text-xs text-slate-500">{new Date(task.created_at).toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'})}</td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex items-center justify-center gap-3">
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleTaskClick(task.id); }}
-                                                    className="text-blue-600 hover:underline font-medium"
+                                                    className="text-blue-600 hover:underline font-medium text-xs"
                                                 >
                                                     详情
                                                 </button>
@@ -427,6 +458,13 @@ export const TaskManager: React.FC = () => {
                     isLoading={isBatchProcessing && batchActionType === 'delete'}
                 />
             )}
+
+            {/* Category Management Modal */}
+            <CategoryManagerModal 
+                isOpen={isCategoryModalOpen}
+                onClose={() => setIsCategoryModalOpen(false)}
+                onUpdate={fetchDashboardStats}
+            />
         </div>
     );
 };
