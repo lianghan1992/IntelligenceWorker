@@ -5,10 +5,15 @@ import { getLivestreamTasksLite } from '../../api';
 import { TaskCard } from './TaskCard';
 import { EventReportModal } from './EventReportModal';
 import { HeroSection } from './HeroSection';
-// Added RefreshIcon to imports
 import { RefreshIcon } from '../icons';
 
-const TaskSection: React.FC<{ title: string; tasks: Partial<LivestreamTask>[]; onCardClick: (task: Partial<LivestreamTask>) => void; color: string; }> = ({ title, tasks, onCardClick, color }) => {
+const TaskSection: React.FC<{ 
+    title: string; 
+    tasks: Partial<LivestreamTask>[]; 
+    onCardClick: (task: Partial<LivestreamTask>) => void; 
+    color: string;
+    startIndex: number; // For sequential loading delay
+}> = ({ title, tasks, onCardClick, color, startIndex }) => {
     if (tasks.length === 0) {
         return null;
     }
@@ -23,8 +28,13 @@ const TaskSection: React.FC<{ title: string; tasks: Partial<LivestreamTask>[]; o
                 <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 rounded-full">{tasks.length}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-                {tasks.map((task) => (
-                    <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
+                {tasks.map((task, idx) => (
+                    <TaskCard 
+                        key={task.id} 
+                        task={task} 
+                        onViewReport={() => onCardClick(task)} 
+                        index={startIndex + idx} 
+                    />
                 ))}
             </div>
         </section>
@@ -41,7 +51,7 @@ export const IndustryEvents: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            // 使用 lite 接口加载 100 条轻量级数据
+            // 首先通过轻量级接口获取 100 条数据（不含图片 Base64）
             const response = await getLivestreamTasksLite({ page: 1, size: 100 });
             if (response && Array.isArray(response.items)) {
                 setTasks(response.items);
@@ -90,19 +100,30 @@ export const IndustryEvents: React.FC = () => {
         }
     };
 
-    if (isLoading) return <div className="p-10 flex flex-col items-center justify-center h-full text-slate-400 gap-3"><RefreshIcon className="w-8 h-8 animate-spin" /><p className="font-bold">载入轻量级列表...</p></div>;
+    if (isLoading) return <div className="p-10 flex flex-col items-center justify-center h-full text-slate-400 gap-3"><RefreshIcon className="w-8 h-8 animate-spin" /><p className="font-bold">载入任务列表...</p></div>;
     if (error) return <div className="text-center py-20 text-red-500">加载失败: {error}</div>;
 
     return (
         <>
             <div className="md:p-6 p-0 min-h-full flex flex-col relative bg-gray-50">
                 <div className="space-y-6 md:space-y-10 pb-20 md:pb-20">
-                    {/* Hero Section handles its own data selection from the passed tasks */}
                     <HeroSection tasks={tasks as LivestreamTask[]} onViewReport={handleTaskCardClick} />
 
                     <div className="px-4 md:px-2 space-y-8 md:space-y-12">
-                        <TaskSection title="后续日程" tasks={upcomingOthers} onCardClick={handleTaskCardClick} color="#3b82f6" />
-                        <TaskSection title="往期回顾" tasks={finishedOthers} onCardClick={handleTaskCardClick} color="#8b5cf6" />
+                        <TaskSection 
+                            title="后续日程" 
+                            tasks={upcomingOthers} 
+                            onCardClick={handleTaskCardClick} 
+                            color="#3b82f6" 
+                            startIndex={0} 
+                        />
+                        <TaskSection 
+                            title="往期回顾" 
+                            tasks={finishedOthers} 
+                            onCardClick={handleTaskCardClick} 
+                            color="#8b5cf6" 
+                            startIndex={upcomingOthers.length} 
+                        />
                     </div>
                 </div>
             </div>
