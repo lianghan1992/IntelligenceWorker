@@ -1,9 +1,8 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { ReportSection, StepId } from './types';
 import VisualEditor from '../../../shared/VisualEditor';
 import { marked } from 'marked';
-import { RefreshIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon, SparklesIcon } from '../../../icons';
+import { RefreshIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon, SparklesIcon, ServerIcon } from '../../../icons';
 
 interface ReportCanvasProps {
     sections: Record<StepId, ReportSection>;
@@ -98,8 +97,16 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({ sections, currentSte
                             <div className={`p-2 rounded-lg text-white shadow-sm transition-colors ${isGenerating ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-600'}`}>
                                 {key === 'compare' ? <ChartIcon className="w-5 h-5"/> : <DocumentTextIcon className="w-5 h-5"/>}
                             </div>
-                            <div>
-                                <h2 className="text-lg font-extrabold text-slate-800 tracking-tight">{section.title}</h2>
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-lg font-extrabold text-slate-800 tracking-tight">{section.title}</h2>
+                                    {section.usedModel && (
+                                        <span className="text-[9px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 flex items-center gap-1">
+                                            <ServerIcon className="w-2.5 h-2.5" />
+                                            {section.usedModel}
+                                        </span>
+                                    )}
+                                </div>
                                 {isGenerating && <p className="text-xs text-indigo-500 font-medium mt-0.5">AI 正在深度分析中...</p>}
                             </div>
                         </div>

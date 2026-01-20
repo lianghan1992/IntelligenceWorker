@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon } from '../../../icons';
 import { ChatPanel } from './ChatPanel';
@@ -180,7 +179,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         }
 
         setIsGenerating(true);
-        updateSection('init', { status: 'generating' });
+        updateSection('init', { status: 'generating', usedModel: config.model });
         
         try {
             // [NEW] 1. Perform Retrieval even for Init (to better understand valid tech names)
@@ -258,7 +257,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         }
 
         setIsGenerating(true);
-        updateSection(stepId, { status: 'generating', markdown: '' });
+        updateSection(stepId, { status: 'generating', markdown: '', usedModel: config.model });
         
         try {
             // [NEW] 1. RAG Search (Explicit Display to User)

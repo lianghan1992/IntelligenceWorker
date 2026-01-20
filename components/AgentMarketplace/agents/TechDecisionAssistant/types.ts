@@ -1,4 +1,3 @@
-
 export type StepId = 'init' | 'route' | 'risk' | 'solution' | 'compare';
 
 export interface ReportSection {
@@ -8,6 +7,7 @@ export interface ReportSection {
     markdown: string;
     html?: string;
     logs?: string[];
+    usedModel?: string; // 新增：记录该步骤使用的模型 (e.g. zhipu@glm-4-flash)
 }
 
 export interface TechEvalSessionData {
