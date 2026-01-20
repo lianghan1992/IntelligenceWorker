@@ -1,3 +1,4 @@
+
 import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
@@ -518,10 +519,11 @@ export const getUploadedDocDetail = async (id: string): Promise<UploadedDocument
     return { ...res, uuid: res.id, file_size: res.file_size || 0, page_count: res.page_count || 0 };
 }
 
-export const uploadDocs = (data: { files: File[], point_id?: string, publish_date?: string }): Promise<any> => {
+export const uploadDocs = (data: { files?: File[], pdf_urls?: string[], point_id?: string, publish_date?: string }): Promise<any> => {
     const formData = new FormData();
-    data.files.forEach(f => formData.append('files', f));
-    // Updated: Use 'point_uuid' instead of 'point_id' in FormData to match backend spec
+    if (data.files) data.files.forEach(f => formData.append('files', f));
+    if (data.pdf_urls) data.pdf_urls.forEach(url => formData.append('pdf_urls', url));
+    
     if (data.point_id) {
         formData.append('point_uuid', data.point_id);
     }
