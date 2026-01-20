@@ -18,7 +18,7 @@ export interface CommonSearchParams {
 export const performCommonSearch = async (params: CommonSearchParams): Promise<CommonSearchResponse> => {
     const token = localStorage.getItem('accessToken') || '';
     
-    // According to the documentation, accessToken is required in the body
+    // 根据文档，accessToken 需要在 body 中传递
     return apiFetch<CommonSearchResponse>(`${COMMON_SERVICE_PATH}/search`, {
         method: 'POST',
         body: JSON.stringify({

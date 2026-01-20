@@ -4,12 +4,11 @@ import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
 import { IntelligenceDashboard } from './IntelligenceDashboard';
 import { UserManagement } from './User/index'; 
-import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, PuzzleIcon, GlobeIcon } from '../icons';
+import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, PuzzleIcon } from '../icons';
 import { CompetitivenessManager } from './CompetitivenessManager';
 import { DeepInsightManager } from './DeepInsight/index';
 import { StratifyAiManager } from './StratifyAI/index';
-import { HtmlDesign } from './ComponentPreview/HtmlDesign';
-import { SearchPreview } from './ComponentPreview/SearchPreview';
+import { ComponentPreviewManager } from './ComponentPreview/index';
 
 const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'users', label: '用户', icon: UsersIcon },
@@ -18,7 +17,6 @@ const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'competitiveness', label: '竞争力', icon: BrainIcon },
     { view: 'stratify_ai', label: 'Agent', icon: SparklesIcon },
     { view: 'deep_insight', label: '深度洞察', icon: ViewGridIcon },
-    { view: 'common_search', label: '通用搜索', icon: GlobeIcon },
     { view: 'html_design', label: '组件预览', icon: PuzzleIcon },
 ];
 
@@ -40,9 +38,7 @@ export const AdminPage: React.FC = () => {
             case 'deep_insight':
                 return <DeepInsightManager />;
             case 'html_design':
-                return <HtmlDesign />;
-            case 'common_search':
-                return <SearchPreview />;
+                return <ComponentPreviewManager />;
             default:
                 return <UserManagement />;
         }
