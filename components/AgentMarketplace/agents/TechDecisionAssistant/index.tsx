@@ -42,6 +42,18 @@ const extractCleanHtml = (text: string) => {
     return '';
 };
 
+// 新增：从 Markdown 中移除 HTML 代码块，防止在正文中显示 raw code
+const stripHtmlFromMarkdown = (text: string) => {
+    let cleanText = text;
+    // 1. 移除 ```html ... ``` 代码块
+    cleanText = cleanText.replace(/```html[\s\S]*?```/gi, '');
+    // 2. 移除可能的长段 HTML 标签（兜底）
+    cleanText = cleanText.replace(/<!DOCTYPE html>[\s\S]*<\/html>/gi, '');
+    // 3. 移除独立的 div 块 (针对某些模型直接输出 div 的情况)
+    cleanText = cleanText.replace(/<div class="[\s\S]*?<\/div>\s*<\/div>/gi, '');
+    return cleanText.trim();
+};
+
 const StepIndicator: React.FC<{ status: string, index: number, title: string, isActive: boolean }> = ({ status, index, title, isActive }) => {
     let colorClass = 'bg-slate-100 text-slate-400 border-slate-200';
     if (status === 'done') colorClass = 'bg-green-100 text-green-700 border-green-200';
@@ -305,7 +317,9 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 if (chunk.content) {
                     fullContent += chunk.content;
                     const cleanHtml = extractCleanHtml(fullContent);
-                    updateSection(stepId, { markdown: fullContent, html: cleanHtml });
+                    // 关键修复：清洗 Markdown 中的 HTML 代码块，避免重复显示
+                    const cleanMarkdown = stripHtmlFromMarkdown(fullContent);
+                    updateSection(stepId, { markdown: cleanMarkdown, html: cleanHtml });
                 }
             }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
 

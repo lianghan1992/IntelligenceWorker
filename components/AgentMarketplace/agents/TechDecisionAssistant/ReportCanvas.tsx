@@ -15,31 +15,34 @@ const stepsOrder: StepId[] = ['route', 'risk', 'solution', 'compare'];
 // --- 自适应缩放的视觉组件包装器 ---
 const VisualWidget: React.FC<{ html: string }> = ({ html }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [width, setWidth] = useState(0);
+    const [scale, setScale] = useState(0.5);
 
     useEffect(() => {
         if (!containerRef.current) return;
-        const ro = new ResizeObserver(entries => {
+        const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 if (entry.contentRect.width > 0) {
-                    setWidth(entry.contentRect.width);
+                    const containerWidth = entry.contentRect.width;
+                    // Standard Canvas Width is 1600px
+                    // We want it to fit in the container, but also ensure it's not too small.
+                    // Scale = Available Width / 1600
+                    const newScale = Math.min(1, containerWidth / 1600);
+                    setScale(newScale);
                 }
             }
         });
-        ro.observe(containerRef.current);
-        return () => ro.disconnect();
+        resizeObserver.observe(containerRef.current);
+        return () => resizeObserver.disconnect();
     }, []);
 
-    // 16:9 Aspect Ratio
-    // Calculate height based on current width
-    const height = width * (9/16);
-    
-    // Calculate Scale: Standard canvas width is usually 1600 in our templates
-    const scale = Math.max(0.3, width / 1600);
+    // 16:9 Aspect Ratio calculation based on SCALE
+    // Height of the inner canvas is 900.
+    // Total height of container should be 900 * scale.
+    const containerHeight = 900 * scale;
 
     return (
-        <div className="mt-8 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-slate-50 relative group">
-            {/* Header Bar - Solves the floating label issue */}
+        <div className="mt-8 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-slate-50 relative group w-full">
+            {/* Header Bar */}
             <div className="h-10 px-4 bg-white border-b border-slate-200 flex justify-between items-center">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
                     <ChartIcon className="w-4 h-4 text-indigo-500" />
@@ -51,14 +54,28 @@ const VisualWidget: React.FC<{ html: string }> = ({ html }) => {
             </div>
             
             {/* Canvas Container */}
-            <div ref={containerRef} style={{ height: height || 450, position: 'relative' }} className="w-full bg-slate-100 flex items-center justify-center">
-                 <VisualEditor 
-                    initialHtml={html} 
-                    onSave={() => {}} 
-                    scale={scale}
-                    canvasSize={{ width: 1600, height: 900 }}
-                    hideToolbar={true} // Clean view
-                 />
+            <div 
+                ref={containerRef} 
+                style={{ height: containerHeight, transition: 'height 0.2s' }} 
+                className="w-full bg-slate-100 relative overflow-hidden"
+            >
+                 <div style={{
+                     width: 1600,
+                     height: 900,
+                     transform: `scale(${scale})`,
+                     transformOrigin: 'top left',
+                     position: 'absolute',
+                     top: 0,
+                     left: 0
+                 }}>
+                     <VisualEditor 
+                        initialHtml={html} 
+                        onSave={() => {}} 
+                        scale={1} // VisualEditor internal scale is 1 because we handle scaling in wrapper
+                        canvasSize={{ width: 1600, height: 900 }}
+                        hideToolbar={true} 
+                     />
+                 </div>
             </div>
         </div>
     );
