@@ -638,8 +638,8 @@ export interface GenerateStreamParams {
     temperature?: number;
 }
 
-// Updated AdminView type to include new component preview modules
-export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'markdown2html' | 'deep_insight' | 'stratify_ai' | 'html_design';
+// Updated AdminView type: Removed markdown2html
+export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'deep_insight' | 'stratify_ai' | 'html_design';
 
 export interface WorkflowVariable {
     name: string;

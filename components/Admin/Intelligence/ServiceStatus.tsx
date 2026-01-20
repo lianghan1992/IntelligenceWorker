@@ -20,9 +20,7 @@ const WhiteSpinner: React.FC = () => (
 );
 
 export const ServiceStatus: React.FC = () => {
-    const [status, setStatus] = useState<string | null>(null);
     const [proxies, setProxies] = useState<SpiderProxy[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
     const [isLoadingProxies, setIsLoadingProxies] = useState(false);
     
     // Proxy Section State
@@ -33,8 +31,6 @@ export const ServiceStatus: React.FC = () => {
     const [testingUrl, setTestingUrl] = useState<string | null>(null);
 
     // Gemini State
-    const [geminiStatus, setGeminiStatus] = useState<{ valid: boolean; message: string } | null>(null);
-    const [isCheckingGemini, setIsCheckingGemini] = useState(false);
     const [isCookieModalOpen, setIsCookieModalOpen] = useState(false);
     const [cookieForm, setCookieForm] = useState({ secure_1psid: '', secure_1psidts: '' });
     const [isUpdatingCookie, setIsUpdatingCookie] = useState(false);
@@ -46,18 +42,6 @@ export const ServiceStatus: React.FC = () => {
     // Retrospective Gen State
     const [isRetroSettingsOpen, setIsRetroSettingsOpen] = useState(false);
     const [isTogglingRetro, setIsTogglingRetro] = useState(false);
-
-    const fetchStatus = async () => {
-        setIsLoading(true);
-        try {
-            const res = await getServiceHealth();
-            setStatus(res.status);
-        } catch (e) { 
-            setStatus('error');
-        } finally { 
-            setIsLoading(false); 
-        }
-    };
 
     const fetchProxies = async () => {
         setIsLoadingProxies(true);
@@ -71,22 +55,8 @@ export const ServiceStatus: React.FC = () => {
         }
     };
 
-    const fetchGeminiStatus = async () => {
-        setIsCheckingGemini(true);
-        try {
-            const res = await checkIntelGeminiStatus();
-            setGeminiStatus(res);
-        } catch (e) {
-            setGeminiStatus({ valid: false, message: 'Check failed' });
-        } finally {
-            setIsCheckingGemini(false);
-        }
-    };
-
     useEffect(() => { 
-        fetchStatus(); 
         fetchProxies();
-        fetchGeminiStatus();
     }, []);
 
     const handleAddProxy = async () => {
@@ -142,8 +112,6 @@ export const ServiceStatus: React.FC = () => {
             await updateIntelGeminiCookies(cookieForm);
             setIsCookieModalOpen(false);
             setCookieForm({ secure_1psid: '', secure_1psidts: '' });
-            fetchGeminiStatus();
-            // Removed alert as requested
         } catch (e: any) {
             alert('更新失败: ' + (e.message || '未知错误'));
         } finally {
@@ -179,74 +147,25 @@ export const ServiceStatus: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* System Status Card - Compact Width */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
-                    <div className="flex justify-between items-start mb-4">
-                        <h3 className="text-base font-bold text-gray-800">系统运行状态</h3>
-                        <button onClick={fetchStatus} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-                            <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <div className={`p-3 rounded-full ${status === 'ok' ? 'bg-green-100' : 'bg-red-100'}`}>
-                            {status === 'ok' ? (
-                                <CheckCircleIcon className="w-6 h-6 text-green-600" />
-                            ) : (
-                                <ShieldExclamationIcon className="w-6 h-6 text-red-600" />
-                            )}
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">IntelSpider Service</div>
-                            <div className={`text-lg font-bold ${status === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
-                                {status === 'ok' ? '运行正常' : '服务异常'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Gemini Status Card - Compact Width */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-2">
-                            <SparklesIcon className="w-5 h-5 text-purple-600" />
-                            <h3 className="text-base font-bold text-gray-800">Gemini 引擎状态</h3>
-                        </div>
-                        <button onClick={fetchGeminiStatus} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-                            <RefreshIcon className={`w-4 h-4 ${isCheckingGemini ? 'animate-spin' : ''}`} />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${geminiStatus?.valid ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                            <span className={`text-sm font-medium ${geminiStatus?.valid ? 'text-green-700' : 'text-red-600'}`}>
-                                {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效/过期'}
-                            </span>
-                        </div>
-                        <div className="flex gap-2">
-                            <button 
-                                onClick={() => setIsHtmlSettingsOpen(true)}
-                                className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-200 flex items-center gap-1"
-                            >
-                                <DocumentTextIcon className="w-3 h-3" /> HTML 生成
-                            </button>
-                            <button 
-                                onClick={() => setIsRetroSettingsOpen(true)}
-                                className="text-xs px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors font-bold shadow-sm border border-orange-200 flex items-center gap-1"
-                            >
-                                <ClockIcon className="w-3 h-3" /> HTML 追溯
-                            </button>
-                            <button 
-                                onClick={() => setIsCookieModalOpen(true)}
-                                className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold shadow-sm"
-                            >
-                                更新 Cookie
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            <div className="flex justify-end gap-3 px-4">
+                <button 
+                    onClick={() => setIsHtmlSettingsOpen(true)}
+                    className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-200 flex items-center gap-1"
+                >
+                    <DocumentTextIcon className="w-3 h-3" /> HTML 生成
+                </button>
+                <button 
+                    onClick={() => setIsRetroSettingsOpen(true)}
+                    className="text-xs px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors font-bold shadow-sm border border-orange-200 flex items-center gap-1"
+                >
+                    <ClockIcon className="w-3 h-3" /> HTML 追溯
+                </button>
+                <button 
+                    onClick={() => setIsCookieModalOpen(true)}
+                    className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold shadow-sm"
+                >
+                    更新 Gemini Cookie
+                </button>
             </div>
 
             {/* Proxy Management Card (Collapsible) */}

@@ -6,7 +6,6 @@ import { IntelligenceDashboard } from './IntelligenceDashboard';
 import { UserManagement } from './User/index'; 
 import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, PuzzleIcon } from '../icons';
 import { CompetitivenessManager } from './CompetitivenessManager';
-import { MarkdownToHtmlManager } from './MarkdownToHtmlManager';
 import { DeepInsightManager } from './DeepInsight/index';
 import { StratifyAiManager } from './StratifyAI/index';
 import { HtmlDesign } from './ComponentPreview/HtmlDesign';
@@ -18,7 +17,6 @@ const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'competitiveness', label: '竞争力', icon: BrainIcon },
     { view: 'stratify_ai', label: 'Agent', icon: SparklesIcon },
     { view: 'deep_insight', label: '深度洞察', icon: ViewGridIcon },
-    { view: 'markdown2html', label: 'Markdown', icon: DocumentTextIcon },
     { view: 'html_design', label: '组件预览', icon: PuzzleIcon },
 ];
 
@@ -37,8 +35,6 @@ export const AdminPage: React.FC = () => {
                 return <CompetitivenessManager />;
             case 'stratify_ai':
                 return <StratifyAiManager />;
-            case 'markdown2html':
-                return <MarkdownToHtmlManager />;
             case 'deep_insight':
                 return <DeepInsightManager />;
             case 'html_design':
