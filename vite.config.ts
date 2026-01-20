@@ -22,6 +22,7 @@ export default defineConfig({
       '/gemini-api': {
         target: 'http://gemini.jingyu.today:7658',
         changeOrigin: true,
+        secure: false, // 允许无效 SSL 证书 (如果目标是 https 自签)
         rewrite: (path) => path.replace(/^\/gemini-api/, ''),
       },
     },

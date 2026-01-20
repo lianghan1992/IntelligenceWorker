@@ -17,7 +17,8 @@ export const streamGeminiChat = async (
     };
 
     try {
-        // Use the proxy path '/gemini-api' instead of the direct URL
+        console.log('[GeminiAPI] Requesting:', params.model);
+        // Use the proxy path '/gemini-api'
         const response = await fetch('/gemini-api/v1/chat/completions', {
             method: 'POST',
             headers,
@@ -26,9 +27,25 @@ export const streamGeminiChat = async (
 
         if (!response.ok) {
             const errText = await response.text();
+            console.error('[GeminiAPI] Error:', response.status, errText);
             throw new Error(`API Error ${response.status}: ${errText}`);
         }
 
+        const contentType = response.headers.get('content-type');
+
+        // Handle Non-Streaming Response (JSON)
+        if (contentType && contentType.includes('application/json')) {
+            const json = await response.json();
+            // Standard OpenAI format: choices[0].message.content
+            const content = json.choices?.[0]?.message?.content;
+            if (content) {
+                onData({ content });
+            }
+            if (onDone) onDone();
+            return;
+        }
+
+        // Handle Streaming Response (SSE)
         if (!response.body) throw new Error("No response body");
 
         const reader = response.body.getReader();
@@ -50,18 +67,20 @@ export const streamGeminiChat = async (
 
                 try {
                     const json = JSON.parse(jsonStr);
+                    // Standard OpenAI stream format: choices[0].delta.content
                     const content = json.choices?.[0]?.delta?.content;
                     if (content) {
                         onData({ content });
                     }
                 } catch (e) {
-                    // ignore
+                    // ignore partial chunks
                 }
             }
         }
         if (onDone) onDone();
 
     } catch (e) {
+        console.error('[GeminiAPI] Exception:', e);
         if (onError) onError(e);
     }
 };
