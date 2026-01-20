@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon } from '../../../icons';
+import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon, DocumentTextIcon, ClipboardIcon } from '../../../icons';
 import { ChatPanel } from './ChatPanel';
 import { ReportCanvas } from './ReportCanvas';
 import { StepId, TechEvalSessionData, ChatMessage, ReportSection } from './types';
@@ -30,6 +30,15 @@ const QUERY_REFINER_MODEL = "zhipu@glm-4-flash-250414";
 const RETRIEVAL_CONFIG = {
     threshold: 0.3,
     maxSegmentsPerQuery: 12 // 每个维度的片段数
+};
+
+// 定义每个阶段的任务目标，用于指导 AI 生成关键词
+const STEP_DEFINITIONS: Record<StepId, { title: string, objective: string }> = {
+    init: { title: '初始化', objective: '明确技术定义' },
+    route: { title: '技术路线', objective: '深度挖掘该技术的物理原理、代际演进路线，以及当前主流竞品的参数对比' },
+    risk: { title: '风险评估', objective: '排查该技术在工程落地时的物理失效模式、极端环境适应性风险及供应链安全隐患' },
+    solution: { title: '解决方案', objective: '寻找针对上述风险的行业主流工程对策、优化方案、专利路径及头部企业的解决案例' },
+    compare: { title: '综合决策', objective: '全方位对比不同技术路线（Plan A/B/C）的成本、性能上限与量产可行性，给出最终决策建议' },
 };
 
 const extractCleanHtml = (text: string) => {
@@ -170,13 +179,55 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     };
 
     /**
+     * 核心逻辑：根据当前步骤动态生成检索关键词
+     */
+    const generateStepSearchQueries = async (stepId: StepId, techName: string): Promise<string[]> => {
+        const stepInfo = STEP_DEFINITIONS[stepId];
+        if (!stepInfo) return [techName];
+
+        const prompt = `你是一个汽车行业技术情报专家。正在进行【${techName}】的【${stepInfo.title}】评估。
+请根据当前阶段的任务目标，生成 3-5 个具体的搜索引擎检索关键词，用于挖掘深度信息。
+
+当前阶段：${stepInfo.title}
+任务重点：${stepInfo.objective}
+
+要求：
+1. 关键词必须包含技术名称。
+2. 针对性强，例如风险阶段搜“${techName} 失效案例”，对比阶段搜“${techName} vs 竞品”。
+3. 仅返回纯 JSON 字符串数组，不要包含任何 Markdown 代码块标记。例如：["关键词1", "关键词2"]`;
+
+        try {
+            let buffer = "";
+            await streamChatCompletions({
+                model: QUERY_REFINER_MODEL, // 使用不计费的 Flash 模型
+                messages: [{ role: 'user', content: prompt }],
+                stream: true,
+                temperature: 0.2,
+                enable_billing: false
+            }, (chunk) => {
+                if (chunk.content) buffer += chunk.content;
+            });
+
+            // Extract JSON
+            const match = buffer.match(/\[[\s\S]*\]/);
+            if (match) {
+                return JSON.parse(match[0]);
+            }
+        } catch (e) {
+            console.error("Query generation failed", e);
+        }
+        // Fallback
+        return [`${techName} ${stepInfo.title}`, `${techName} 深度解析`];
+    };
+
+    /**
      * 执行批量向量检索并格式化输出
      */
     const executeBatchRetrieval = async (queries: string[]): Promise<string> => {
         if (!queries || queries.length === 0) return "";
 
         const queryListStr = queries.map(q => `• ${q}`).join('\n');
-        addMessage('assistant', `🔍 正在基于多维视角执行情报检索...\n${queryListStr}`);
+        addMessage('assistant', `🔍 正在执行情报检索...\n**检索策略**：\n${queryListStr}`);
         
         try {
             const response = await searchSemanticBatchGrouped({ 
@@ -225,6 +276,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         try {
             // 步骤准备：先拆分关键词
             const refinedQueries = await refineSearchQueries(input);
+            // 初始化阶段使用通用检索
             const ragContext = await executeBatchRetrieval(refinedQueries);
             
             const augmentedInput = ragContext ? `用户需求: ${input}\n\n参考背景资料:\n${ragContext.slice(0, 4000)}` : input;
@@ -257,7 +309,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             }));
             
             addMessage('assistant', `评估对象确认：**${parsed.tech_name}**。\n\n启动第一阶段：技术路线深度解析...`);
-            setTimeout(() => runGenerationStep('route', parsed.tech_name, parsed.search_queries), 500);
+            setTimeout(() => runGenerationStep('route', parsed.tech_name), 500);
 
         } catch (e: any) {
             addMessage('assistant', `初始化失败: ${e.message}`);
@@ -267,7 +319,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         }
     };
 
-    const runGenerationStep = async (stepId: StepId, techName: string, queries: string[], userInstructions?: string) => {
+    // Updated: Now accepts minimal args, handles dynamic query generation internally
+    const runGenerationStep = async (stepId: StepId, techName: string, userInstructions?: string) => {
         const promptKeyMap: Record<StepId, string> = {
             'init': 'tech_eval_init',
             'route': 'tech_eval_step1_route',
@@ -283,10 +336,15 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         updateSection(stepId, { status: 'generating', markdown: '', usedModel: config.model });
         
         try {
-            let activeQueries = queries;
-            // 如果是用户补充指令，先动态生成新的检索词
+            let activeQueries = [];
+            
             if (userInstructions) {
+                // 如果用户有补充指令，基于指令生成检索词
                 activeQueries = await refineSearchQueries(`${techName} ${userInstructions}`);
+            } else {
+                // 否则，基于当前步骤目标，让模型动态生成检索词
+                addMessage('assistant', `🤔 AI 正在思考【${STEP_DEFINITIONS[stepId].title}】阶段的检索策略...`);
+                activeQueries = await generateStepSearchQueries(stepId, techName);
             }
 
             const ragContext = await executeBatchRetrieval(activeQueries);
@@ -317,7 +375,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 if (chunk.content) {
                     fullContent += chunk.content;
                     const cleanHtml = extractCleanHtml(fullContent);
-                    // 关键修复：清洗 Markdown 中的 HTML 代码块，避免重复显示
                     const cleanMarkdown = stripHtmlFromMarkdown(fullContent);
                     updateSection(stepId, { markdown: cleanMarkdown, html: cleanHtml });
                 }
@@ -339,7 +396,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         if (currentStepId === 'init') {
             runInitStep(text);
         } else if (currentSection.status === 'review') {
-            runGenerationStep(currentStepId, data.techName, data.searchQueries, text);
+            runGenerationStep(currentStepId, data.techName, text);
         }
     };
 
@@ -349,14 +406,36 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             const nextIndex = data.currentStepIndex + 1;
             setData(prev => ({ ...prev, currentStepIndex: nextIndex }));
             addMessage('assistant', `阶段已确认。正在启动：**${data.sections[STEPS[nextIndex]].title}**...`);
-            setTimeout(() => runGenerationStep(STEPS[nextIndex], data.techName, data.searchQueries), 500);
+            setTimeout(() => runGenerationStep(STEPS[nextIndex], data.techName), 500);
         } else {
-            addMessage('assistant', `🎉 评估报告全流程已生成。您可以点击上方按钮导出为 PDF。`);
+            addMessage('assistant', `🎉 评估报告全流程已生成。您可以点击上方按钮导出为 Markdown。`);
         }
     };
 
     const handleRegenerateStep = () => {
-        runGenerationStep(currentStepId, data.techName, data.searchQueries, "请重新审视现有情报，给出更深入的专业分析。");
+        runGenerationStep(currentStepId, data.techName, "请重新审视现有情报，给出更深入的专业分析。");
+    };
+
+    // 导出功能
+    const handleExportMarkdown = () => {
+        let fullMarkdown = `# ${data.techName} - 深度技术评估报告\n\n`;
+        
+        DISPLAY_STEPS.forEach(stepId => {
+            const section = data.sections[stepId];
+            if (section.markdown) {
+                fullMarkdown += `\n${section.markdown}\n\n`;
+                if (section.html) {
+                    fullMarkdown += `\n> [图表: ${section.title} 可视化组件已生成]\n\n`;
+                }
+                fullMarkdown += `---\n`;
+            }
+        });
+        
+        navigator.clipboard.writeText(fullMarkdown).then(() => {
+            alert("完整报告 Markdown 已复制到剪贴板！");
+        }).catch(err => {
+            alert("复制失败，请重试");
+        });
     };
 
     if (isLoadingPrompts) return <div className="flex items-center justify-center h-full bg-[#f8fafc]"><RefreshIcon className="w-8 h-8 animate-spin text-indigo-600"/></div>;
@@ -373,14 +452,29 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     </div>
                 </div>
                 <div className="flex items-center gap-6">
-                    {data.techName && <div className="hidden md:flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200"><span className="text-xs text-slate-500 font-medium">评估对象:</span><span className="text-sm font-bold text-slate-800">{data.techName}</span></div>}
+                    {data.techName && (
+                        <button 
+                            onClick={handleExportMarkdown}
+                            className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm"
+                        >
+                            <ClipboardIcon className="w-3.5 h-3.5" /> 导出全文
+                        </button>
+                    )}
                     <div className="flex gap-2">
                         {DISPLAY_STEPS.map((step, idx) => <StepIndicator key={step} status={data.sections[step].status} index={idx} title={data.sections[step].title} isActive={currentStepId === step} />)}
                     </div>
                 </div>
             </div>
             <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 min-w-0 border-r border-slate-200 relative"><ReportCanvas sections={data.sections} currentStep={currentStepId} techName={data.techName} /></div>
+                <div className="flex-1 min-w-0 border-r border-slate-200 relative">
+                    <ReportCanvas 
+                        sections={data.sections} 
+                        currentStep={currentStepId} 
+                        techName={data.techName} 
+                        // 将 updateSection 传递给 ReportCanvas，以便内部 VisualEditor 更新 HTML
+                        onUpdateSection={updateSection}
+                    />
+                </div>
                 <div className="w-[450px] flex-shrink-0 bg-white shadow-xl z-10"><ChatPanel messages={data.messages} onSendMessage={handleSendMessage} isGenerating={isGenerating} currentStep={currentStepId} stepStatus={currentSection.status} onConfirmStep={handleConfirmStep} onRegenerateStep={handleRegenerateStep} /></div>
             </div>
         </div>
