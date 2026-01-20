@@ -6,17 +6,15 @@ export const streamGeminiChat = async (
         stream?: boolean;
         temperature?: number;
     },
+    apiKey: string,
     onData: (data: { content?: string }) => void,
     onDone?: () => void,
     onError?: (err: any) => void
 ) => {
-    const token = localStorage.getItem('accessToken');
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
     };
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
 
     try {
         const response = await fetch('http://gemini.jingyu.today:7658/v1/chat/completions', {

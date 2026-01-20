@@ -6,6 +6,7 @@ import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { getPrompts } from '../../../../api/stratify';
 import { searchSemanticSegments } from '../../../../api/intelligence';
 import { streamGeminiChat } from './api';
+import { KeyIcon, CloseIcon, CheckIcon } from '../../../../components/icons';
 
 export interface TechItem {
     id: string;
@@ -137,6 +138,55 @@ const extractCleanHtml = (text: string): string => {
     return clean.trim();
 };
 
+const ApiKeyModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (key: string) => void;
+    initialKey: string;
+}> = ({ isOpen, onClose, onSave, initialKey }) => {
+    const [key, setKey] = useState(initialKey);
+
+    useEffect(() => { setKey(initialKey); }, [initialKey, isOpen]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 border border-slate-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <KeyIcon className="w-5 h-5 text-indigo-600"/> API Key 配置
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-5 h-5"/></button>
+                </div>
+                <div className="space-y-4">
+                    <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        请输入您的 API Key 以连接服务。<br/>
+                        该 Key 将仅保存在您的浏览器本地 (Local Storage)。
+                    </p>
+                    <input 
+                        type="password" 
+                        value={key}
+                        onChange={e => setKey(e.target.value)}
+                        placeholder="sk-..."
+                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                    />
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                    <button onClick={onClose} className="px-4 py-2 text-slate-600 font-bold text-sm hover:bg-slate-100 rounded-lg">取消</button>
+                    <button 
+                        onClick={() => onSave(key)}
+                        disabled={!key.trim()}
+                        className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md active:scale-95 flex items-center gap-2"
+                    >
+                        <CheckIcon className="w-4 h-4"/> 保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(true); 
     const [selectedArticles, setSelectedArticles] = useState<ArticlePublic[]>([]);
@@ -149,22 +199,42 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     
     const [resetTrigger, setResetTrigger] = useState(0);
     const [prompts, setPrompts] = useState<StratifyPrompt[]>([]);
+    
+    // API Key State
+    const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_custom_api_key') || '');
+    const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
 
     useEffect(() => {
         getPrompts({ scenario_id: SCENARIO_ID })
             .then(setPrompts)
             .catch(err => console.error("Failed to load scenario prompts", err));
+            
+        if (!apiKey) {
+            // Delay slightly to ensure UI is ready
+            setTimeout(() => setIsKeyModalOpen(true), 500);
+        }
     }, []);
+
+    const handleSaveKey = (newKey: string) => {
+        setApiKey(newKey);
+        localStorage.setItem('gemini_custom_api_key', newKey);
+        setIsKeyModalOpen(false);
+    };
 
     // Unified LLM Call Helper
     const callLlm = async (messages: any[], onChunk?: (text: string) => void): Promise<string> => {
+        if (!apiKey) {
+            setIsKeyModalOpen(true);
+            throw new Error("请先配置 API Key");
+        }
+        
         let fullText = "";
         await streamGeminiChat({
             model: TARGET_MODEL,
             messages: messages,
             stream: true,
             temperature: 0.1 
-        }, (data) => {
+        }, apiKey, (data) => {
             if (data.content) {
                 fullText += data.content;
                 if (onChunk) onChunk(data.content);
@@ -231,7 +301,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             }
         } catch (e) {
             console.error("Extraction workflow error", e);
-            alert("提取过程发生错误");
+            alert("提取过程发生错误或未配置 API Key");
         } finally {
             setIsExtracting(false);
             setExtractionProgress(null);
@@ -417,6 +487,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 onStartGeneration={startGeneration}
                 prompts={prompts}
                 onRegenerateHtml={regenerateHtml}
+                onConfigureApiKey={() => setIsKeyModalOpen(true)}
             />
 
             {/* Selection Modal */}
@@ -432,6 +503,14 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                       />
                  </div>
             </div>
+
+            {/* API Key Modal */}
+            <ApiKeyModal 
+                isOpen={isKeyModalOpen} 
+                onClose={() => setIsKeyModalOpen(false)} 
+                onSave={handleSaveKey} 
+                initialKey={apiKey} 
+            />
         </div>
     );
 };

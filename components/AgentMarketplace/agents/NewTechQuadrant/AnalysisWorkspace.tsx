@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { TechItem, ExtractionProgress } from './index';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
@@ -5,7 +6,7 @@ import {
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
     CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
     DownloadIcon, PencilIcon, LinkIcon, SparklesIcon, TrendingUpIcon,
-    PlusIcon, ChartIcon, ServerIcon
+    PlusIcon, ChartIcon, ServerIcon, KeyIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import VisualEditor from '../../../shared/VisualEditor'; 
@@ -21,6 +22,7 @@ interface AnalysisWorkspaceProps {
     onStartGeneration: () => void;
     prompts?: StratifyPrompt[];
     onRegenerateHtml: (item: TechItem) => void;
+    onConfigureApiKey: () => void; // New prop
 }
 
 // URL Cleaner Helper
@@ -42,7 +44,7 @@ const cleanUrl = (url?: string) => {
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ 
     articles, techList, setTechList, onOpenSelection, 
     isExtracting, extractionProgress, isGenerating, onStartGeneration, prompts,
-    onRegenerateHtml
+    onRegenerateHtml, onConfigureApiKey
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [scale, setScale] = useState(1.0); 
@@ -154,13 +156,22 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                             <DocumentTextIcon className="w-5 h-5 text-indigo-600"/>
                             识别清单 ({techList.length})
                         </h3>
-                        <button 
-                            onClick={onOpenSelection} 
-                            disabled={isExtracting}
-                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 hover:bg-indigo-50 px-2 py-1 rounded transition-colors disabled:opacity-50"
-                        >
-                            <PlusIcon className="w-3.5 h-3.5" /> 添加/分析文章
-                        </button>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={onConfigureApiKey}
+                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                                title="配置 API Key"
+                            >
+                                <KeyIcon className="w-4 h-4" />
+                            </button>
+                            <button 
+                                onClick={onOpenSelection} 
+                                disabled={isExtracting}
+                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 hover:bg-indigo-50 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                            >
+                                <PlusIcon className="w-3.5 h-3.5" /> 添加/分析文章
+                            </button>
+                        </div>
                     </div>
 
                     {/* Enhanced Extraction Progress Card */}
