@@ -10,6 +10,7 @@ import {
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import VisualEditor from '../../../shared/VisualEditor'; 
+import { marked } from 'marked';
 
 interface AnalysisWorkspaceProps {
     articles: ArticlePublic[];
@@ -51,6 +52,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
     const [isDownloading, setIsDownloading] = useState(false);
     
     const editorContainerRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null); // For auto-scrolling streaming content
     
     const activeItem = techList.find(t => t.id === activeTechId);
 
@@ -60,6 +62,13 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
             setActiveTechId(techList[0].id);
         }
     }, [techList, activeTechId]);
+
+    // Auto-scroll to bottom of streaming content
+    useEffect(() => {
+        if (activeItem && ['analyzing', 'generating_html'].includes(activeItem.analysisState) && scrollRef.current) {
+             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [activeItem?.markdownDetail, activeItem?.htmlCode, activeItem?.analysisState]);
 
     // Auto-fit scale logic
     useEffect(() => {
@@ -384,7 +393,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                  </div>
                              </div>
                          ) : (
-                             <div className="flex flex-col h-full p-8 overflow-y-auto custom-scrollbar">
+                             <div className="flex flex-col h-full p-8 overflow-y-auto custom-scrollbar" ref={scrollRef}>
                                  <div className="max-w-3xl mx-auto w-full space-y-6">
                                      <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm relative overflow-hidden">
                                          <div className="flex items-center justify-between gap-4 mb-6">
@@ -428,6 +437,34 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                          </div>
                                      </div>
 
+                                     {/* 🟢 NEW: Streaming Content Display */}
+                                     {(activeItem.analysisState === 'analyzing' && activeItem.markdownDetail) && (
+                                         <div className="bg-white rounded-2xl p-6 border border-indigo-100 shadow-lg animate-in fade-in slide-in-from-bottom-2">
+                                             <div className="flex items-center gap-2 mb-4 text-indigo-600 font-bold text-sm">
+                                                 <RefreshIcon className="w-4 h-4 animate-spin" />
+                                                 AI 正在撰写深度分析报告...
+                                             </div>
+                                             <div className="prose prose-sm max-w-none text-slate-700 bg-slate-50 p-4 rounded-xl">
+                                                 <div dangerouslySetInnerHTML={{ __html: marked.parse(activeItem.markdownDetail) as string }} />
+                                             </div>
+                                         </div>
+                                     )}
+
+                                     {(activeItem.analysisState === 'generating_html' && activeItem.htmlCode) && (
+                                         <div className="bg-[#1e1e1e] rounded-2xl p-6 border border-slate-700 shadow-xl overflow-hidden relative animate-in fade-in slide-in-from-bottom-2">
+                                             <div className="flex items-center justify-between mb-4 border-b border-slate-700 pb-2">
+                                                 <div className="flex items-center gap-2 text-green-400 font-bold text-sm font-mono">
+                                                     <CodeIcon className="w-4 h-4 animate-pulse" />
+                                                     GENERATING_VISUAL_CODE...
+                                                 </div>
+                                             </div>
+                                             <pre className="text-xs text-slate-400 font-mono overflow-x-auto whitespace-pre-wrap break-all h-64 custom-scrollbar-dark leading-relaxed">
+                                                 {activeItem.htmlCode}
+                                             </pre>
+                                         </div>
+                                     )}
+
+                                     {/* System Logs */}
                                      {(activeItem.analysisState !== 'idle' || (activeItem.logs && activeItem.logs.length > 0)) && (
                                          <div className="bg-[#0f172a] rounded-2xl p-6 border border-slate-700 shadow-xl overflow-hidden relative">
                                              <div className="flex items-center justify-between gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">
