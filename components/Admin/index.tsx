@@ -16,7 +16,7 @@ const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'events', label: '发布会', icon: VideoCameraIcon },
     { view: 'intelligence', label: '情报', icon: RssIcon },
     { view: 'competitiveness', label: '竞争力', icon: BrainIcon },
-    { view: 'stratify_ai', label: 'AI报告', icon: SparklesIcon },
+    { view: 'stratify_ai', label: 'Agent', icon: SparklesIcon },
     { view: 'deep_insight', label: '深度洞察', icon: ViewGridIcon },
     { view: 'markdown2html', label: 'Markdown', icon: DocumentTextIcon },
     { view: 'html_design', label: '组件预览', icon: PuzzleIcon },

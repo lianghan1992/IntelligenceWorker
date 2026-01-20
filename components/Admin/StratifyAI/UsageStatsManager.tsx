@@ -41,11 +41,16 @@ export const UsageStatsManager: React.FC = () => {
                 skip: (page - 1) * limit,
                 limit: limit
             });
-            // Sort by time descending by default
-            const sorted = (listData || []).sort((a, b) => new Date(b.session_time).getTime() - new Date(a.session_time).getTime());
+            // Safe sort
+            const sorted = (listData || []).sort((a, b) => {
+                const tA = a.session_time ? new Date(a.session_time).getTime() : 0;
+                const tB = b.session_time ? new Date(b.session_time).getTime() : 0;
+                return tB - tA;
+            });
             setStats(sorted);
         } catch (e) {
             console.error("Failed to fetch usage data", e);
+            setStats([]); // Clear on error to avoid mapping undefined
         } finally {
             setIsLoading(false);
         }
@@ -158,27 +163,27 @@ export const UsageStatsManager: React.FC = () => {
                             stats.map((stat, idx) => (
                                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
                                     <td className="px-4 py-3 text-xs font-mono text-slate-500 whitespace-nowrap">
-                                        {new Date(stat.session_time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                        {stat.session_time ? new Date(stat.session_time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                                     </td>
                                     <td className="px-4 py-3 max-w-[150px]" title={`ID: ${stat.user_id}`}>
                                         <div className="font-bold text-slate-700 text-xs truncate">
                                             {stat.username || <span className="text-slate-400 font-normal">Unknown</span>}
                                         </div>
-                                        <div className="font-mono text-[10px] text-slate-400 truncate">{stat.email || stat.user_id.slice(0, 8)}</div>
+                                        <div className="font-mono text-[10px] text-slate-400 truncate">{stat.email || (stat.user_id ? stat.user_id.slice(0, 8) : '-')}</div>
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex flex-col">
                                             <span className="text-xs font-bold text-slate-700" title={`Session ID: ${stat.session_id}`}>{stat.agent_id}</span>
-                                            <span className="text-[10px] font-mono text-slate-400">{stat.session_id.slice(0, 8)}</span>
+                                            <span className="text-[10px] font-mono text-slate-400">{stat.session_id ? stat.session_id.slice(0, 8) : '-'}</span>
                                         </div>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className="text-xs font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{stat.model}</span>
+                                        <span className="text-xs font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{stat.model || '-'}</span>
                                     </td>
-                                    <td className="px-4 py-3 text-right font-mono text-xs">{stat.total_input_tokens.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-xs">{stat.total_output_tokens.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">¥{stat.original_cost.toFixed(4)}</td>
-                                    <td className="px-4 py-3 text-right font-bold text-indigo-600">¥{stat.total_cost.toFixed(4)}</td>
+                                    <td className="px-4 py-3 text-right font-mono text-xs">{(stat.total_input_tokens || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-right font-mono text-xs">{(stat.total_output_tokens || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">¥{(stat.original_cost || 0).toFixed(4)}</td>
+                                    <td className="px-4 py-3 text-right font-bold text-indigo-600">¥{(stat.total_cost || 0).toFixed(4)}</td>
                                 </tr>
                             ))
                         )}

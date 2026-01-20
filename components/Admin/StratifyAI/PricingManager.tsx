@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { ModelPricing, LLMChannel } from '../../../types';
-import { getPricings, setPricing, getChannels } from '../../../api/stratify';
+import { getPricings, createPricing, updatePricing, deletePricing, getChannels } from '../../../api/stratify';
 import { 
     RefreshIcon, PlusIcon, PencilIcon, CheckCircleIcon, 
     ShieldExclamationIcon, ChartIcon, LightningBoltIcon, 
-    ServerIcon, CloseIcon, CheckIcon 
+    CloseIcon, CheckIcon, TrashIcon
 } from '../../icons';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
 
@@ -21,9 +22,10 @@ interface PricingEditorModalProps {
 const PricingEditorModal: React.FC<PricingEditorModalProps> = ({ isOpen, onClose, onSave, pricing, channels }) => {
     const isEditing = !!pricing;
     const [form, setForm] = useState<Partial<ModelPricing>>({
-        model_name: '',
-        input_price: 1.0,
-        output_price: 2.0,
+        channel_code: '',
+        model: '',
+        input_price: 60.0,
+        output_price: 120.0,
         multiplier: 1.0,
         is_active: true
     });
@@ -31,25 +33,39 @@ const PricingEditorModal: React.FC<PricingEditorModalProps> = ({ isOpen, onClose
 
     useEffect(() => {
         if (isOpen) {
-            setForm(pricing || {
-                model_name: '',
-                input_price: 1.0,
-                output_price: 2.0,
-                multiplier: 1.0,
-                is_active: true
-            });
+            if (pricing) {
+                setForm({
+                    channel_code: pricing.channel_code,
+                    model: pricing.model,
+                    input_price: pricing.input_price,
+                    output_price: pricing.output_price,
+                    multiplier: pricing.multiplier,
+                    is_active: pricing.is_active
+                });
+            } else {
+                setForm({
+                    channel_code: '',
+                    model: '',
+                    input_price: 60.0,
+                    output_price: 120.0,
+                    multiplier: 1.0,
+                    is_active: true
+                });
+            }
         }
     }, [isOpen, pricing]);
 
-    const allModels = channels.flatMap(c => 
-        c.models.split(',').map(m => `${c.channel_code}@${m.trim()}`)
-    );
+    const availableModels = channels.find(c => c.channel_code === form.channel_code)?.models.split(',').map(m => m.trim()).filter(Boolean) || [];
 
     const handleSubmit = async () => {
-        if (!form.model_name) return;
+        if (!form.channel_code || !form.model) return;
         setIsSaving(true);
         try {
-            await setPricing(form);
+            if (isEditing && pricing && pricing.id) {
+                await updatePricing(pricing.id, form);
+            } else {
+                await createPricing(form);
+            }
             onSave();
             onClose();
         } catch (e) {
@@ -75,50 +91,81 @@ const PricingEditorModal: React.FC<PricingEditorModalProps> = ({ isOpen, onClose
                 </div>
                 
                 <div className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">模型名称 (model_name)</label>
-                        {isEditing ? (
-                            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-500">
-                                {form.model_name}
-                            </div>
-                        ) : (
-                            <select 
-                                value={form.model_name} 
-                                onChange={e => setForm({...form, model_name: e.target.value})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
-                            >
-                                <option value="">-- 请选择已配置的模型 --</option>
-                                {allModels.map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                        )}
-                        <p className="text-[10px] text-slate-400 mt-1 italic">格式: channel_code@model_id</p>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">渠道 (Channel)</label>
+                            {isEditing ? (
+                                <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-500">
+                                    {form.channel_code}
+                                </div>
+                            ) : (
+                                <select 
+                                    value={form.channel_code} 
+                                    onChange={e => setForm({...form, channel_code: e.target.value, model: ''})}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                >
+                                    <option value="">-- 选择渠道 --</option>
+                                    {channels.map(c => <option key={c.id} value={c.channel_code}>{c.name}</option>)}
+                                </select>
+                            )}
+                        </div>
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">模型 (Model)</label>
+                            {isEditing ? (
+                                <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-500">
+                                    {form.model}
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <input 
+                                        list="model_suggestions"
+                                        value={form.model} 
+                                        onChange={e => setForm({...form, model: e.target.value})}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="e.g. gpt-4"
+                                        disabled={!form.channel_code}
+                                    />
+                                    <datalist id="model_suggestions">
+                                        {availableModels.map(m => <option key={m} value={m} />)}
+                                    </datalist>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">输入价格 (CNY/1M Tokens)</label>
-                            <input 
-                                type="number"
-                                step="0.01"
-                                value={form.input_price} 
-                                onChange={e => setForm({...form, input_price: parseFloat(e.target.value)})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">输入价格 (Input)</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">¥</span>
+                                <input 
+                                    type="number"
+                                    step="0.01"
+                                    value={form.input_price} 
+                                    onChange={e => setForm({...form, input_price: parseFloat(e.target.value)})}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-6 pr-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <span className="text-[9px] text-slate-400 block mt-1">CNY / 1M Tokens</span>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">输出价格 (CNY/1M Tokens)</label>
-                            <input 
-                                type="number"
-                                step="0.01"
-                                value={form.output_price} 
-                                onChange={e => setForm({...form, output_price: parseFloat(e.target.value)})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">输出价格 (Output)</label>
+                             <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">¥</span>
+                                <input 
+                                    type="number"
+                                    step="0.01"
+                                    value={form.output_price} 
+                                    onChange={e => setForm({...form, output_price: parseFloat(e.target.value)})}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-6 pr-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <span className="text-[9px] text-slate-400 block mt-1">CNY / 1M Tokens</span>
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">用户结算倍率 (Multiplier)</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">结算倍率 (Multiplier)</label>
                         <input 
                             type="number"
                             step="0.1"
@@ -126,7 +173,7 @@ const PricingEditorModal: React.FC<PricingEditorModalProps> = ({ isOpen, onClose
                             onChange={e => setForm({...form, multiplier: parseFloat(e.target.value)})}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
-                        <p className="text-[10px] text-slate-400 mt-1">最终扣费 = 原始成本 * 倍率</p>
+                        <p className="text-[10px] text-slate-400 mt-1">最终扣费 = (输入量*输入价 + 输出量*输出价) * 倍率</p>
                     </div>
 
                     <div className="flex items-center gap-2 pt-2">
@@ -135,9 +182,9 @@ const PricingEditorModal: React.FC<PricingEditorModalProps> = ({ isOpen, onClose
                             id="is_active_pricing"
                             checked={form.is_active}
                             onChange={e => setForm({...form, is_active: e.target.checked})}
-                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer"
                         />
-                        <label htmlFor="is_active_pricing" className="text-sm font-bold text-slate-700">启用此定价规则</label>
+                        <label htmlFor="is_active_pricing" className="text-sm font-bold text-slate-700 cursor-pointer">启用此定价规则</label>
                     </div>
                 </div>
 
@@ -145,7 +192,7 @@ const PricingEditorModal: React.FC<PricingEditorModalProps> = ({ isOpen, onClose
                     <button onClick={onClose} className="px-5 py-2 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-200 transition-colors">取消</button>
                     <button 
                         onClick={handleSubmit} 
-                        disabled={isSaving || !form.model_name}
+                        disabled={isSaving || !form.channel_code || !form.model}
                         className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
                     >
                         {isSaving ? <Spinner /> : <CheckIcon className="w-4 h-4" />}
@@ -163,6 +210,7 @@ export const PricingManager: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPricing, setEditingPricing] = useState<ModelPricing | undefined>(undefined);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -190,6 +238,17 @@ export const PricingManager: React.FC = () => {
         setEditingPricing(undefined);
         setIsModalOpen(true);
     };
+    
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        try {
+            await deletePricing(deleteId);
+            setDeleteId(null);
+            fetchData();
+        } catch (e) {
+            alert('删除失败');
+        }
+    };
 
     return (
         <div className="h-full flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -197,9 +256,9 @@ export const PricingManager: React.FC = () => {
                 <div className="flex flex-col">
                     <h3 className="font-bold text-slate-700 flex items-center gap-2">
                         <ChartIcon className="w-5 h-5 text-indigo-600" />
-                        计费与定价规则管理
+                        模型定价策略
                     </h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">管理模型 Token 价格与计费倍率</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">配置各渠道模型的 Token 单价与结算倍率</p>
                 </div>
                 <div className="flex gap-2">
                     <button onClick={fetchData} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200">
@@ -219,7 +278,7 @@ export const PricingManager: React.FC = () => {
                     <table className="w-full text-sm text-left text-slate-500">
                         <thead className="text-[10px] text-slate-400 uppercase bg-slate-50/80 border-b font-black tracking-widest">
                             <tr>
-                                <th className="px-6 py-4">模型名称 (Model)</th>
+                                <th className="px-6 py-4">模型标识 (Channel @ Model)</th>
                                 <th className="px-6 py-4">输入单价 (Input)</th>
                                 <th className="px-6 py-4">输出单价 (Output)</th>
                                 <th className="px-6 py-4">用户倍率 (x)</th>
@@ -235,7 +294,10 @@ export const PricingManager: React.FC = () => {
                                             <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded">
                                                 <LightningBoltIcon className="w-3.5 h-3.5" />
                                             </div>
-                                            <span className="font-mono font-bold text-slate-800 text-xs">{p.model_name}</span>
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-slate-800 text-xs">{p.model}</span>
+                                                <span className="text-[9px] font-mono text-slate-400">{p.channel_code}</span>
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
@@ -268,6 +330,12 @@ export const PricingManager: React.FC = () => {
                                             className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                                         >
                                             <PencilIcon className="w-4 h-4" />
+                                        </button>
+                                         <button 
+                                            onClick={() => setDeleteId(p.id!)}
+                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
                                         </button>
                                     </td>
                                 </tr>
@@ -312,6 +380,17 @@ export const PricingManager: React.FC = () => {
                 pricing={editingPricing}
                 channels={channels}
             />
+            
+            {deleteId && (
+                <ConfirmationModal 
+                    title="删除定价规则"
+                    message="确定要删除此定价规则吗？删除后将使用默认或无法计费。"
+                    onConfirm={handleDelete}
+                    onCancel={() => setDeleteId(null)}
+                    confirmText="确认删除"
+                    variant="destructive"
+                />
+            )}
         </div>
     );
 };

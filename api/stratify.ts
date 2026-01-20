@@ -430,12 +430,23 @@ export const chatCompletions = (data: { model: string; messages: any[]; stream?:
 // --- 8. Pricing & Billing Admin ---
 
 export const getPricings = (): Promise<ModelPricing[]> =>
-    apiFetch<ModelPricing[]>(`${STRATIFY_SERVICE_PATH}/admin/pricing`);
+    apiFetch<ModelPricing[]>(`${STRATIFY_SERVICE_PATH}/pricing`);
 
-export const setPricing = (data: Partial<ModelPricing>): Promise<ModelPricing> =>
-    apiFetch<ModelPricing>(`${STRATIFY_SERVICE_PATH}/admin/pricing`, {
+export const createPricing = (data: Partial<ModelPricing>): Promise<ModelPricing> =>
+    apiFetch<ModelPricing>(`${STRATIFY_SERVICE_PATH}/pricing`, {
         method: 'POST',
         body: JSON.stringify(data),
+    });
+
+export const updatePricing = (id: string, data: Partial<ModelPricing>): Promise<ModelPricing> =>
+    apiFetch<ModelPricing>(`${STRATIFY_SERVICE_PATH}/pricing/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const deletePricing = (id: string): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/pricing/${id}`, {
+        method: 'DELETE',
     });
 
 // --- 14. Session Management ---

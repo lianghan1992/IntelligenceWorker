@@ -820,7 +820,10 @@ export interface LLMChannel {
 }
 
 export interface ModelPricing {
-    model_name: string;
+    id?: string;
+    channel_code?: string;
+    model?: string;
+    model_name: string; // Legacy field, kept for compatibility
     input_price: number;
     output_price: number;
     multiplier: number;
