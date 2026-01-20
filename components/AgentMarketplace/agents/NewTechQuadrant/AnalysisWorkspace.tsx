@@ -6,7 +6,7 @@ import {
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
     CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
     DownloadIcon, PencilIcon, LinkIcon, SparklesIcon, TrendingUpIcon,
-    PlusIcon, ChartIcon, ServerIcon, KeyIcon
+    PlusIcon, ChartIcon, ServerIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import VisualEditor from '../../../shared/VisualEditor'; 
@@ -22,7 +22,6 @@ interface AnalysisWorkspaceProps {
     onStartGeneration: () => void;
     prompts?: StratifyPrompt[];
     onRegenerateHtml: (item: TechItem) => void;
-    onConfigureApiKey: () => void; // New prop
 }
 
 // URL Cleaner Helper
@@ -44,7 +43,7 @@ const cleanUrl = (url?: string) => {
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ 
     articles, techList, setTechList, onOpenSelection, 
     isExtracting, extractionProgress, isGenerating, onStartGeneration, prompts,
-    onRegenerateHtml, onConfigureApiKey
+    onRegenerateHtml
 }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [scale, setScale] = useState(1.0); 
@@ -158,13 +157,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                         </h3>
                         <div className="flex gap-2">
                             <button 
-                                onClick={onConfigureApiKey}
-                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                                title="配置 API Key"
-                            >
-                                <KeyIcon className="w-4 h-4" />
-                            </button>
-                            <button 
                                 onClick={onOpenSelection} 
                                 disabled={isExtracting}
                                 className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 hover:bg-indigo-50 px-2 py-1 rounded transition-colors disabled:opacity-50"
@@ -195,6 +187,16 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                     </p>
                                 </div>
                             </div>
+
+                            {/* Model Tag */}
+                            {extractionProgress.currentModel && (
+                                <div className="mb-2 flex items-center gap-1">
+                                    <div className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100 text-[9px] font-mono font-bold flex items-center gap-1">
+                                        <ServerIcon className="w-3 h-3" />
+                                        {extractionProgress.currentModel.toUpperCase()}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-1">
                                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -427,9 +429,16 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                      </div>
 
                                      {(activeItem.analysisState !== 'idle' || (activeItem.logs && activeItem.logs.length > 0)) && (
-                                         <div className="bg-[#0f172a] rounded-2xl p-6 border border-slate-700 shadow-xl overflow-hidden">
-                                             <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">
-                                                 <CodeIcon className="w-4 h-4" /> System Logs
+                                         <div className="bg-[#0f172a] rounded-2xl p-6 border border-slate-700 shadow-xl overflow-hidden relative">
+                                             <div className="flex items-center justify-between gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">
+                                                 <div className="flex items-center gap-2">
+                                                     <CodeIcon className="w-4 h-4" /> System Logs
+                                                 </div>
+                                                 {activeItem.usedModel && (
+                                                     <div className="text-[10px] font-mono text-cyan-500 bg-cyan-950/30 px-2 py-0.5 rounded border border-cyan-900/50">
+                                                         MODEL: {activeItem.usedModel.toUpperCase()}
+                                                     </div>
+                                                 )}
                                              </div>
                                              <div className="font-mono text-xs text-green-400 space-y-2 max-h-60 overflow-y-auto custom-scrollbar-dark">
                                                  {activeItem.logs?.map((log, i) => (

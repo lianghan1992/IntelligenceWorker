@@ -3,10 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { ArticleSelectionStep } from './ArticleSelectionStep';
 import { AnalysisWorkspace } from './AnalysisWorkspace';
 import { ArticlePublic, StratifyPrompt } from '../../../../types';
-import { getPrompts } from '../../../../api/stratify';
+import { getPrompts, streamChatCompletions } from '../../../../api/stratify';
 import { searchSemanticSegments } from '../../../../api/intelligence';
-import { streamGeminiChat } from './api';
-import { KeyIcon, CloseIcon, CheckIcon } from '../../../../components/icons';
+import { AGENTS } from '../../../../agentConfig';
 
 export interface TechItem {
     id: string;
@@ -25,16 +24,19 @@ export interface TechItem {
     htmlContent?: string;
     htmlCode?: string; // For streaming display
     logs?: string[];
+    usedModel?: string; // Record which model was used
 }
 
 export interface ExtractionProgress {
     current: number;
     total: number;
     currentTitle: string;
+    currentModel?: string;
 }
 
 const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
-const TARGET_MODEL = 'gemini-2.5-flash';
+// Fallback if prompt has no config
+const DEFAULT_FALLBACK_MODEL = 'zhipu@glm-4-flash';
 
 // Helper: Robustly extract JSON array from text
 const extractJsonArray = (text: string): any[] | null => {
@@ -138,55 +140,6 @@ const extractCleanHtml = (text: string): string => {
     return clean.trim();
 };
 
-const ApiKeyModal: React.FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (key: string) => void;
-    initialKey: string;
-}> = ({ isOpen, onClose, onSave, initialKey }) => {
-    const [key, setKey] = useState(initialKey);
-
-    useEffect(() => { setKey(initialKey); }, [initialKey, isOpen]);
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 border border-slate-200">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <KeyIcon className="w-5 h-5 text-indigo-600"/> API Key 配置
-                    </h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-5 h-5"/></button>
-                </div>
-                <div className="space-y-4">
-                    <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        请输入您的 API Key 以连接服务。<br/>
-                        该 Key 将仅保存在您的浏览器本地 (Local Storage)。
-                    </p>
-                    <input 
-                        type="password" 
-                        value={key}
-                        onChange={e => setKey(e.target.value)}
-                        placeholder="sk-..."
-                        className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
-                    />
-                </div>
-                <div className="flex justify-end gap-3 mt-6">
-                    <button onClick={onClose} className="px-4 py-2 text-slate-600 font-bold text-sm hover:bg-slate-100 rounded-lg">取消</button>
-                    <button 
-                        onClick={() => onSave(key)}
-                        disabled={!key.trim()}
-                        className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md active:scale-95 flex items-center gap-2"
-                    >
-                        <CheckIcon className="w-4 h-4"/> 保存
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(true); 
     const [selectedArticles, setSelectedArticles] = useState<ArticlePublic[]>([]);
@@ -200,46 +153,38 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [resetTrigger, setResetTrigger] = useState(0);
     const [prompts, setPrompts] = useState<StratifyPrompt[]>([]);
     
-    // API Key State
-    const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_custom_api_key') || '');
-    const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-
     useEffect(() => {
         getPrompts({ scenario_id: SCENARIO_ID })
             .then(setPrompts)
             .catch(err => console.error("Failed to load scenario prompts", err));
-            
-        if (!apiKey) {
-            // Delay slightly to ensure UI is ready
-            setTimeout(() => setIsKeyModalOpen(true), 500);
-        }
     }, []);
 
-    const handleSaveKey = (newKey: string) => {
-        setApiKey(newKey);
-        localStorage.setItem('gemini_custom_api_key', newKey);
-        setIsKeyModalOpen(false);
+    // Helper: Construct "channel@model" string from prompt config
+    const getModelFromPrompt = (promptName: string): string => {
+        const p = prompts.find(pr => pr.name === promptName);
+        if (p && p.channel_code && p.model_id) {
+            return `${p.channel_code}@${p.model_id}`;
+        }
+        return DEFAULT_FALLBACK_MODEL;
     };
 
-    // Unified LLM Call Helper
-    const callLlm = async (messages: any[], onChunk?: (text: string) => void): Promise<string> => {
-        if (!apiKey) {
-            setIsKeyModalOpen(true);
-            throw new Error("请先配置 API Key");
-        }
-        
+    // Unified LLM Call Helper using System Gateway
+    const callLlm = async (messages: any[], modelStr: string, onChunk?: (text: string) => void): Promise<string> => {
         let fullText = "";
-        await streamGeminiChat({
-            model: TARGET_MODEL,
+        
+        await streamChatCompletions({
+            model: modelStr,
             messages: messages,
             stream: true,
-            temperature: 0.1 
-        }, apiKey, (data) => {
+            temperature: 0.1,
+            enable_billing: true
+        }, (data) => {
             if (data.content) {
                 fullText += data.content;
                 if (onChunk) onChunk(data.content);
             }
-        });
+        }, undefined, undefined, undefined, AGENTS.NEW_TECH_IDENTIFIER); // Pass App ID for tracking
+        
         return fullText;
     };
 
@@ -252,7 +197,14 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     const performExtraction = async (articles: ArticlePublic[]) => {
         setIsExtracting(true);
-        setExtractionProgress({ current: 0, total: articles.length, currentTitle: '' });
+        const extractModel = getModelFromPrompt('新技术识别提示词');
+        
+        setExtractionProgress({ 
+            current: 0, 
+            total: articles.length, 
+            currentTitle: '',
+            currentModel: extractModel
+        });
         
         try {
             const extractPrompt = prompts.find(p => p.name === '新技术识别提示词');
@@ -269,7 +221,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 setExtractionProgress({
                     current: i + 1,
                     total: articles.length,
-                    currentTitle: article.title
+                    currentTitle: article.title,
+                    currentModel: extractModel
                 });
 
                 const contentSnippet = article.content.slice(0, 3000); 
@@ -277,7 +230,10 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 const fullPrompt = `${extractPrompt.content}\n\n**【待分析文章内容】**\n${articleContext}`;
 
                 try {
-                    const text = await callLlm([{ role: 'user', content: fullPrompt }]);
+                    const text = await callLlm(
+                        [{ role: 'user', content: fullPrompt }], 
+                        extractModel
+                    );
                     const items = extractJsonArray(text);
                     
                     if (items && Array.isArray(items)) {
@@ -301,7 +257,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             }
         } catch (e) {
             console.error("Extraction workflow error", e);
-            alert("提取过程发生错误或未配置 API Key");
+            alert("提取过程发生错误");
         } finally {
             setIsExtracting(false);
             setExtractionProgress(null);
@@ -334,6 +290,9 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             return;
         }
 
+        const reportModel = getModelFromPrompt('新技术四象限编写');
+        const htmlModel = getModelFromPrompt('新技术四象限html生成');
+
         for (const item of itemsToProcess) {
             setTechList(prev => prev.map(t => t.id === item.id ? { ...t, analysisState: 'analyzing', logs: ['开始深度分析...'] } : t));
 
@@ -358,7 +317,11 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 } catch(e) { console.warn("RAG failed", e); }
                 
                 setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), `RAG 检索完成: 找到 ${retrievedCount} 条相关资料`] } : t));
-                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, logs: [...(t.logs||[]), 'AI 正在撰写报告...'] } : t));
+                setTechList(prev => prev.map(t => t.id === item.id ? { 
+                    ...t, 
+                    logs: [...(t.logs||[]), `AI 正在撰写报告 (Using ${reportModel})...`],
+                    usedModel: reportModel 
+                } : t));
                 
                 let filledReportPrompt = reportPrompt.content
                     .replace('{{ tech_name }}', item.name)
@@ -368,6 +331,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 let accumulatedMarkdown = "";
                 const reportMd = await callLlm(
                     [{ role: 'user', content: filledReportPrompt }],
+                    reportModel,
                     (chunk) => {
                         accumulatedMarkdown += chunk;
                         setTechList(prev => prev.map(t => t.id === item.id ? { ...t, markdownDetail: accumulatedMarkdown } : t));
@@ -380,7 +344,8 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     ...t, 
                     markdownContent: reportMd,
                     analysisState: 'generating_html',
-                    logs: [...(t.logs||[]), '报告撰写完成，正在生成可视化 HTML...']
+                    logs: [...(t.logs||[]), `报告撰写完成，正在生成可视化 HTML (Using ${htmlModel})...`],
+                    usedModel: htmlModel
                 } : t));
 
                 const filledHtmlPrompt = htmlPrompt.content.replace('{{ markdown_content }}', reportMd);
@@ -388,6 +353,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 let accumulatedHtmlCode = "";
                 const rawHtml = await callLlm(
                     [{ role: 'user', content: filledHtmlPrompt }],
+                    htmlModel,
                     (chunk) => {
                         accumulatedHtmlCode += chunk;
                         setTechList(prev => prev.map(t => t.id === item.id ? { ...t, htmlCode: accumulatedHtmlCode } : t));
@@ -431,11 +397,14 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             return;
         }
 
+        const htmlModel = getModelFromPrompt('新技术四象限html生成');
+
         setTechList(prev => prev.map(t => t.id === item.id ? { 
             ...t, 
             analysisState: 'generating_html', 
             htmlCode: '', 
-            logs: [...(t.logs||[]), '正在重新生成 HTML...'] 
+            usedModel: htmlModel,
+            logs: [...(t.logs||[]), `正在重新生成 HTML (Using ${htmlModel})...`] 
         } : t));
 
         try {
@@ -444,6 +413,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             let accumulatedHtmlCode = "";
             const rawHtml = await callLlm(
                 [{ role: 'user', content: filledHtmlPrompt }],
+                htmlModel,
                 (chunk) => {
                     accumulatedHtmlCode += chunk;
                     setTechList(prev => prev.map(t => t.id === item.id ? { ...t, htmlCode: accumulatedHtmlCode } : t));
@@ -487,7 +457,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 onStartGeneration={startGeneration}
                 prompts={prompts}
                 onRegenerateHtml={regenerateHtml}
-                onConfigureApiKey={() => setIsKeyModalOpen(true)}
             />
 
             {/* Selection Modal */}
@@ -503,14 +472,6 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                       />
                  </div>
             </div>
-
-            {/* API Key Modal */}
-            <ApiKeyModal 
-                isOpen={isKeyModalOpen} 
-                onClose={() => setIsKeyModalOpen(false)} 
-                onSave={handleSaveKey} 
-                initialKey={apiKey} 
-            />
         </div>
     );
 };
