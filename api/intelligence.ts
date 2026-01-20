@@ -1,4 +1,3 @@
-
 import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
@@ -278,6 +277,25 @@ export const searchSemanticSegments = async (data: any): Promise<{ items: InfoIt
         items,
         total: res.total_segments || res.total || 0
     };
+};
+
+/**
+ * 批量分组语义检索 (最新)
+ * 支持同时检索多个文本，返回按检索项分组的结果
+ */
+export const searchSemanticBatchGrouped = async (data: {
+    query_texts: string[];
+    source_id?: string;
+    point_id?: string;
+    start_date?: string;
+    end_date?: string;
+    similarity_threshold?: number;
+    max_segments_per_query?: number;
+}): Promise<{ results: any[] }> => {
+    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/search/semantic/grouped/batch`, { 
+        method: 'POST', 
+        body: JSON.stringify(data) 
+    });
 };
 
 export const getArticlesByTags = (data: any): Promise<PaginatedResponse<ArticlePublic>> => {
