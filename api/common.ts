@@ -14,22 +14,27 @@ export interface CommonSearchParams {
 
 /**
  * 执行通用网页或新闻搜索
+ * 严格对应 POST /api/common/search
  */
 export const performCommonSearch = async (params: CommonSearchParams): Promise<CommonSearchResponse> => {
     const token = localStorage.getItem('accessToken') || '';
     
-    // 根据文档，accessToken 需要在 body 中传递
+    // 严格按照文档，accessToken 作为必填字段放入请求体
     return apiFetch<CommonSearchResponse>(`${COMMON_SERVICE_PATH}/search`, {
         method: 'POST',
         body: JSON.stringify({
-            ...params,
-            accessToken: token
+            accessToken: token,
+            query: params.query,
+            region: params.region || 'wt-wt',
+            max_results: params.max_results || 10,
+            search_type: params.search_type || 'text'
         })
     });
 };
 
 /**
  * 获取搜索服务状态
+ * 严格对应 GET /api/common/search/status
  */
 export const getCommonSearchStatus = (): Promise<CommonSearchStatus> => 
     apiFetch<CommonSearchStatus>(`${COMMON_SERVICE_PATH}/search/status`);
