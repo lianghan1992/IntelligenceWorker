@@ -2,15 +2,16 @@
 import React, { useState } from 'react';
 import { CommonSearch } from '../../shared/CommonSearch';
 import { CommonSearchItem } from '../../../types';
-// Fixed error on line 88: Added GlobeIcon to the imports from icons
-import { CodeIcon, RefreshIcon, DatabaseIcon, GlobeIcon } from '../../icons';
+import { CodeIcon, RefreshIcon, DatabaseIcon, GlobeIcon, ClockIcon } from '../../icons';
 
 export const SearchPreview: React.FC = () => {
     const [lastResults, setLastResults] = useState<CommonSearchItem[]>([]);
     const [config, setConfig] = useState({
         region: 'cn-zh',
         maxResults: 5,
-        searchType: 'text' as 'text' | 'news'
+        searchType: 'text' as 'text' | 'news',
+        fileType: '',
+        timeLimit: ''
     });
 
     return (
@@ -20,20 +21,51 @@ export const SearchPreview: React.FC = () => {
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <CodeIcon className="w-4 h-4" /> 实时搜索配置
+                            <CodeIcon className="w-4 h-4" /> 搜索高级参数
                         </h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-2">目标地区 (Region)</label>
+                                <label className="block text-xs font-bold text-slate-700 mb-2">目标地区</label>
                                 <select 
                                     value={config.region}
                                     onChange={e => setConfig({...config, region: e.target.value})}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                                 >
                                     <option value="wt-wt">自动 (wt-wt)</option>
                                     <option value="cn-zh">中国 (cn-zh)</option>
                                     <option value="us-en">美国 (us-en)</option>
                                 </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-2 text-nowrap">文件过滤</label>
+                                    <select 
+                                        value={config.fileType}
+                                        onChange={e => setConfig({...config, fileType: e.target.value})}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2.5 text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                    >
+                                        <option value="">全部格式</option>
+                                        <option value="pdf">PDF</option>
+                                        <option value="doc">Word</option>
+                                        <option value="xls">Excel</option>
+                                        <option value="ppt">PPT</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-2">时间限制</label>
+                                    <select 
+                                        value={config.timeLimit}
+                                        onChange={e => setConfig({...config, timeLimit: e.target.value})}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2.5 text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                    >
+                                        <option value="">不限时间</option>
+                                        <option value="d">一天内</option>
+                                        <option value="w">一周内</option>
+                                        <option value="m">一月内</option>
+                                        <option value="y">一年内</option>
+                                    </select>
+                                </div>
                             </div>
                             
                             <div>
@@ -55,7 +87,7 @@ export const SearchPreview: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-2">结果数量限制: {config.maxResults}</label>
+                                <label className="block text-xs font-bold text-slate-700 mb-2">结果数量: {config.maxResults}</label>
                                 <input 
                                     type="range" min="1" max="20"
                                     value={config.maxResults}
@@ -73,10 +105,10 @@ export const SearchPreview: React.FC = () => {
                         </div>
                         <h4 className="font-bold text-sm mb-2">集成指南</h4>
                         <p className="text-[11px] text-indigo-100/70 leading-relaxed mb-4">
-                            <code>CommonSearch</code> 组件已封装所有 API 调用逻辑。通过 <code>onResult</code> 钩子可实时获取结构化数据。
+                            <code>CommonSearch</code> 组件已封装最新 API 逻辑。通过 <code>onResult</code> 钩子可获取结构化数据。
                         </p>
-                        <div className="bg-black/20 p-3 rounded-xl font-mono text-[10px] border border-white/5 leading-relaxed">
-                            {`<CommonSearch \n  region="${config.region}"\n  onResult={(data) => ...}\n/>`}
+                        <div className="bg-black/20 p-3 rounded-xl font-mono text-[10px] border border-white/5 leading-relaxed overflow-x-auto no-scrollbar">
+                            {`<CommonSearch \n  fileType="${config.fileType || 'pdf'}"\n  timeLimit="${config.timeLimit || 'w'}"\n/>`}
                         </div>
                     </div>
                 </div>
@@ -95,6 +127,8 @@ export const SearchPreview: React.FC = () => {
                             region={config.region}
                             maxResults={config.maxResults}
                             searchType={config.searchType}
+                            fileType={config.fileType}
+                            timeLimit={config.timeLimit}
                             onResult={setLastResults}
                         />
                     </div>

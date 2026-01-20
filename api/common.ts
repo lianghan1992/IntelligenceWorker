@@ -10,6 +10,8 @@ export interface CommonSearchParams {
     region?: string;
     max_results?: number;
     search_type?: 'text' | 'news';
+    file_type?: string;
+    time_limit?: string;
 }
 
 /**
@@ -27,7 +29,9 @@ export const performCommonSearch = async (params: CommonSearchParams): Promise<C
             query: params.query,
             region: params.region || 'wt-wt',
             max_results: params.max_results || 10,
-            search_type: params.search_type || 'text'
+            search_type: params.search_type || 'text',
+            file_type: params.file_type || undefined,
+            time_limit: params.time_limit || undefined
         })
     });
 };

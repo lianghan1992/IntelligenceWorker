@@ -11,6 +11,8 @@ interface CommonSearchProps {
     maxResults?: number;
     region?: string;
     searchType?: 'text' | 'news';
+    fileType?: string;
+    timeLimit?: string;
     className?: string;
     hideResults?: boolean; 
 }
@@ -22,6 +24,8 @@ export const CommonSearch: React.FC<CommonSearchProps> = ({
     maxResults = 10,
     region = 'cn-zh',
     searchType = 'text',
+    fileType = '',
+    timeLimit = '',
     className = '',
     hideResults = false
 }) => {
@@ -55,7 +59,9 @@ export const CommonSearch: React.FC<CommonSearchProps> = ({
                 query: query.trim(),
                 region,
                 max_results: maxResults,
-                search_type: searchType
+                search_type: searchType,
+                file_type: fileType || undefined,
+                time_limit: timeLimit || undefined
             });
 
             setItems(response.items || []);

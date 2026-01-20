@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { HtmlDesign } from './HtmlDesign';
 import { SearchPreview } from './SearchPreview';
-import { PuzzleIcon, GlobeIcon, CodeIcon } from '../../icons';
+import { GlobeIcon, CodeIcon } from '../../icons';
 
 type PreviewSubView = 'html_editor' | 'search_service';
 
@@ -11,7 +11,7 @@ export const ComponentPreviewManager: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col bg-slate-50">
-            {/* 子导航栏 - 极简风格 */}
+            {/* 子导航栏 - 极致精简 */}
             <div className="flex-shrink-0 bg-white border-b border-slate-200 px-8 pt-4">
                 <div className="flex gap-10 overflow-x-auto no-scrollbar">
                     <button
