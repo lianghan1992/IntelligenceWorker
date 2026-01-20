@@ -18,6 +18,12 @@ export default defineConfig({
         target: 'ws://127.0.0.1:7657',
         ws: true, // 启用 WebSocket 代理
       },
+      // 新增：Gemini API 代理
+      '/gemini-api': {
+        target: 'http://gemini.jingyu.today:7658',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/gemini-api/, ''),
+      },
     },
   },
   optimizeDeps: {

@@ -17,7 +17,8 @@ export const streamGeminiChat = async (
     };
 
     try {
-        const response = await fetch('http://gemini.jingyu.today:7658/v1/chat/completions', {
+        // Use the proxy path '/gemini-api' instead of the direct URL
+        const response = await fetch('/gemini-api/v1/chat/completions', {
             method: 'POST',
             headers,
             body: JSON.stringify({ ...params, stream: true }),

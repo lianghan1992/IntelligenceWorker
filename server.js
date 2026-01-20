@@ -37,6 +37,14 @@ app.use('/api', createProxyMiddleware({
   }
 }));
 
+// 新增：代理 Gemini API 请求，解决 HTTPS 页面调用 HTTP 接口的混合内容问题
+app.use('/gemini-api', createProxyMiddleware({
+  target: 'http://gemini.jingyu.today:7658',
+  changeOrigin: true,
+  pathRewrite: { '^/gemini-api': '' },
+  logLevel: 'debug',
+}));
+
 // 代理WebSocket连接
 const wsProxy = createProxyMiddleware({
     target: apiTarget,
