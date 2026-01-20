@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { LLMChannel } from '../../../types';
 import { getChannels, createChannel, updateChannel, deleteChannel } from '../../../api/stratify';
@@ -18,6 +19,7 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
     const [form, setForm] = useState<Partial<LLMChannel>>({
         channel_code: '',
         name: '',
+        base_url: '',
         api_key: '',
         models: '',
         is_active: true
@@ -26,9 +28,11 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
 
     useEffect(() => {
         if (isOpen) {
+            // Fix: Use channel data directly, do not clear api_key as backend now returns it (possibly masked or full depending on permissions)
             setForm(channel ? { ...channel } : { 
                 channel_code: '',
                 name: '',
+                base_url: 'https://api.openai.com/v1',
                 api_key: '',
                 models: '',
                 is_active: true
@@ -57,7 +61,7 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
             <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
                 <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -80,7 +84,6 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                                 className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none ${isEditing ? 'cursor-not-allowed opacity-70' : ''}`}
                                 placeholder="e.g. openrouter"
                             />
-                            <p className="text-[9px] text-slate-400 mt-1 italic">后端将自动匹配 Base URL</p>
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">显示名称</label>
@@ -94,8 +97,18 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                     </div>
 
                     <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Base URL</label>
+                        <input 
+                            value={form.base_url} 
+                            onChange={e => setForm({...form, base_url: e.target.value})}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="https://api.openai.com/v1"
+                        />
+                    </div>
+
+                    <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                            API Key (支持多Key轮询与重试)
+                            API Key (支持多Key轮询)
                         </label>
                         <div className="relative">
                             <KeyIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
@@ -107,7 +120,7 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                             />
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed bg-blue-50 text-blue-600 p-2 rounded-lg border border-blue-100">
-                            <strong>提示：</strong> 支持配置多个 API Key 以实现负载均衡与故障重试。请使用英文逗号分隔。
+                            <strong>提示：</strong> 支持配置多个 API Key 以实现负载均衡。请使用英文逗号分隔，系统将自动轮询使用。
                         </p>
                     </div>
 
@@ -136,11 +149,11 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                 </div>
 
                 <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                    <button onClick={onClose} className="px-5 py-2 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-200 transition-colors">取消</button>
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-200 transition-colors">取消</button>
                     <button 
                         onClick={handleSubmit} 
                         disabled={isSaving || !form.channel_code || !form.name}
-                        className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                        className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
                     >
                         {isSaving ? <Spinner /> : <CheckIcon className="w-4 h-4" />}
                         保存配置
@@ -180,7 +193,6 @@ export const ChannelManager: React.FC = () => {
     };
 
     const handleCreate = () => {
-        // Corrected setter name from setEditingScenario to setEditingChannel
         setEditingChannel(undefined);
         setIsModalOpen(true);
     };
@@ -242,8 +254,8 @@ export const ChannelManager: React.FC = () => {
                             </div>
                             
                             <div className="space-y-2">
-                                <div className="text-[10px] text-slate-400 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed italic">
-                                    模型服务由后端通过渠道代码动态路由
+                                <div className="text-xs bg-slate-50 p-2 rounded border border-slate-100 font-mono text-slate-500 truncate" title={channel.base_url}>
+                                    {channel.base_url}
                                 </div>
                                 <div className="text-[10px] text-slate-400">
                                     <span className="font-bold text-slate-500">Models: </span>

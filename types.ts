@@ -1,3 +1,4 @@
+
 export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'marketplace' | 'admin';
 
 export interface User {
@@ -610,7 +611,7 @@ export interface DeepInsightPagesResponse {
     total: number;
 }
 
-export interface ArabesquePage {
+export interface StratifyPage {
     page_index: number;
     title: string;
     content_markdown: string;
@@ -809,6 +810,7 @@ export interface LLMChannel {
     id: number;
     channel_code: string;
     name: string;
+    base_url: string;
     models: string; // comma separated
     is_active: boolean;
     config?: any;

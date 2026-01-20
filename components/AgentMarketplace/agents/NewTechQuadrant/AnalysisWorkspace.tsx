@@ -39,18 +39,6 @@ const cleanUrl = (url?: string) => {
     return clean;
 };
 
-// 小胶囊组件
-const ModelBadge: React.FC<{ promptName: string; prompts?: StratifyPrompt[] }> = ({ promptName, prompts }) => {
-    const p = prompts?.find(item => item.name === promptName);
-    if (!p || (!p.channel_code && !p.model_id)) return null;
-    return (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-100 text-indigo-500 font-mono text-[9px] font-bold" title={`${promptName} 绑定模型`}>
-            <ServerIcon className="w-2.5 h-2.5" />
-            {p.channel_code}@{p.model_id}
-        </span>
-    );
-};
-
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ 
     articles, techList, setTechList, onOpenSelection, 
     isExtracting, extractionProgress, isGenerating, onStartGeneration, prompts,
@@ -188,18 +176,13 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                                 </div>
                             </div>
                             
-                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mb-2">
+                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mb-3">
                                 <div className="flex items-start gap-2">
                                     <DocumentTextIcon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
                                     <p className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-2" title={extractionProgress.currentTitle}>
                                         {extractionProgress.currentTitle || '准备加载...'}
                                     </p>
                                 </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Engine:</span>
-                                <ModelBadge promptName="新技术识别提示词" prompts={prompts} />
                             </div>
 
                             <div className="space-y-1">
@@ -349,18 +332,12 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
                          {activeItem.analysisState === 'done' && activeItem.htmlContent ? (
                              <div className="flex flex-col h-full w-full">
                                  <div className="h-14 px-6 bg-[#1e293b] border-b border-slate-700 flex justify-between items-center shadow-sm z-20 flex-shrink-0">
-                                     <div className="flex items-center gap-4 text-white font-bold">
-                                         <div className="flex items-center gap-2">
-                                            <CheckCircleIcon className="w-5 h-5 text-green-400" />
-                                            {activeItem.name} - 分析报告
-                                         </div>
-                                         <div className="h-4 w-px bg-slate-700 mx-2"></div>
-                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-slate-500 uppercase tracking-widest">Rendered by</span>
-                                            <ModelBadge promptName="新技术四象限html生成" prompts={prompts} />
-                                         </div>
+                                     <div className="flex items-center gap-2 text-white font-bold">
+                                         <CheckCircleIcon className="w-5 h-5 text-green-400" />
+                                         {activeItem.name} - 分析报告
                                      </div>
                                      <div className="flex items-center gap-3">
+                                         {/* ⚡️ Added Copy Markdown Button */}
                                          {activeItem.markdownContent && (
                                              <button 
                                                  onClick={(e) => handleCopyContent(e, activeItem.markdownContent!, '分析报告')}
@@ -440,24 +417,8 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
 
                                      {(activeItem.analysisState !== 'idle' || (activeItem.logs && activeItem.logs.length > 0)) && (
                                          <div className="bg-[#0f172a] rounded-2xl p-6 border border-slate-700 shadow-xl overflow-hidden">
-                                             <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
-                                                 <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                                                     <CodeIcon className="w-4 h-4" /> System Logs
-                                                 </div>
-                                                 <div className="flex items-center gap-3">
-                                                    {activeItem.analysisState === 'analyzing' && (
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-[10px] text-slate-500 uppercase font-black">Agent:</span>
-                                                            <ModelBadge promptName="新技术四象限编写" prompts={prompts} />
-                                                        </div>
-                                                    )}
-                                                    {activeItem.analysisState === 'generating_html' && (
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-[10px] text-slate-500 uppercase font-black">Visualizer:</span>
-                                                            <ModelBadge promptName="新技术四象限html生成" prompts={prompts} />
-                                                        </div>
-                                                    )}
-                                                 </div>
+                                             <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">
+                                                 <CodeIcon className="w-4 h-4" /> System Logs
                                              </div>
                                              <div className="font-mono text-xs text-green-400 space-y-2 max-h-60 overflow-y-auto custom-scrollbar-dark">
                                                  {activeItem.logs?.map((log, i) => (

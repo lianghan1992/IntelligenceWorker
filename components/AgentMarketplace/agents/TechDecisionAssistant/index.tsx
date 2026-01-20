@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon, ServerIcon } from '../../../icons';
+import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon } from '../../../icons';
 import { ChatPanel } from './ChatPanel';
 import { ReportCanvas } from './ReportCanvas';
 import { StepId, TechEvalSessionData, ChatMessage, ReportSection } from './types';
@@ -61,23 +62,9 @@ const StepIndicator: React.FC<{ status: string, index: number, title: string, is
     );
 };
 
-// 小胶囊模型标签
-const ModelBadge: React.FC<{ promptName: string; prompts: Record<string, StratifyPrompt> }> = ({ promptName, prompts }) => {
-    const p = prompts[promptName];
-    if (!p || (!p.channel_code && !p.model_id)) return null;
-    return (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-500 font-mono text-[9px] font-bold" title={`${promptName} 所用模型`}>
-            <ServerIcon className="w-2.5 h-2.5" />
-            {p.channel_code}@{p.model_id}
-        </span>
-    );
-};
-
 const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack }) => {
-    // Corrected object member initialization for useState: removed '?: string' which is not valid syntax in an object literal
     const [data, setData] = useState<TechEvalSessionData>({
         techName: '',
-        techDefinition: '',
         searchQueries: [],
         currentStepIndex: 0,
         sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
@@ -142,7 +129,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         
         // Construct model string "channel@model" if both exist
         // Default fallback if not configured in prompt
-        let modelStr = 'zhipu@glm-4.5-flash'; 
+        let modelStr = 'zhipu@glm-4-flash'; 
         if (prompt.channel_code && prompt.model_id) {
             modelStr = `${prompt.channel_code}@${prompt.model_id}`;
         }
@@ -397,8 +384,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         );
     }
 
-    const currentPromptName = currentStepId === 'init' ? 'tech_eval_init' : `tech_eval_step${data.currentStepIndex}_${currentStepId === 'route' ? 'route' : currentStepId === 'risk' ? 'risk' : currentStepId === 'solution' ? 'solution' : 'compare'}`;
-
     return (
         <div className="flex flex-col h-full bg-[#f8fafc]">
             {/* Custom Unified Header */}
@@ -418,24 +403,18 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
                             <ChartIcon className="w-4 h-4" />
                         </div>
-                        <div className="flex flex-col">
-                            <h1 className="text-sm font-bold text-slate-800 tracking-tight leading-none">技术决策评估助手</h1>
-                            {data.techName ? (
-                                <div className="mt-1 flex items-center gap-2">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase">TARGET:</span>
-                                    <span className="text-xs font-bold text-indigo-600">{data.techName}</span>
-                                    <div className="h-2 w-px bg-slate-200"></div>
-                                    <ModelBadge promptName={currentPromptName} prompts={promptMap} />
-                                </div>
-                            ) : (
-                                <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">Awaiting Technical Subject</p>
-                            )}
-                        </div>
+                        <h1 className="text-lg font-bold text-slate-800 tracking-tight">技术决策评估助手</h1>
                     </div>
                 </div>
 
                 {/* Steps & Status */}
                 <div className="flex items-center gap-6">
+                    {data.techName && (
+                        <div className="hidden md:flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                            <span className="text-xs text-slate-500 font-medium">评估对象:</span>
+                            <span className="text-sm font-bold text-slate-800">{data.techName}</span>
+                        </div>
+                    )}
                     <div className="flex gap-2">
                         {DISPLAY_STEPS.map((step, idx) => (
                             <StepIndicator 
