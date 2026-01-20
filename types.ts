@@ -12,6 +12,24 @@ export interface User {
     created_at: string;
 }
 
+// --- Common Search Types ---
+export interface CommonSearchItem {
+    title: string;
+    href: string;
+    body: string;
+}
+
+export interface CommonSearchStatus {
+    queue_length: number;
+    max_concurrent: number;
+    proxy_enabled: boolean;
+}
+
+export interface CommonSearchResponse {
+    items: CommonSearchItem[];
+    meta: CommonSearchStatus;
+}
+
 export interface SystemSource {
     id: string;
     source_name: string;
@@ -638,8 +656,8 @@ export interface GenerateStreamParams {
     temperature?: number;
 }
 
-// Updated AdminView type: Removed markdown2html
-export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'deep_insight' | 'stratify_ai' | 'html_design';
+// Updated AdminView type: Added common_search
+export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'deep_insight' | 'stratify_ai' | 'html_design' | 'common_search';
 
 export interface WorkflowVariable {
     name: string;
