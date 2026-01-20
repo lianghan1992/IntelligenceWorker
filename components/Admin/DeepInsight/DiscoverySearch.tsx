@@ -1,22 +1,21 @@
+
 import React, { useState } from 'react';
 import { CommonSearch } from '../../shared/CommonSearch';
 import { CommonSearchItem } from '../../../types';
 import { uploadDocs } from '../../../api/intelligence';
-// Added SearchIcon to the imports from icons
 import { 
     GlobeIcon, EyeIcon, CloudIcon, RefreshIcon, 
-    ExternalLinkIcon, CheckCircleIcon, ShieldExclamationIcon,
-    ClockIcon, DocumentTextIcon, CheckIcon, SearchIcon
+    ClockIcon, DocumentTextIcon, CheckIcon, SearchIcon,
+    ExternalLinkIcon, TrashIcon
 } from '../../icons';
-import { ExternalPdfPreview } from './ExternalPdfPreview';
 
 export const DiscoverySearch: React.FC = () => {
     const [results, setResults] = useState<CommonSearchItem[]>([]);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [previewTitle, setPreviewTitle] = useState<string>('');
     
     // Tracking integration status for each URL
     const [integratingUrls, setIntegratingUrls] = useState<Record<string, 'loading' | 'success' | 'error'>>({});
+    // Tracking custom filenames for each URL
+    const [customFilenames, setCustomFilenames] = useState<Record<string, string>>({});
     
     // Config for search
     const [timeLimit, setTimeLimit] = useState('w'); // Default one week
@@ -25,12 +24,15 @@ export const DiscoverySearch: React.FC = () => {
         const url = item.href;
         if (integratingUrls[url] === 'loading' || integratingUrls[url] === 'success') return;
 
+        const customName = customFilenames[url]?.trim();
+
         setIntegratingUrls(prev => ({ ...prev, [url]: 'loading' }));
         
         try {
-            // New API feature: Upload PDF by URL
+            // Updated uploadDocs call with custom_filenames
             await uploadDocs({
-                pdf_urls: [url]
+                pdf_urls: [url],
+                custom_filenames: customName ? [customName] : undefined
             });
             
             setIntegratingUrls(prev => ({ ...prev, [url]: 'success' }));
@@ -39,6 +41,10 @@ export const DiscoverySearch: React.FC = () => {
             setIntegratingUrls(prev => ({ ...prev, [url]: 'error' }));
             alert(`集成失败: ${e instanceof Error ? e.message : '未知错误'}`);
         }
+    };
+
+    const handleFilenameChange = (url: string, name: string) => {
+        setCustomFilenames(prev => ({ ...prev, [url]: name }));
     };
 
     return (
@@ -79,103 +85,129 @@ export const DiscoverySearch: React.FC = () => {
                     fileType="pdf"
                     timeLimit={timeLimit}
                     onResult={(items) => setResults(items)}
-                    hideResults={true} // We will render our own cards below
+                    hideResults={true} // We render our own list below
                     placeholder="输入关键词发现行业研报 (e.g. 2024 智能驾驶 市场份额)..."
                 />
             </div>
 
-            {/* Specialized Results Grid */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
+            {/* Results Table List */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
                 {results.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {results.map((item, idx) => {
-                            const status = integratingUrls[item.href];
-                            return (
-                                <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col shadow-sm hover:shadow-md transition-all group animate-in fade-in slide-in-from-bottom-2" style={{ animationDelay: `${idx * 50}ms` }}>
-                                    <div className="flex-1 min-w-0 mb-5">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div className="p-2 bg-red-50 text-red-500 rounded-lg flex-shrink-0">
-                                                <DocumentTextIcon className="w-5 h-5" />
+                    <table className="w-full text-sm text-left border-collapse">
+                        <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10 font-bold text-slate-500 uppercase text-[10px] tracking-wider">
+                            <tr>
+                                <th className="px-6 py-3 w-12 text-center">#</th>
+                                <th className="px-6 py-3 min-w-[300px]">文档标题 (原始) / 来源</th>
+                                <th className="px-6 py-3 min-w-[250px]">集成重命名 (可选)</th>
+                                <th className="px-6 py-3 w-40 text-center">状态</th>
+                                <th className="px-6 py-3 w-48 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {results.map((item, idx) => {
+                                const status = integratingUrls[item.href];
+                                const hostname = new URL(item.href).hostname;
+                                return (
+                                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors group">
+                                        <td className="px-6 py-4 text-center font-mono text-slate-400">{idx + 1}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1 max-w-xl">
+                                                <div className="font-bold text-slate-800 line-clamp-1" title={item.title}>
+                                                    {item.title}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                                                    <GlobeIcon className="w-3 h-3"/>
+                                                    <span>{hostname}</span>
+                                                    <span>•</span>
+                                                    <a 
+                                                        href={item.href} 
+                                                        target="_blank" 
+                                                        rel="noreferrer" 
+                                                        className="text-indigo-500 hover:underline flex items-center gap-1"
+                                                    >
+                                                        PDF 原文 <ExternalLinkIcon className="w-2.5 h-2.5"/>
+                                                    </a>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter uppercase">{new URL(item.href).hostname}</span>
-                                            </div>
-                                        </div>
-                                        <h4 className="font-bold text-slate-800 text-base leading-snug line-clamp-2 mb-2 group-hover:text-indigo-600 transition-colors" title={item.title}>
-                                            {item.title}
-                                        </h4>
-                                        <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 opacity-80">
-                                            {item.body}
-                                        </p>
-                                    </div>
-
-                                    <div className="pt-4 border-t border-slate-50 flex gap-2">
-                                        <button 
-                                            onClick={() => { setPreviewUrl(item.href); setPreviewTitle(item.title); }}
-                                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-all"
-                                        >
-                                            <EyeIcon className="w-4 h-4" /> 预览
-                                        </button>
-                                        <button 
-                                            onClick={() => handleImport(item)}
-                                            disabled={status === 'loading' || status === 'success'}
-                                            className={`
-                                                flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all shadow-sm
-                                                ${status === 'success' 
-                                                    ? 'bg-green-100 text-green-700 border border-green-200' 
-                                                    : status === 'loading'
-                                                        ? 'bg-indigo-50 text-indigo-400 border border-indigo-100'
-                                                        : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100 active:scale-95'
-                                                }
-                                            `}
-                                        >
-                                            {status === 'loading' ? (
-                                                <>
-                                                    <RefreshIcon className="w-4 h-4 animate-spin" />
-                                                    集成中
-                                                </>
-                                            ) : status === 'success' ? (
-                                                <>
-                                                    <CheckIcon className="w-4 h-4" />
-                                                    已加入队列
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <CloudIcon className="w-4 h-4" />
-                                                    分析集成
-                                                </>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <input 
+                                                type="text"
+                                                placeholder="留空则使用原文标题"
+                                                value={customFilenames[item.href] || ''}
+                                                onChange={(e) => handleFilenameChange(item.href, e.target.value)}
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                                disabled={status === 'loading' || status === 'success'}
+                                            />
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {status === 'loading' && (
+                                                <span className="inline-flex items-center gap-1.5 text-indigo-500 font-bold text-[10px] animate-pulse">
+                                                    <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> 集成中
+                                                </span>
                                             )}
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                            {status === 'success' && (
+                                                <span className="inline-flex items-center gap-1.5 text-green-600 font-bold text-[10px] bg-green-50 px-2 py-1 rounded border border-green-100">
+                                                    <CheckIcon className="w-3.5 h-3.5" /> 已在队列
+                                                </span>
+                                            )}
+                                            {status === 'error' && (
+                                                <span className="inline-flex items-center gap-1.5 text-red-500 font-bold text-[10px]">
+                                                    失败
+                                                </span>
+                                            )}
+                                            {!status && <span className="text-slate-300 text-[10px] font-medium">-</span>}
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <a 
+                                                    href={item.href} 
+                                                    target="_blank" 
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg transition-all"
+                                                >
+                                                    <EyeIcon className="w-3.5 h-3.5" /> 预览
+                                                </a>
+                                                <button 
+                                                    onClick={() => handleImport(item)}
+                                                    disabled={status === 'loading' || status === 'success'}
+                                                    className={`
+                                                        inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm
+                                                        ${status === 'success' 
+                                                            ? 'bg-slate-100 text-slate-400 cursor-default' 
+                                                            : status === 'loading'
+                                                                ? 'bg-indigo-50 text-indigo-300'
+                                                                : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95'
+                                                        }
+                                                    `}
+                                                >
+                                                    {status === 'loading' ? (
+                                                        '处理中'
+                                                    ) : status === 'success' ? (
+                                                        '集成成功'
+                                                    ) : (
+                                                        <>
+                                                            <CloudIcon className="w-3.5 h-3.5" /> 一键导入
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                        <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-inner">
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 py-20 opacity-60">
+                        <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-6 shadow-inner border border-slate-100">
                             <SearchIcon className="w-10 h-10 text-slate-200" />
                         </div>
-                        <h3 className="text-lg font-bold text-slate-500">发现全网价值研报</h3>
-                        <p className="text-sm mt-1 max-w-xs text-center">输入关键词进行全网 PDF 深度搜索，找到后可一键集成至分析库。</p>
+                        <h3 className="text-lg font-bold text-slate-500">探索全网行业研报</h3>
+                        <p className="text-sm mt-1 max-w-xs text-center">输入关键词进行深度搜索，找到后可一键重命名并集成至分析库。</p>
                     </div>
                 )}
             </div>
-
-            {/* External Preview Modal */}
-            {previewUrl && (
-                <ExternalPdfPreview 
-                    url={previewUrl} 
-                    title={previewTitle} 
-                    onClose={() => setPreviewUrl(null)} 
-                    onImport={() => {
-                        const item = results.find(r => r.href === previewUrl);
-                        if (item) handleImport(item);
-                        setPreviewUrl(null);
-                    }}
-                    integrationStatus={integratingUrls[previewUrl]}
-                />
-            )}
         </div>
     );
 };

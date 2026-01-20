@@ -519,10 +519,17 @@ export const getUploadedDocDetail = async (id: string): Promise<UploadedDocument
     return { ...res, uuid: res.id, file_size: res.file_size || 0, page_count: res.page_count || 0 };
 }
 
-export const uploadDocs = (data: { files?: File[], pdf_urls?: string[], point_id?: string, publish_date?: string }): Promise<any> => {
+export const uploadDocs = (data: { 
+    files?: File[], 
+    pdf_urls?: string[], 
+    custom_filenames?: string[],
+    point_id?: string, 
+    publish_date?: string 
+}): Promise<any> => {
     const formData = new FormData();
     if (data.files) data.files.forEach(f => formData.append('files', f));
     if (data.pdf_urls) data.pdf_urls.forEach(url => formData.append('pdf_urls', url));
+    if (data.custom_filenames) data.custom_filenames.forEach(name => formData.append('custom_filenames', name));
     
     if (data.point_id) {
         formData.append('point_uuid', data.point_id);
