@@ -2,8 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { ReportSection, StepId } from './types';
 import VisualEditor from '../../../shared/VisualEditor';
 import { marked } from 'marked';
-import { RefreshIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon, SparklesIcon, ServerIcon, PencilIcon, CloseIcon, PhotoIcon } from '../../../icons';
-import { toBlob } from 'html-to-image';
+import { RefreshIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon, SparklesIcon, ServerIcon, PencilIcon, CloseIcon, PhotoIcon, DownloadIcon } from '../../../icons';
+import { toBlob, toPng } from 'html-to-image';
 
 interface ReportCanvasProps {
     sections: Record<StepId, ReportSection>;
@@ -25,6 +25,7 @@ const VisualWidget: React.FC<{
     const [scale, setScale] = useState(0.5);
     const [isEditing, setIsEditing] = useState(false);
     const [isCopying, setIsCopying] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -47,15 +48,7 @@ const VisualWidget: React.FC<{
         if (!renderRef.current) return;
         setIsCopying(true);
         try {
-            // Need to temporarily set transform to none to capture full resolution, or capture the scaled one
-            // Ideally capture the inner div at scale 1
             const innerDiv = renderRef.current.firstChild as HTMLElement;
-            // clone the node to a hidden place to capture full res
-            // For simplicity in this context, we capture what is rendered, or try to capture the high-res container
-            // A better approach for high-res is complex. Let's try capturing the scaled container for now.
-            // Actually, VisualEditor inside has logic.
-            // Let's use toBlob on the inner content div.
-            
             const blob = await toBlob(innerDiv as HTMLElement, { 
                 width: 1600, 
                 height: 900,
@@ -69,9 +62,32 @@ const VisualWidget: React.FC<{
             }
         } catch (e) {
             console.error("Copy failed", e);
-            alert("复制图片失败");
+            alert("复制图片失败，请重试");
         } finally {
             setIsCopying(false);
+        }
+    };
+
+    const handleDownloadImage = async () => {
+        if (!renderRef.current) return;
+        setIsDownloading(true);
+        try {
+            const innerDiv = renderRef.current.firstChild as HTMLElement;
+            const dataUrl = await toPng(innerDiv as HTMLElement, { 
+                width: 1600, 
+                height: 900,
+                style: { transform: 'scale(1)', transformOrigin: 'top left' }
+            });
+            
+            const link = document.createElement('a');
+            link.download = `${title.replace(/\s+/g, '_')}_visualization.png`;
+            link.href = dataUrl;
+            link.click();
+        } catch (e) {
+            console.error("Download failed", e);
+            alert("下载图片失败，请重试");
+        } finally {
+            setIsDownloading(false);
         }
     };
 
@@ -93,9 +109,18 @@ const VisualWidget: React.FC<{
                         {isCopying ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <PhotoIcon className="w-3.5 h-3.5" />}
                      </button>
                      <button 
+                        onClick={handleDownloadImage}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="下载图片"
+                        disabled={isDownloading}
+                     >
+                        {isDownloading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5" />}
+                     </button>
+                     <div className="w-px h-3 bg-slate-200 mx-1"></div>
+                     <button 
                         onClick={() => setIsEditing(true)}
                         className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="编辑图表"
+                        title="编辑图表 (或双击图表区域)"
                      >
                         <PencilIcon className="w-3.5 h-3.5" />
                      </button>
@@ -105,8 +130,10 @@ const VisualWidget: React.FC<{
             {/* Canvas Container */}
             <div 
                 ref={containerRef} 
+                onDoubleClick={() => setIsEditing(true)}
                 style={{ height: containerHeight, transition: 'height 0.2s' }} 
-                className="w-full bg-slate-100 relative overflow-hidden"
+                className="w-full bg-slate-100 relative overflow-hidden cursor-pointer"
+                title="双击进入编辑模式"
             >
                  <div ref={renderRef} style={{
                      width: 1600,
@@ -115,7 +142,8 @@ const VisualWidget: React.FC<{
                      transformOrigin: 'top left',
                      position: 'absolute',
                      top: 0,
-                     left: 0
+                     left: 0,
+                     pointerEvents: 'none' // Prevent interactions with internal iframe while in preview mode to allow double click on container
                  }}>
                      <VisualEditor 
                         initialHtml={html} 
@@ -133,8 +161,7 @@ const VisualWidget: React.FC<{
                     <div className="h-16 bg-white border-b px-6 flex items-center justify-between shadow-sm flex-shrink-0">
                         <h3 className="font-bold text-slate-800 text-lg">编辑图表: {title}</h3>
                         <div className="flex gap-3">
-                            <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-bold">关闭</button>
-                            {/* VisualEditor internally handles state, but we need to capture save */}
+                            <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-bold">取消</button>
                             <button 
                                 onClick={() => setIsEditing(false)} 
                                 className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-sm"
