@@ -656,8 +656,8 @@ export interface GenerateStreamParams {
     temperature?: number;
 }
 
-// Updated AdminView type: Added common_search
-export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'deep_insight' | 'stratify_ai' | 'html_design' | 'common_search';
+// Updated AdminView type: Removed common_search, only html_design exists as the entry for component preview
+export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'deep_insight' | 'stratify_ai' | 'html_design';
 
 export interface WorkflowVariable {
     name: string;
