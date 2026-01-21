@@ -555,9 +555,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 const section = data.sections[stepId];
                 if (!section.markdown) continue;
 
-                // Section Title (we don't have it in markdown usually, adding manually)
-                // docChildren.push(new Paragraph({ text: section.title, heading: HeadingLevel.HEADING_1 }));
-
                 const visualTagRegex = /(\[VISUAL:\s*.*?\s*\|\s*.*?\])/g;
                 const parts = section.markdown.split(visualTagRegex);
                 const allParts = section.markdown.split(visualTagRegex); // needed for index
@@ -596,18 +593,24 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                         }
                     } else {
                         // Simple Markdown Text parsing
-                        // Using marked to tokenize would be better but for simplicity, splitting by lines
                         const lines = part.split('\n');
                         for (const line of lines) {
                             if (!line.trim()) continue;
                             
                             let text = line.trim();
                             let headingLevel = undefined;
+                            let bullet = undefined;
                             
                             if (text.startsWith('### ')) { headingLevel = HeadingLevel.HEADING_3; text = text.replace(/^###\s+/, ''); }
                             else if (text.startsWith('## ')) { headingLevel = HeadingLevel.HEADING_2; text = text.replace(/^##\s+/, ''); }
                             else if (text.startsWith('# ')) { headingLevel = HeadingLevel.HEADING_1; text = text.replace(/^#\s+/, ''); }
                             
+                            // List items
+                            if (text.startsWith('- ') || text.startsWith('* ')) {
+                                bullet = { level: 0 };
+                                text = text.substring(2);
+                            }
+
                             // Basic bold parsing (**text**)
                             const runs = [];
                             const boldRegex = /\*\*(.*?)\*\*/g;
@@ -626,13 +629,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                             }
 
                             if (runs.length === 0) runs.push(new TextRun({ text: text }));
-
-                            // List items
-                            let bullet = undefined;
-                            if (text.startsWith('- ') || text.startsWith('* ')) {
-                                runs[0] = new TextRun({ text: (runs[0] as any).text.substring(2), bold: (runs[0] as any).bold });
-                                bullet = { level: 0 };
-                            }
 
                             docChildren.push(new Paragraph({
                                 children: runs,
