@@ -34,7 +34,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
     const [registerForm, setRegisterForm] = useState({ username: '', email: '', password: '' });
     const [verificationCode, setVerificationCode] = useState('');
     const [forgotEmail, setForgotEmail] = useState('');
-    const [resetForm, setResetForm] = useState({ token: '', newPassword: '' });
+    const [resetForm, setResetForm] = useState({ email: '', code: '', newPassword: '' });
 
     const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setLoginForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -115,7 +115,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
         setSuccessMessage('');
         try {
             await requestPasswordRecovery(forgotEmail);
-            setSuccessMessage('重置邮件已发送，请检查您的邮箱获取 Token。');
+            setSuccessMessage('验证码已发送至您的邮箱。');
+            setResetForm(prev => ({ ...prev, email: forgotEmail }));
             setMode('reset_password');
         } catch (err: any) {
             setError(err.message || '发送失败，请检查邮箱是否正确。');
@@ -126,20 +127,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
 
     const handleResetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!resetForm.token || !resetForm.newPassword) return;
+        if (!resetForm.email || !resetForm.code || !resetForm.newPassword) return;
+        if (resetForm.code.length !== 4) {
+             setError('验证码必须为4位数字');
+             return;
+        }
         setIsLoading(true);
         setError('');
         setSuccessMessage('');
         try {
-            await resetPassword(resetForm.token, resetForm.newPassword);
+            await resetPassword(resetForm.email, resetForm.code, resetForm.newPassword);
             setSuccessMessage('密码重置成功！正在跳转登录...');
             setTimeout(() => {
                 setMode('login');
                 setSuccessMessage('');
-                setResetForm({ token: '', newPassword: '' });
+                setResetForm({ email: '', code: '', newPassword: '' });
+                setLoginForm(prev => ({ ...prev, email: resetForm.email }));
             }, 1500);
         } catch (err: any) {
-            setError(err.message || '重置失败，请检查 Token 是否过期。');
+            setError(err.message || '重置失败，请检查验证码是否正确。');
         } finally {
             setIsLoading(false);
         }
@@ -215,14 +221,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
                                 {mode === 'forgot_password' && (
                                     <div className="text-center mb-6">
                                         <h3 className="text-lg font-bold text-slate-800">找回密码</h3>
-                                        <p className="text-sm text-slate-500">输入注册邮箱，我们将向您发送重置令牌。</p>
+                                        <p className="text-sm text-slate-500">输入注册邮箱，我们将向您发送重置验证码。</p>
                                     </div>
                                 )}
                                 
                                 {mode === 'reset_password' && (
                                     <div className="text-center mb-6">
                                         <h3 className="text-lg font-bold text-slate-800">重置密码</h3>
-                                        <p className="text-sm text-slate-500">请输入邮件中的 Token 和新密码。</p>
+                                        <p className="text-sm text-slate-500">请输入邮件中的验证码和新密码。</p>
                                     </div>
                                 )}
 
@@ -298,14 +304,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
                                             />
                                         </div>
                                         <button type="submit" disabled={isLoading} className="w-full py-3.5 mt-2 bg-indigo-600 text-white rounded-lg font-bold shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 disabled:bg-indigo-300 flex items-center justify-center transition-all">
-                                            {isLoading ? <Spinner /> : '发送重置邮件'}
+                                            {isLoading ? <Spinner /> : '发送验证码'}
                                         </button>
                                         <div className="flex justify-between mt-4 text-sm">
                                             <button type="button" onClick={() => setMode('login')} className="text-slate-500 hover:text-slate-800 flex items-center gap-1">
                                                 <ArrowLeftIcon className="w-3 h-3" /> 返回登录
                                             </button>
                                             <button type="button" onClick={() => setMode('reset_password')} className="text-indigo-600 hover:underline">
-                                                已有 Token?
+                                                已有验证码?
                                             </button>
                                         </div>
                                     </form>
@@ -314,15 +320,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
                                 {mode === 'reset_password' && (
                                     <form onSubmit={handleResetPassword} className="space-y-4">
                                         <div>
-                                            <label className="text-sm font-bold text-slate-700">重置 Token</label>
+                                            <label className="text-sm font-bold text-slate-700">邮箱</label>
                                             <input 
-                                                type="text" 
-                                                name="token"
-                                                value={resetForm.token} 
+                                                type="email" 
+                                                name="email"
+                                                value={resetForm.email} 
                                                 onChange={handleResetFormChange} 
                                                 required 
-                                                placeholder="粘贴邮件中的 Token"
-                                                className="mt-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-mono text-sm" 
+                                                className="mt-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-bold text-slate-700">验证码</label>
+                                            <input 
+                                                type="text" 
+                                                name="code"
+                                                value={resetForm.code} 
+                                                onChange={(e) => setResetForm(prev => ({...prev, code: e.target.value.replace(/\D/g, '').slice(0, 4)}))} 
+                                                required 
+                                                maxLength={4}
+                                                placeholder="4位数字验证码"
+                                                className="mt-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-mono text-sm tracking-widest" 
                                             />
                                         </div>
                                         <div>

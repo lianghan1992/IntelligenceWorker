@@ -60,11 +60,12 @@ export const requestPasswordRecovery = (email: string): Promise<{ message: strin
     });
 };
 
-export const resetPassword = (token: string, new_password: string): Promise<{ message: string }> => {
+export const resetPassword = (email: string, code: string, new_password: string): Promise<{ message: string }> => {
     return apiFetch<{ message: string }>(`${USER_SERVICE_PATH}/reset-password`, {
         method: 'POST',
         body: JSON.stringify({ 
-            token: token.trim(), 
+            email: email.trim(),
+            code: code.trim(), 
             new_password: new_password.trim() 
         }),
     });
