@@ -1,290 +1,316 @@
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { streamChatCompletions } from '../../../../api/stratify';
 import { searchSemanticBatchGrouped } from '../../../../api/intelligence';
-import { AGENTS } from '../../../../agentConfig';
 import { SharedChatPanel, ChatMessage } from '../../../../components/shared/ChatPanel';
-import { ReportCanvas, ReportSection } from './ReportCanvas';
-import { tryParsePartialJson } from '../../../ReportGenerator/Step1Collect';
+import { ReportCanvas, ReportSection, SectionStatus } from './ReportCanvas';
 
-interface UniversalReportGenProps {
-    onBack: () => void;
-}
+// --- Helpers ---
+const tryParseJson = (str: string) => {
+    try {
+        // 尝试提取 Markdown 代码块中的 JSON
+        const match = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (match) return JSON.parse(match[1]);
+        // 尝试直接解析
+        return JSON.parse(str);
+    } catch (e) {
+        return null;
+    }
+};
 
-// 模型配置 - 使用更稳定的模型以避免空响应
-const PLANNING_MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
-const QUERY_MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
-const WRITING_MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+const extractListFromText = (text: string): string[] => {
+    // 尝试解析 JSON 数组
+    const json = tryParseJson(text);
+    if (Array.isArray(json)) return json;
+    
+    // 降级：按行提取
+    return text.split('\n')
+        .map(line => line.replace(/^\d+\.\s*|-\s*/, '').trim())
+        .filter(line => line.length > 2);
+};
 
-const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
-    // --- 状态 ---
-    const [status, setStatus] = useState<'idle' | 'researching' | 'planning' | 'waiting_confirmation' | 'generating' | 'done'>('idle');
+// --- Models ---
+const PLANNING_MODEL = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+const WRITING_MODEL = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+
+const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+    // 全局状态
+    const [mainStatus, setMainStatus] = useState<'idle' | 'planning' | 'review' | 'generating' | 'finished'>('idle');
+    const [topic, setTopic] = useState('');
+    const [outline, setOutline] = useState<{ title: string; instruction: string }[]>([]);
+    const [sections, setSections] = useState<ReportSection[]>([]);
+    const [currentSectionIdx, setCurrentSectionIdx] = useState<number>(-1);
+    
+    // 聊天面板状态
     const [messages, setMessages] = useState<ChatMessage[]>([{
         id: 'init',
         role: 'assistant',
-        content: '我是您的万能研报助手。请告诉我您想研究的主题，我将为您流式规划思路、按序检索并撰写深度长文。',
+        content: '我是您的深度研报助手。请输入您想研究的主题（例如：“2024年中国人形机器人产业分析”），我将为您规划全篇大纲并自动撰写。',
         timestamp: Date.now()
     }]);
-    
-    const [topic, setTopic] = useState('');
-    const [globalContext, setGlobalContext] = useState('');
-    const [outline, setOutline] = useState<{ title: string; instruction: string }[]>([]);
-    const [sections, setSections] = useState<ReportSection[]>([]);
-    
-    // 串行控制状态
-    const [processingIndex, setProcessingIndex] = useState<number>(-1);
-    
-    const abortRef = useRef(false);
 
-    // --- 消息处理 ---
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    // --- 1. 用户输入处理 & 大纲规划 ---
     const handleUserMessage = async (text: string) => {
-        if (!text.trim() || status !== 'idle') return;
+        if (!text.trim()) return;
+        
+        // 如果正在生成中，禁止输入（或者视为修改指令，目前简化为禁止）
+        if (mainStatus === 'generating' || mainStatus === 'planning') return;
 
         const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
-        
-        setTopic(text);
-        startReasoningFlow(text);
-    };
 
-    // 1. 流式规划研究思路 (JSON 实时解析)
-    const startReasoningFlow = async (query: string) => {
-        setStatus('researching');
-        setOutline([]);
-        setSections([]);
-        
-        // A. 全局检索
-        try {
-            const searchRes = await searchSemanticBatchGrouped({
-                query_texts: [query, `${query} 核心现状`, `${query} 趋势`],
-                max_segments_per_query: 4
-            });
-            const items = (searchRes.results || []).flatMap((r: any) => (r.items || []).flatMap((art: any) => art.segments.map((seg: any) => seg.content)));
-            setGlobalContext(items.join('\n\n').slice(0, 6000));
-        } catch (e) { console.error("Search failed", e); }
-
-        // B. 流式输出思路
-        setStatus('planning');
-        const planPrompt = `你是一个专业的研报架构师。请针对主题【${query}】规划深度研究思路。
-要求：4-6个章节。必须输出 JSON 格式（不要包含代码块标记）：
-{
-  "title": "最终报告标题",
-  "pages": [
-    { "title": "章节名称", "instruction": "本章分析重点" }
-  ]
-}`;
-
-        let planBuffer = "";
-        try {
-            await streamChatCompletions({
-                model: PLANNING_MODEL_ID,
-                messages: [{ role: 'user', content: planPrompt }],
-                stream: true,
-                temperature: 0.1
-            }, (data) => {
-                if (data.content) {
-                    planBuffer += data.content;
-                    const partial = tryParsePartialJson(planBuffer);
-                    if (partial && partial.pages) {
-                        setOutline(partial.pages);
-                        if (partial.title) setTopic(partial.title);
-                    }
-                }
-            });
-            
-            setStatus('waiting_confirmation');
-            setMessages(prev => [...prev, { 
-                id: crypto.randomUUID(), 
-                role: 'assistant', 
-                content: '研究思路已为您规划完毕。请在左侧预览，满意请点击“确认并开始撰写”。', 
-                timestamp: Date.now() 
-            }]);
-        } catch (e) {
-            setStatus('idle');
-            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: '规划失败，请重试。', timestamp: Date.now() }]);
+        if (mainStatus === 'idle') {
+            // 开始规划大纲
+            setTopic(text);
+            await planOutline(text);
+        } else if (mainStatus === 'review') {
+            // 修改大纲指令
+            await planOutline(text, true); // true 表示是修改
         }
     };
 
-    // 2. 确认思路后启动【严格串行】撰写循环
-    const handleConfirmOutline = () => {
-        if (outline.length === 0) return;
-        startStrictSequentialLoop();
+    const planOutline = async (query: string, isRevision = false) => {
+        setMainStatus('planning');
+        const prompt = isRevision 
+            ? `用户对大纲有修改意见：“${query}”。请重新输出完整的 JSON 大纲。`
+            : `你是一个专业的研报架构师。请针对主题【${query}】规划一份深度研究报告的大纲。
+要求：
+1. 包含 4-6 个核心章节。
+2. 每个章节必须有明确的写作指导（instruction）。
+3. **必须**且**仅**返回以下 JSON 格式，不要包含多余废话：
+\`\`\`json
+{
+  "title": "报告主标题",
+  "chapters": [
+    { "title": "第一章标题", "instruction": "本章分析重点..." }
+  ]
+}
+\`\`\``;
+
+        let buffer = "";
+        try {
+            await streamChatCompletions({
+                model: PLANNING_MODEL,
+                messages: [{ role: 'user', content: prompt }],
+                stream: true,
+                temperature: 0.3
+            }, (chunk) => {
+                if (chunk.content) buffer += chunk.content;
+            });
+
+            const parsed = tryParseJson(buffer);
+            if (parsed && Array.isArray(parsed.chapters)) {
+                setOutline(parsed.chapters);
+                if (parsed.title) setTopic(parsed.title);
+                
+                setMessages(prev => [...prev, {
+                    id: crypto.randomUUID(),
+                    role: 'assistant',
+                    content: '大纲已生成（见左侧）。\n\n您可以：\n1. 点击“确认大纲”开始撰写。\n2. 继续输入指令调整大纲。',
+                    timestamp: Date.now()
+                }]);
+                setMainStatus('review');
+            } else {
+                throw new Error("格式解析失败");
+            }
+        } catch (e) {
+            setMessages(prev => [...prev, {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: '大纲规划遇到问题，请重试或更换主题。',
+                timestamp: Date.now()
+            }]);
+            setMainStatus('idle');
+        }
     };
 
-    const startStrictSequentialLoop = async () => {
-        setStatus('generating');
-        abortRef.current = false;
+    // --- 2. 启动生成流水线 ---
+    const handleStartGeneration = () => {
+        if (outline.length === 0) return;
         
-        // 初始化章节状态为 pending
-        const initialSections: ReportSection[] = outline.map(item => ({ 
-            title: item.title, 
-            content: '', 
-            queries: [], 
-            retrievedCount: 0,
-            status: 'pending' 
+        // 初始化所有章节状态
+        const initialSections: ReportSection[] = outline.map((item, idx) => ({
+            id: `sec-${idx}`,
+            title: item.title,
+            instruction: item.instruction,
+            content: '',
+            status: 'pending',
+            logs: [],
+            references: []
         }));
+        
         setSections(initialSections);
+        setMainStatus('generating');
+        setCurrentSectionIdx(0); // 触发 useEffect 开始处理第0章
+    };
 
-        // --- 严格的 for 循环 + await Promise 模式 ---
-        for (let i = 0; i < outline.length; i++) {
-            if (abortRef.current) break;
-            
-            const chapter = outline[i];
-            setProcessingIndex(i); 
-
-            // 更新状态：Analyzing
-            setSections(prev => {
-                const next = [...prev];
-                next[i] = { ...next[i], status: 'analyzing' };
-                return next;
-            });
-
-            // 【步骤 A】：流式规划检索词
-            let queries: string[] = [];
-            try {
-                const queryPrompt = `正在编写《${topic}》。章节：【${chapter.title}】。
-请提供 3-5 个深度检索词。仅返回 JSON 数组，如：["词1", "词2"]`;
-                
-                let queryBuffer = "";
-                await new Promise<void>((resolve) => {
-                    streamChatCompletions({
-                        model: QUERY_MODEL_ID,
-                        messages: [{ role: 'user', content: queryPrompt }],
-                        stream: true,
-                        temperature: 0.1
-                    }, (d) => {
-                        if (d.content) {
-                            queryBuffer += d.content;
-                            const partialQueries = tryParsePartialJson(queryBuffer);
-                            if (Array.isArray(partialQueries)) {
-                                setSections(prev => {
-                                    const next = [...prev];
-                                    next[i] = { ...next[i], queries: partialQueries };
-                                    return next;
-                                });
-                            }
-                        }
-                    }, () => resolve(), () => resolve()); // Always resolve
-                });
-                queries = tryParsePartialJson(queryBuffer) || [];
-            } catch (e) {
-                console.error(`Chapter ${i} query gen failed`);
+    // --- 3. 核心流水线控制 ---
+    useEffect(() => {
+        if (mainStatus !== 'generating') return;
+        if (currentSectionIdx < 0 || currentSectionIdx >= sections.length) {
+            if (currentSectionIdx >= sections.length) {
+                setMainStatus('finished'); // 全部完成
             }
+            return;
+        }
 
-            // 【步骤 B】：执行检索
-            setSections(prev => {
-                const next = [...prev];
-                next[i] = { ...next[i], status: 'searching' };
-                return next;
-            });
+        processSection(currentSectionIdx);
+    }, [currentSectionIdx, mainStatus]);
 
-            let chapterContext = "";
+    const updateSection = (idx: number, updates: Partial<ReportSection>) => {
+        setSections(prev => {
+            const newSections = [...prev];
+            newSections[idx] = { ...newSections[idx], ...updates };
+            return newSections;
+        });
+    };
+
+    const addLog = (idx: number, message: string) => {
+        setSections(prev => {
+            const newSections = [...prev];
+            newSections[idx] = { 
+                ...newSections[idx], 
+                logs: [...(newSections[idx].logs || []), message] 
+            };
+            return newSections;
+        });
+    };
+
+    // 单个章节的完整处理逻辑
+    const processSection = async (idx: number) => {
+        const section = sections[idx];
+        if (section.status === 'completed') return; // 防止重入
+
+        abortControllerRef.current = new AbortController();
+
+        try {
+            // --- Phase A: Planning Search (规划) ---
+            updateSection(idx, { status: 'planning' });
+            addLog(idx, "正在分析章节意图...");
+            
+            const planQueryPrompt = `针对章节【${section.title}】（重点：${section.instruction}），请生成 3 个用于搜索引擎的关键词。仅返回关键词列表，每行一个。`;
+            let queriesStr = "";
+            await streamChatCompletions({
+                model: PLANNING_MODEL,
+                messages: [{ role: 'user', content: planQueryPrompt }],
+                stream: true,
+                temperature: 0.1
+            }, (c) => { if(c.content) queriesStr += c.content });
+            
+            const queries = extractListFromText(queriesStr).slice(0, 3);
+            addLog(idx, `生成检索词: ${queries.join(', ')}`);
+
+            // --- Phase B: Searching (搜集) ---
+            updateSection(idx, { status: 'searching' });
+            addLog(idx, "正在执行全网深度检索...");
+            
+            let referencesText = "";
+            let refList: any[] = [];
+            
             if (queries.length > 0) {
                 try {
                     const searchRes = await searchSemanticBatchGrouped({
                         query_texts: queries,
-                        max_segments_per_query: 6
+                        max_segments_per_query: 4 // 每个词取4条
                     });
-                    const items = (searchRes.results || []).flatMap((r: any) => (r.items || []).flatMap((art: any) => art.segments.map((seg: any) => seg.content)));
-                    chapterContext = items.join('\n\n').slice(0, 6000);
                     
-                    setSections(prev => {
-                        const next = [...prev];
-                        next[i] = { ...next[i], retrievedCount: items.length };
-                        return next;
-                    });
-                } catch (e) { console.error("Search failed"); }
+                    const allItems = (searchRes.results || []).flatMap((r: any) => r.items || []);
+                    // 去重
+                    const uniqueItems = Array.from(new Map(allItems.map((item:any) => [item.article_id, item])).values());
+                    
+                    refList = uniqueItems.map((item: any) => ({
+                        title: item.title,
+                        url: item.url,
+                        source: item.source_name
+                    }));
+
+                    referencesText = uniqueItems.map((item: any, i: number) => 
+                        `[文献${i+1}] ${item.title} (${item.source_name}):\n${item.segments.map((s:any) => s.content).join('\n')}`
+                    ).join('\n\n');
+
+                    updateSection(idx, { references: refList });
+                    addLog(idx, `检索完成，获取 ${refList.length} 篇相关资料`);
+                } catch (e) {
+                    addLog(idx, "检索服务响应超时，将使用通用知识库");
+                }
+            } else {
+                addLog(idx, "未生成有效关键词，跳过检索");
             }
 
-            // 【步骤 C】：流式撰写正文
-            setSections(prev => {
-                const next = [...prev];
-                next[i] = { ...next[i], status: 'writing' };
-                return next;
+            // --- Phase C: Writing (撰写) ---
+            updateSection(idx, { status: 'writing' });
+            addLog(idx, "开始构建正文逻辑...");
+
+            const writePrompt = `你是一位行业分析专家。请根据以下参考资料，撰写报告章节。
+章节标题：${section.title}
+核心要求：${section.instruction}
+参考资料：
+${referencesText || "（无外部资料，请基于你的专业知识撰写）"}
+
+要求：
+1. 使用 Markdown 格式。
+2. 逻辑严密，数据详实，引用资料时请自然融入。
+3. 字数要求：800字左右。
+4. 直接输出正文，不要有开场白。`;
+
+            let contentBuffer = "";
+            await streamChatCompletions({
+                model: WRITING_MODEL,
+                messages: [{ role: 'user', content: writePrompt }],
+                stream: true,
+                temperature: 0.4 // 稍微增加创造性
+            }, (chunk) => {
+                if (chunk.content) {
+                    contentBuffer += chunk.content;
+                    updateSection(idx, { content: contentBuffer });
+                }
             });
 
-            await new Promise<void>((resolve) => {
-                const writePrompt = `你是一位专家。撰写章节【${chapter.title}】。
-分析重点：${chapter.instruction}
-参考情报：
-${chapterContext || globalContext || "无特定情报，请基于通用知识撰写。"}
+            // --- Finish ---
+            updateSection(idx, { status: 'completed' });
+            
+            // 自动进入下一章
+            setCurrentSectionIdx(idx + 1);
 
-请使用 Markdown 撰写，严禁废话，要求字数 800+ 字。`;
-
-                let contentBuffer = "";
-                let hasError = false;
-
-                streamChatCompletions({
-                    model: WRITING_MODEL_ID,
-                    messages: [{ role: 'user', content: writePrompt }],
-                    stream: true,
-                    temperature: 0.3
-                }, (data) => {
-                    if (data.content) {
-                        contentBuffer += data.content;
-                        setSections(prev => {
-                            const next = [...prev];
-                            // 确保只更新当前章
-                            if (next[i]) next[i] = { ...next[i], content: contentBuffer };
-                            return next;
-                        });
-                    }
-                }, () => {
-                    // Done Callback
-                    setSections(prev => {
-                        const next = [...prev];
-                        if (next[i]) {
-                             // 如果内容为空，标记为错误，避免界面“消失”
-                             if (!contentBuffer.trim()) {
-                                 next[i] = { ...next[i], status: 'error', content: '> ⚠️ 生成失败：模型未返回内容。' };
-                             } else {
-                                 next[i] = { ...next[i], status: 'completed' };
-                             }
-                        }
-                        return next;
-                    });
-                    resolve();
-                }, (err) => {
-                    hasError = true;
-                    setSections(prev => {
-                        const next = [...prev];
-                        if (next[i]) next[i] = { ...next[i], status: 'error', content: contentBuffer + '\n\n> ⚠️ 生成中断：' + err.message };
-                        return next;
-                    });
-                    resolve();
-                });
-            });
+        } catch (e: any) {
+            console.error(e);
+            updateSection(idx, { status: 'error' });
+            addLog(idx, `发生错误: ${e.message}`);
+            // 注意：出错时不自动跳下一章，等待用户手动重试
         }
+    };
 
-        setProcessingIndex(-1);
-        setStatus('done');
-        setMessages(prev => [...prev, { 
-            id: crypto.randomUUID(), 
-            role: 'assistant', 
-            content: '✅ 报告已按章节顺序全部生成完毕。', 
-            timestamp: Date.now() 
-        }]);
+    const handleRetrySection = (idx: number) => {
+        // 重置该章节状态并重新触发
+        updateSection(idx, { status: 'pending', logs: [], content: '', references: [] });
+        setCurrentSectionIdx(idx);
     };
 
     return (
         <div className="flex h-full w-full bg-[#f8fafc]">
+            {/* 左侧：可视化画布 */}
             <div className="flex-1 overflow-hidden border-r border-slate-200 relative">
                 <ReportCanvas 
-                    status={status}
+                    mainStatus={mainStatus}
+                    topic={topic}
                     outline={outline}
                     sections={sections}
-                    topic={topic}
-                    processingIndex={processingIndex}
-                    onConfirmOutline={handleConfirmOutline}
+                    currentSectionIdx={currentSectionIdx}
+                    onStart={handleStartGeneration}
+                    onRetry={handleRetrySection}
                 />
             </div>
-            <div className="w-[400px] flex-shrink-0 bg-white shadow-xl z-10 h-full">
+            
+            {/* 右侧：极简聊天栏 (用于输入指令) */}
+            <div className="w-[360px] flex-shrink-0 bg-white shadow-xl z-10 h-full flex flex-col">
                 <SharedChatPanel 
                     messages={messages}
                     onSendMessage={handleUserMessage}
-                    isGenerating={['researching', 'planning', 'generating'].includes(status)}
-                    placeholder="输入研究主题..."
-                    title="智能研报 Copilot"
+                    isGenerating={mainStatus === 'generating' || mainStatus === 'planning'}
+                    placeholder={mainStatus === 'idle' ? "输入研报主题..." : "输入修改建议或指令..."}
+                    title="研报 Copilot"
                 />
             </div>
         </div>
