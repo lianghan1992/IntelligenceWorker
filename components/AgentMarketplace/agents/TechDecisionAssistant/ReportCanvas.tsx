@@ -15,12 +15,13 @@ interface ReportCanvasProps {
 
 const stepsOrder: StepId[] = ['route', 'risk', 'solution', 'compare'];
 
-// --- VisualWidget (Unchanged from previous logic, just extracted) ---
+// --- VisualWidget ---
 const VisualWidget: React.FC<{ 
     html: string; 
     onEdit: (newHtml: string) => void;
     title: string;
-}> = ({ html, onEdit, title }) => {
+    domId?: string; // ID for export targeting
+}> = ({ html, onEdit, title, domId }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const renderRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(0.5);
@@ -112,8 +113,17 @@ const VisualWidget: React.FC<{
             </div>
             
             <div ref={containerRef} onDoubleClick={() => setIsEditing(true)} style={{ height: containerHeight, transition: 'height 0.2s' }} className="w-full bg-slate-100 relative overflow-hidden cursor-pointer" title="双击进入编辑模式">
-                 <div ref={renderRef} style={{ width: 1600, height: 900, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
-                     <VisualEditor initialHtml={html} onSave={() => {}} scale={1} canvasSize={{ width: 1600, height: 900 }} hideToolbar={true} />
+                 {/* ID added here for external capture */}
+                 <div id={domId} ref={renderRef} style={{ width: 1600, height: 900, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+                     {/* BUG FIX 2: Add key prop to force re-mount when HTML content updates, ensuring iframe refreshes */}
+                     <VisualEditor 
+                        key={html.length} 
+                        initialHtml={html} 
+                        onSave={() => {}} 
+                        scale={1} 
+                        canvasSize={{ width: 1600, height: 900 }} 
+                        hideToolbar={true} 
+                     />
                  </div>
             </div>
 
@@ -139,8 +149,9 @@ const VisualWidget: React.FC<{
 const MixedContentRenderer: React.FC<{ 
     markdown: string; 
     visuals: Record<string, string>; 
-    onVisualUpdate: (tag: string, newHtml: string) => void; 
-}> = ({ markdown, visuals, onVisualUpdate }) => {
+    onVisualUpdate: (tag: string, newHtml: string) => void;
+    sectionId: string;
+}> = ({ markdown, visuals, onVisualUpdate, sectionId }) => {
     // Regex matches [VISUAL: Title | Desc]
     const visualTagRegex = /(\[VISUAL:\s*.*?\s*\|\s*.*?\])/g;
     
@@ -155,6 +166,9 @@ const MixedContentRenderer: React.FC<{
                     const match = /\[VISUAL:\s*(.*?)\s*\|\s*(.*?)\]/.exec(part);
                     const title = match ? match[1] : 'Unknown Chart';
                     const html = visuals[part];
+                    
+                    // Generate a deterministic DOM ID
+                    const widgetId = `visual-widget-${sectionId}-${index}`;
 
                     if (html) {
                         return (
@@ -162,6 +176,7 @@ const MixedContentRenderer: React.FC<{
                                 key={index} 
                                 html={html} 
                                 title={title}
+                                domId={widgetId}
                                 onEdit={(newHtml) => onVisualUpdate(part, newHtml)} 
                             />
                         );
@@ -189,27 +204,14 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({ sections, currentSte
     const [editingSectionId, setEditingSectionId] = useState<StepId | null>(null);
     const [editText, setEditText] = useState("");
 
-    // Auto scroll to bottom when new content arrives (only if not editing)
+    // BUG FIX 1: Only auto scroll to bottom when actively GENERATING new content.
+    // Prevents scroll jump when editing visuals in 'review' or 'done' state.
     useEffect(() => {
-        if (bottomRef.current && !editingSectionId) {
+        const activeStatus = sections[currentStep]?.status;
+        if (bottomRef.current && !editingSectionId && activeStatus === 'generating') {
             bottomRef.current.scrollIntoView({ behavior: 'smooth' });
         }
-    }, [sections, editingSectionId]);
-
-    // Initialize Math Rendering (KaTeX)
-    useEffect(() => {
-        if ((window as any).renderMathInElement) {
-             (window as any).renderMathInElement(document.body, {
-                delimiters: [
-                  {left: '$$', right: '$$', display: true},
-                  {left: '$', right: '$', display: false},
-                  {left: '\\(', right: '\\)', display: true},
-                  {left: '\\[', right: '\\]', display: true}
-                ],
-                throwOnError : false
-            });
-        }
-    });
+    }, [sections, editingSectionId, currentStep]);
 
     const handleEditStart = (section: ReportSection) => {
         setEditText(section.markdown);
@@ -307,6 +309,7 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({ sections, currentSte
                                 markdown={section.markdown} 
                                 visuals={section.visuals || {}}
                                 onVisualUpdate={(tag, newHtml) => handleVisualUpdate(key, tag, newHtml)}
+                                sectionId={key}
                             />
                         )}
                         

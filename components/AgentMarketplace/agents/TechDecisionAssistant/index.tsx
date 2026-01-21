@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon, DocumentTextIcon, ClipboardIcon } from '../../../icons';
+import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon, DocumentTextIcon, ClipboardIcon, DownloadIcon } from '../../../icons';
 import { ChatPanel } from './ChatPanel';
 import { ReportCanvas } from './ReportCanvas';
 import { StepId, TechEvalSessionData, ChatMessage, ReportSection } from './types';
@@ -8,6 +8,10 @@ import { getPrompts, streamChatCompletions } from '../../../../api/stratify';
 import { searchSemanticBatchGrouped } from '../../../../api/intelligence';
 import { AGENTS } from '../../../../agentConfig';
 import { StratifyPrompt } from '../../../../types';
+import { marked } from 'marked';
+import { toPng } from 'html-to-image';
+import { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel, AlignmentType } from 'docx';
+import { saveAs } from 'file-saver';
 
 interface TechDecisionAssistantProps {
     onBack: () => void;
@@ -61,17 +65,6 @@ const extractCleanHtml = (text: string) => {
     return '';
 };
 
-const stripHtmlFromMarkdown = (text: string) => {
-    let cleanText = text;
-    // 1. 移除 ```html ... ``` 代码块
-    cleanText = cleanText.replace(/```html[\s\S]*?```/gi, '');
-    // 2. 移除可能的长段 HTML 标签（兜底）
-    cleanText = cleanText.replace(/<!DOCTYPE html>[\s\S]*<\/html>/gi, '');
-    // 3. 移除独立的 div 块
-    cleanText = cleanText.replace(/<div class="[\s\S]*?<\/div>\s*<\/div>/gi, '');
-    return cleanText.trim();
-};
-
 const StepIndicator: React.FC<{ status: string, index: number, title: string, isActive: boolean }> = ({ status, index, title, isActive }) => {
     let colorClass = 'bg-slate-100 text-slate-400 border-slate-200';
     if (status === 'done') colorClass = 'bg-green-100 text-green-700 border-green-200';
@@ -102,6 +95,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     });
     
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [promptMap, setPromptMap] = useState<Record<string, StratifyPrompt>>({});
     const [isLoadingPrompts, setIsLoadingPrompts] = useState(true);
 
@@ -487,6 +481,201 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             alert("复制失败，请重试");
         });
     };
+    
+    // --- New Export Functions ---
+
+    // 1. Copy to Lark (Rich Text)
+    const handleCopyToLark = async () => {
+        if (isExporting) return;
+        setIsExporting(true);
+        try {
+            let htmlContent = `<h1 style="text-align:center">${data.techName} - 深度技术评估报告</h1>`;
+            
+            for (const stepId of DISPLAY_STEPS) {
+                const section = data.sections[stepId];
+                if (!section.markdown) continue;
+
+                // 1. Convert Markdown to HTML
+                let sectionHtml = await marked.parse(section.markdown);
+                
+                // 2. Process Visuals
+                const visualTagRegex = /(\[VISUAL:\s*.*?\s*\|\s*.*?\])/g;
+                // Need to do this async replacement carefully
+                // We will split and reconstruct
+                const parts = section.markdown.split(visualTagRegex);
+                let reconstructedHtml = "";
+
+                for (const part of parts) {
+                     if (part.match(visualTagRegex)) {
+                         const tag = part;
+                         // Find DOM Node
+                         // We need a deterministic way to find ID. 
+                         // In ReportCanvas.tsx: const widgetId = `visual-widget-${sectionId}-${index}`;
+                         // But index depends on the split array index in mixed renderer.
+                         // Let's use the exact same split logic in ReportCanvas to infer index
+                         
+                         // Re-simulate MixedContentRenderer split to find index
+                         const allParts = section.markdown.split(visualTagRegex);
+                         const visualIndex = allParts.indexOf(tag);
+                         const domId = `visual-widget-${stepId}-${visualIndex}`;
+                         const element = document.getElementById(domId);
+
+                         if (element) {
+                             try {
+                                 // Wait a bit for render
+                                 const dataUrl = await toPng(element, { 
+                                     width: 1600, 
+                                     height: 900,
+                                     style: { transform: 'scale(1)', transformOrigin: 'top left' }
+                                 });
+                                 reconstructedHtml += `<br/><img src="${dataUrl}" width="800" /><br/>`;
+                             } catch (e) {
+                                 console.warn("Snapshot failed for", domId);
+                                 reconstructedHtml += `<p><i>[图表生成快照失败]</i></p>`;
+                             }
+                         }
+                     } else {
+                         reconstructedHtml += await marked.parse(part);
+                     }
+                }
+                htmlContent += `<hr/>${reconstructedHtml}`;
+            }
+            
+            // 3. Write to Clipboard
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const item = new ClipboardItem({ 'text/html': blob });
+            await navigator.clipboard.write([item]);
+            alert('已复制到剪贴板！请直接粘贴到飞书文档。');
+
+        } catch (e) {
+            console.error(e);
+            alert('复制失败，请重试');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    // 2. Export Word (.docx)
+    const handleExportWord = async () => {
+        if (isExporting) return;
+        setIsExporting(true);
+        try {
+            const docChildren: any[] = [];
+            
+            // Title
+            docChildren.push(new Paragraph({
+                text: `${data.techName} - 深度技术评估报告`,
+                heading: HeadingLevel.TITLE,
+                alignment: AlignmentType.CENTER
+            }));
+
+            for (const stepId of DISPLAY_STEPS) {
+                const section = data.sections[stepId];
+                if (!section.markdown) continue;
+
+                // Section Title (we don't have it in markdown usually, adding manually)
+                // docChildren.push(new Paragraph({ text: section.title, heading: HeadingLevel.HEADING_1 }));
+
+                const visualTagRegex = /(\[VISUAL:\s*.*?\s*\|\s*.*?\])/g;
+                const parts = section.markdown.split(visualTagRegex);
+                const allParts = section.markdown.split(visualTagRegex); // needed for index
+
+                for (const part of parts) {
+                    if (part.match(visualTagRegex)) {
+                        const tag = part;
+                        const visualIndex = allParts.indexOf(tag);
+                        const domId = `visual-widget-${stepId}-${visualIndex}`;
+                        const element = document.getElementById(domId);
+
+                        if (element) {
+                            try {
+                                const dataUrl = await toPng(element, { 
+                                    width: 1600, 
+                                    height: 900,
+                                    style: { transform: 'scale(1)', transformOrigin: 'top left' }
+                                });
+                                // Convert Data URL to Uint8Array
+                                const response = await fetch(dataUrl);
+                                const blob = await response.blob();
+                                const buffer = await blob.arrayBuffer();
+                                
+                                docChildren.push(new Paragraph({
+                                    children: [
+                                        new ImageRun({
+                                            data: buffer,
+                                            transformation: { width: 600, height: 337.5 }, // 16:9 aspect
+                                            type: "png"
+                                        })
+                                    ]
+                                }));
+                            } catch (e) {
+                                console.warn("Snapshot failed for docx", domId);
+                            }
+                        }
+                    } else {
+                        // Simple Markdown Text parsing
+                        // Using marked to tokenize would be better but for simplicity, splitting by lines
+                        const lines = part.split('\n');
+                        for (const line of lines) {
+                            if (!line.trim()) continue;
+                            
+                            let text = line.trim();
+                            let headingLevel = undefined;
+                            
+                            if (text.startsWith('### ')) { headingLevel = HeadingLevel.HEADING_3; text = text.replace(/^###\s+/, ''); }
+                            else if (text.startsWith('## ')) { headingLevel = HeadingLevel.HEADING_2; text = text.replace(/^##\s+/, ''); }
+                            else if (text.startsWith('# ')) { headingLevel = HeadingLevel.HEADING_1; text = text.replace(/^#\s+/, ''); }
+                            
+                            // Basic bold parsing (**text**)
+                            const runs = [];
+                            const boldRegex = /\*\*(.*?)\*\*/g;
+                            let lastIndex = 0;
+                            let match;
+                            
+                            while ((match = boldRegex.exec(text)) !== null) {
+                                if (match.index > lastIndex) {
+                                    runs.push(new TextRun({ text: text.substring(lastIndex, match.index) }));
+                                }
+                                runs.push(new TextRun({ text: match[1], bold: true }));
+                                lastIndex = boldRegex.lastIndex;
+                            }
+                            if (lastIndex < text.length) {
+                                runs.push(new TextRun({ text: text.substring(lastIndex) }));
+                            }
+
+                            if (runs.length === 0) runs.push(new TextRun({ text: text }));
+
+                            // List items
+                            let bullet = undefined;
+                            if (text.startsWith('- ') || text.startsWith('* ')) {
+                                runs[0] = new TextRun({ text: (runs[0] as any).text.substring(2), bold: (runs[0] as any).bold });
+                                bullet = { level: 0 };
+                            }
+
+                            docChildren.push(new Paragraph({
+                                children: runs,
+                                heading: headingLevel,
+                                bullet: bullet
+                            }));
+                        }
+                    }
+                }
+            }
+
+            const doc = new Document({
+                sections: [{ properties: {}, children: docChildren }]
+            });
+
+            const blob = await Packer.toBlob(doc);
+            saveAs(blob, `${data.techName}_评估报告.docx`);
+
+        } catch (e) {
+            console.error(e);
+            alert('导出 Word 失败，请重试');
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     if (isLoadingPrompts) return <div className="flex items-center justify-center h-full bg-[#f8fafc]"><RefreshIcon className="w-8 h-8 animate-spin text-indigo-600"/></div>;
 
@@ -503,12 +692,32 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 </div>
                 <div className="flex items-center gap-6">
                     {data.techName && (
-                        <button 
-                            onClick={handleExportMarkdown}
-                            className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm"
-                        >
-                            <ClipboardIcon className="w-3.5 h-3.5" /> 导出全文
-                        </button>
+                        <div className="flex gap-2">
+                             <button 
+                                onClick={handleCopyToLark}
+                                disabled={isExporting}
+                                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                                title="生成图文并茂的内容到剪贴板，可直接粘贴飞书"
+                            >
+                                {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <ClipboardIcon className="w-3.5 h-3.5" />} 
+                                复制到飞书
+                            </button>
+                            <button 
+                                onClick={handleExportWord}
+                                disabled={isExporting}
+                                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50"
+                                title="下载 .docx 文件"
+                            >
+                                {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DocumentTextIcon className="w-3.5 h-3.5" />} 
+                                导出 Word
+                            </button>
+                            <button 
+                                onClick={handleExportMarkdown}
+                                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm"
+                            >
+                                <DownloadIcon className="w-3.5 h-3.5" /> 导出 MD
+                            </button>
+                        </div>
                     )}
                     <div className="flex gap-2">
                         {DISPLAY_STEPS.map((step, idx) => <StepIndicator key={step} status={data.sections[step].status} index={idx} title={data.sections[step].title} isActive={currentStepId === step} />)}
