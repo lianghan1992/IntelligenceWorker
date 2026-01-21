@@ -34,18 +34,13 @@ const RETRIEVAL_CONFIG = {
 };
 
 // 全局系统设定：赋予 Agent 专家人设与行为规范
+// 修改：移除关于必须生成 HTML 的指令，让文本模型专注于文本
 const GLOBAL_SYSTEM_INSTRUCTION = `你是一位拥有15年以上经验的汽车/硬科技行业技术专家。你的核心能力是基于行业情报，对技术方案进行深度的竞品分析、技术路线评估和工程风险排查。文风务实、犀利、逻辑严密，严禁营销辞藻，仅进行客观分析。
 
 核心限制 (Constraints):
-1. 中文优先：除专业术语外，严禁中英混合！ 严禁在中文句子中夹杂不必要的英文单词。
-2. 证据导向：所有分析必须基于事实或检索到的情报。
-3. 高保真图表：每个阶段必须生成至少一张 HTML 图表（Visual Widget）来辅助说明。
-4. 视觉风格：所有 HTML 图表必须遵循 【浅色系设计规范】：
-   - 背景：白色 (bg-white)
-   - 文字：黑色/深灰 (text-slate-900 / text-slate-700)
-   - 主色调（强调/科技）：蓝色 (#007AFF / blue-600)
-   - 辅助色（警示/重点）：橙色 (#F79646 / orange-500)
-   - 禁止使用深色背景模式。`;
+1. **中文优先**：除专业术语外，**严禁中英混合！** 严禁在中文句子中夹杂不必要的英文单词。
+2. **证据导向**：所有分析必须基于事实或检索到的情报。
+3. **格式规范**：输出标准的 Markdown 格式，层级清晰。**不要**包含任何 HTML 代码或图片占位符。`;
 
 // 定义每个阶段的任务目标，用于指导 AI 生成关键词
 const STEP_DEFINITIONS: Record<StepId, { title: string, objective: string }> = {
@@ -265,7 +260,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         updateSection('init', { status: 'generating', usedModel: config.model });
         
         try {
-            // 关键调整：此处不进行检索，仅进行 LLM 规划
             const filledPrompt = config.contentTemplate.replace('{{ user_input }}', input);
 
             let jsonBuffer = "";
@@ -286,7 +280,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
 
             let parsed;
             try {
-                // 尝试提取 JSON
                 const match = jsonBuffer.match(/\{[\s\S]*\}/);
                 parsed = JSON.parse(match ? match[0] : jsonBuffer);
             } catch (e) {
@@ -304,7 +297,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             
             addMessage('assistant', `🎯 评估对象确认：**${parsed.tech_name}**\n> ${parsed.definition || ''}\n\n已规划检索路径，启动第一阶段：技术路线深度解析...`);
             
-            // 自动触发下一阶段，并将规划好的 Search Queries 传递过去
             setTimeout(() => runGenerationStep('route', parsed.tech_name, undefined, parsed.search_queries), 500);
 
         } catch (e: any) {
@@ -328,13 +320,15 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         const config = getModelConfig(promptKeyMap[stepId]);
         if (!config) return;
 
+        // Visual Engine Config
+        const visualConfig = getModelConfig('tech_eval_visualize');
+
         setIsGenerating(true);
         updateSection(stepId, { status: 'generating', markdown: '', usedModel: config.model });
         
         try {
             let activeQueries = preDefinedQueries || [];
             
-            // 如果没有预定义查询词（非第一步），或有用户额外指令，则动态生成
             if (activeQueries.length === 0 || userInstructions) {
                 if (userInstructions) {
                     const refined = await refineSearchQueries(`${techName} ${userInstructions}`);
@@ -366,12 +360,12 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 filledPrompt += `\n\n**用户补充要求：**\n${userInstructions}`;
             }
 
-            // 4. 生成报告
-            let fullContent = "";
+            // 4. 生成报告 Markdown (First Pass)
+            let fullMarkdown = "";
             await streamChatCompletions({
                 model: config.model,
                 messages: [
-                    { role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION }, // 注入全局系统 Prompt
+                    { role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION },
                     { role: 'user', content: filledPrompt }
                 ],
                 stream: true,
@@ -379,12 +373,39 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 enable_billing: true
             }, (chunk) => {
                 if (chunk.content) {
-                    fullContent += chunk.content;
-                    const cleanHtml = extractCleanHtml(fullContent);
-                    const cleanMarkdown = stripHtmlFromMarkdown(fullContent);
-                    updateSection(stepId, { markdown: cleanMarkdown, html: cleanHtml });
+                    fullMarkdown += chunk.content;
+                    updateSection(stepId, { markdown: fullMarkdown });
                 }
             }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
+
+            // 5. 生成可视化图表 (Second Pass)
+            if (visualConfig && fullMarkdown.trim().length > 100) {
+                 addMessage('assistant', `🎨 正在为【${STEP_DEFINITIONS[stepId].title}】章节绘制专业图表...`);
+                 
+                 const vizPrompt = visualConfig.contentTemplate
+                     .replace('{{ step_title }}', STEP_DEFINITIONS[stepId].title)
+                     .replace('{{ markdown_content }}', fullMarkdown);
+                
+                 let fullHtml = "";
+                 await streamChatCompletions({
+                     model: visualConfig.model, // Use the specific visualization model (e.g. Gemini/Claude)
+                     messages: [
+                        { role: 'user', content: vizPrompt }
+                     ],
+                     stream: true,
+                     temperature: 0.1, // Low temp for code stability
+                     enable_billing: true
+                 }, (chunk) => {
+                     if (chunk.content) {
+                        fullHtml += chunk.content;
+                     }
+                 }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
+
+                 const cleanHtml = extractCleanHtml(fullHtml);
+                 if (cleanHtml) {
+                     updateSection(stepId, { html: cleanHtml });
+                 }
+            }
 
             updateSection(stepId, { status: 'review' });
             addMessage('assistant', `**${data.sections[stepId].title}** 分析草稿已完成。您可以输入反馈进行微调，或直接确认。`);
