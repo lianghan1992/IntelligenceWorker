@@ -36,7 +36,7 @@ const IdleState = () => (
         </div>
         <h3 className="text-xl font-bold text-slate-700">万能研报助手</h3>
         <p className="text-sm mt-2 max-w-xs text-center leading-relaxed">
-            请在右侧输入研究主题，AI 将自动进行全网检索、构建大纲并撰写报告。
+            请在右侧输入研究主题，AI 将自动进行全网检索、构建研究思路并撰写报告。
         </p>
     </div>
 );
@@ -77,7 +77,7 @@ const ResearchVisualizer: React.FC<{ logs: ResearchLog[] }> = ({ logs }) => (
 const OutlineVisualizer: React.FC<{ outline: { title: string; instruction: string }[] }> = ({ outline }) => (
     <div className="w-full max-w-3xl mx-auto py-10">
         <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <DocumentTextIcon className="w-6 h-6 text-indigo-600"/> 研究大纲规划
+            <DocumentTextIcon className="w-6 h-6 text-indigo-600"/> 研究思路规划
         </h2>
         <div className="space-y-4">
             {outline.map((item, idx) => (

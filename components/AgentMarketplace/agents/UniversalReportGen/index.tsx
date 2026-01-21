@@ -127,7 +127,7 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
         const planLogId = addLog('正在构建深度分析大纲...', 'plan');
         
         const planPrompt = `
-你是一个专业的研报架构师。请根据主题【${query}】和以下背景资料，设计一个深度研究报告的大纲。
+你是一个专业的研报架构师。请根据主题【${query}】和以下背景资料，设计一个深度研究报告的研究思路。
 背景资料：
 ${context}
 
@@ -141,7 +141,7 @@ ${context}
         setMessages(prev => [...prev, {
             id: planMsgId,
             role: 'assistant',
-            content: '正在规划大纲...',
+            content: '正在规划研究思路...',
             isThinking: true,
             timestamp: Date.now()
         }]);
@@ -156,7 +156,7 @@ ${context}
             }, (data) => {
                 if (data.content) {
                     planBuffer += data.content;
-                    // Stream updates to chat UI
+                    // Stream updates to chat UI so user sees progress
                     setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, content: planBuffer } : m));
                 }
             });
@@ -179,7 +179,7 @@ ${context}
              setMessages(prev => [...prev, { 
                 id: crypto.randomUUID(), 
                 role: 'assistant', 
-                content: `大纲生成遇到问题: ${e.message}`, 
+                content: `大纲生成遇到问题: ${e.message}。请重试。`, 
                 timestamp: Date.now() 
             }]);
             setStatus('idle');
