@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { login, register, requestPasswordRecovery, resetPassword } from '../../api';
+import { login, register, verifyEmail, requestPasswordRecovery, resetPassword } from '../../api';
 import { User } from '../../types';
 import { CloseIcon, LogoIcon, CheckCircleIcon, ArrowLeftIcon, DocumentTextIcon } from '../icons';
 import { WelcomeGiftModal } from './WelcomeGiftModal';
@@ -32,6 +32,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
 
     const [loginForm, setLoginForm] = useState({ email: '', password: '' });
     const [registerForm, setRegisterForm] = useState({ username: '', email: '', password: '' });
+    const [verificationCode, setVerificationCode] = useState('');
     const [forgotEmail, setForgotEmail] = useState('');
     const [resetForm, setResetForm] = useState({ token: '', newPassword: '' });
 
@@ -73,6 +74,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
             setVerificationPending(true);
         } catch (err: any) {
             setError(err.message || '注册失败，请稍后重试。');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleVerify = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!verificationCode || verificationCode.length !== 4) {
+            setError('请输入完整的4位验证码');
+            return;
+        }
+        setIsLoading(true);
+        setError('');
+        try {
+            await verifyEmail(registerForm.email, verificationCode);
+            setSuccessMessage('账号激活成功，请登录。');
+            setVerificationPending(false);
+            setMode('login');
+            // Auto fill email for login convenience
+            setLoginForm(prev => ({ ...prev, email: registerForm.email }));
+            setVerificationCode('');
+        } catch (err: any) {
+            setError(err.message || '验证失败，请检查验证码是否正确。');
         } finally {
             setIsLoading(false);
         }
@@ -143,24 +167,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
 
                         {/* Mode Specific Titles */}
                         {verificationPending ? (
-                            <div className="text-center space-y-6">
-                                <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto border-4 border-green-100">
-                                    <CheckCircleIcon className="w-8 h-8 text-green-500" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-slate-800 mb-2">验证邮件已发送</h3>
-                                    <p className="text-sm text-slate-600 leading-relaxed">
-                                        我们已向 <strong>{registerForm.email}</strong> 发送了一封包含激活链接的邮件。
-                                        <br/><br/>
-                                        请查收邮件并点击链接激活您的账号，即可登录使用。
+                            <div className="space-y-6">
+                                <div className="text-center">
+                                    <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-indigo-100">
+                                        <DocumentTextIcon className="w-8 h-8 text-indigo-600" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-800 mb-2">输入验证码</h3>
+                                    <p className="text-sm text-slate-600">
+                                        验证码已发送至 <strong>{registerForm.email}</strong>
                                     </p>
                                 </div>
-                                <button 
-                                    onClick={() => { setVerificationPending(false); setMode('login'); }}
-                                    className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-600 transition-all"
-                                >
-                                    返回登录
-                                </button>
+
+                                {error && <div className="text-sm text-center text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
+
+                                <form onSubmit={handleVerify} className="space-y-6">
+                                    <div className="flex justify-center">
+                                        <input
+                                            type="text"
+                                            maxLength={4}
+                                            value={verificationCode}
+                                            onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                                            className="w-48 text-center text-3xl tracking-[0.5em] font-mono font-bold py-2 border-b-2 border-slate-300 focus:border-indigo-600 outline-none bg-transparent transition-colors text-slate-800 placeholder-slate-200"
+                                            placeholder="0000"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading || verificationCode.length !== 4}
+                                        className="w-full py-3.5 bg-indigo-600 text-white rounded-lg font-bold shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:shadow-none flex items-center justify-center transition-all transform active:scale-[0.98]"
+                                    >
+                                        {isLoading ? <Spinner /> : '激活账号'}
+                                    </button>
+                                </form>
+                                
+                                <div className="text-center">
+                                    <button 
+                                        onClick={() => { setVerificationPending(false); setError(''); }}
+                                        className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
+                                    >
+                                        返回修改邮箱
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <>
