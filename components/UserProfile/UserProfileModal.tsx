@@ -40,7 +40,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClos
         setIsLoading(true);
         setMessage(null);
         try {
-            await resetPassword(resetForm.token, resetForm.newPassword);
+            // resetPassword expects (email, code, new_password)
+            await resetPassword(user.email, resetForm.token, resetForm.newPassword);
             setMessage({ type: 'success', text: '密码修改成功！下次登录请使用新密码。' });
             setResetForm({ token: '', newPassword: '' });
             // Optional: Close modal or stay to show success
