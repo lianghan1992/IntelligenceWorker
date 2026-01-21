@@ -2,7 +2,8 @@
 import React from 'react';
 import { 
     SparklesIcon, RefreshIcon, CheckCircleIcon, 
-    DocumentTextIcon, GlobeIcon, BrainIcon, SearchIcon, PencilIcon
+    DocumentTextIcon, GlobeIcon, BrainIcon, SearchIcon, PencilIcon,
+    ArrowRightIcon, DatabaseIcon
 } from '../../../icons';
 import { marked } from 'marked';
 
@@ -17,6 +18,8 @@ export interface ResearchLog {
 export interface ReportSection {
     title: string;
     content: string;
+    queries?: string[];
+    retrievedCount?: number;
 }
 
 interface ReportCanvasProps {
@@ -49,10 +52,9 @@ const ResearchVisualizer: React.FC<{ logs: ResearchLog[] }> = ({ logs }) => (
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 mb-4 animate-pulse">
                 <GlobeIcon className="w-8 h-8" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800">正在进行深度背景调查...</h2>
-            <p className="text-slate-500 text-sm mt-2">AI Agent 正在分析全网资料以构建最佳研究视角</p>
+            <h2 className="text-2xl font-bold text-slate-800">正在执行全网深度扫描...</h2>
+            <p className="text-slate-500 text-sm mt-2">Agent 正在分析各方情报以定位核心业务逻辑</p>
         </div>
-
         <div className="space-y-3">
             {logs.map((log) => (
                 <div key={log.id} className="flex items-center gap-4 bg-white p-4 rounded-xl border border-slate-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
@@ -65,11 +67,8 @@ const ResearchVisualizer: React.FC<{ logs: ResearchLog[] }> = ({ logs }) => (
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-slate-700">{log.message}</p>
-                        <p className="text-xs text-slate-400 mt-0.5 uppercase tracking-wider">{log.type}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">{log.type}</p>
                     </div>
-                    {log.status === 'loading' && (
-                        <div className="text-xs font-mono text-indigo-400">Processing...</div>
-                    )}
                 </div>
             ))}
         </div>
@@ -79,57 +78,67 @@ const ResearchVisualizer: React.FC<{ logs: ResearchLog[] }> = ({ logs }) => (
 const OutlineVisualizer: React.FC<{ outline: { title: string; instruction: string }[] }> = ({ outline }) => (
     <div className="w-full max-w-3xl mx-auto py-10">
         <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <DocumentTextIcon className="w-6 h-6 text-indigo-600"/> 研究思路规划
+            <DocumentTextIcon className="w-6 h-6 text-indigo-600"/> 研报大纲规划
         </h2>
         <div className="space-y-4">
             {outline.map((item, idx) => (
-                <div key={idx} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex gap-4 items-start animate-in fade-in slide-in-from-bottom-2" style={{ animationDelay: `${idx * 100}ms` }}>
+                <div key={idx} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex gap-4 items-start animate-in fade-in slide-in-from-bottom-2" style={{ animationDelay: `${idx * 80}ms` }}>
                     <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-slate-100 text-slate-500 font-bold flex items-center justify-center text-sm">
                         {idx + 1}
                     </div>
-                    <div>
+                    <div className="flex-1">
                         <h4 className="font-bold text-slate-800 text-lg">{item.title}</h4>
                         <p className="text-sm text-slate-500 mt-1 leading-relaxed">{item.instruction}</p>
                     </div>
                 </div>
             ))}
-             <div className="flex items-center justify-center py-8">
+             <div className="flex items-center justify-center py-10">
                  <div className="flex items-center gap-2 text-indigo-600 text-sm font-bold animate-pulse">
-                     <RefreshIcon className="w-4 h-4 animate-spin"/> 正在规划大纲...
+                     <RefreshIcon className="w-4 h-4 animate-spin"/> 正在细化分析粒度...
                  </div>
              </div>
         </div>
     </div>
 );
 
-const ProcessingStatusBadge: React.FC<{ phase: string }> = ({ phase }) => {
-    let icon, text, color;
-    switch(phase) {
-        case 'analyzing':
-            icon = <BrainIcon className="w-4 h-4 animate-pulse" />;
-            text = "规划检索词...";
-            color = "bg-purple-100 text-purple-700";
-            break;
-        case 'searching':
-            icon = <SearchIcon className="w-4 h-4 animate-bounce" />;
-            text = "正在全网检索...";
-            color = "bg-blue-100 text-blue-700";
-            break;
-        case 'writing':
-            icon = <PencilIcon className="w-4 h-4 animate-pulse" />;
-            text = "AI 正在持续撰写...";
-            color = "bg-green-100 text-green-700";
-            break;
-        default:
-            return null;
-    }
+// --- 章节检索状态面板 ---
+const SectionInsightPanel: React.FC<{ queries: string[]; count: number; phase: string }> = ({ queries, count, phase }) => {
     return (
-        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${color} shadow-sm border border-white/50 mb-4 animate-in fade-in`}>
-            {icon}
-            <span>{text}</span>
+        <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded-lg ${phase === 'writing' ? 'bg-green-100 text-green-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                        {phase === 'analyzing' && <BrainIcon className="w-4 h-4 animate-pulse" />}
+                        {phase === 'searching' && <SearchIcon className="w-4 h-4 animate-bounce" />}
+                        {phase === 'writing' && <PencilIcon className="w-4 h-4 animate-pulse" />}
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        {phase === 'analyzing' ? '正在规划本章检索词' : 
+                         phase === 'searching' ? '正在执行语义搜索' : '正在根据情报撰写'}
+                    </span>
+                </div>
+                {count > 0 && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 text-white rounded-full text-[10px] font-black shadow-lg shadow-blue-500/20">
+                        <DatabaseIcon className="w-3 h-3" />
+                        命中 {count} 条情报
+                    </div>
+                )}
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+                {queries.length > 0 ? (
+                    queries.map((q, i) => (
+                        <div key={i} className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm animate-in zoom-in">
+                            <span className="text-indigo-400">#</span> {q}
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-[11px] text-slate-400 italic">正在思考检索策略...</div>
+                )}
+            </div>
         </div>
     );
-}
+};
 
 const ReportViewer: React.FC<{ 
     sections: ReportSection[]; 
@@ -138,7 +147,6 @@ const ReportViewer: React.FC<{
     processingPhase?: 'analyzing' | 'searching' | 'writing';
 }> = ({ sections, topic, processingIndex, processingPhase }) => {
     
-    // Auto scroll to active section
     const activeRef = React.useRef<HTMLDivElement>(null);
     React.useEffect(() => {
         if (processingIndex !== undefined && processingIndex >= 0 && activeRef.current) {
@@ -147,47 +155,65 @@ const ReportViewer: React.FC<{
     }, [processingIndex]);
 
     return (
-        <div className="w-full max-w-4xl mx-auto bg-white min-h-[90vh] shadow-lg my-8 p-10 md:p-16 rounded-sm">
-            <div className="border-b border-slate-200 pb-8 mb-10 text-center">
-                <h1 className="text-4xl font-black text-slate-900 mb-4">{topic}</h1>
-                <p className="text-sm text-slate-500 uppercase tracking-widest font-bold">Auto Insight AI Research Report</p>
+        <div className="w-full max-w-4xl mx-auto bg-white min-h-full shadow-2xl my-8 md:my-16 p-8 md:p-20 rounded-lg relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+            
+            <div className="border-b-4 border-slate-900 pb-8 mb-16 text-center">
+                <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tighter leading-tight uppercase">{topic}</h1>
+                <div className="flex items-center justify-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                    <span>Automated Deep Research</span>
+                    <span className="w-1.5 h-1.5 bg-slate-300 rounded-full"></span>
+                    <span>{new Date().toLocaleDateString()}</span>
+                </div>
             </div>
             
-            <div className="space-y-12">
+            <div className="space-y-20">
                 {sections.map((section, idx) => {
                     const isActive = idx === processingIndex;
                     return (
                         <section 
                             key={idx} 
                             ref={isActive ? activeRef : null}
-                            className={`animate-in fade-in duration-700 ${isActive ? 'ring-2 ring-indigo-500/10 rounded-xl p-4 -m-4 bg-slate-50/50 transition-all' : ''}`}
+                            className={`relative transition-all duration-700 ${isActive ? 'scale-[1.02]' : ''}`}
                         >
-                            <h2 className="text-2xl font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
-                                <span className="text-indigo-200 font-black text-3xl opacity-50 select-none">0{idx + 1}</span>
-                                {section.title}
-                            </h2>
+                            <div className="flex items-baseline gap-4 mb-8">
+                                <span className="text-6xl font-black text-slate-100 select-none leading-none">0{idx + 1}</span>
+                                <h2 className="text-3xl font-black text-slate-800 border-b-2 border-slate-100 pb-2 flex-1">{section.title}</h2>
+                            </div>
 
                             {isActive && processingPhase && (
-                                <ProcessingStatusBadge phase={processingPhase} />
+                                <SectionInsightPanel 
+                                    queries={section.queries || []} 
+                                    count={section.retrievedCount || 0}
+                                    phase={processingPhase}
+                                />
                             )}
                             
-                            <article 
-                                className="prose prose-slate max-w-none prose-headings:font-bold prose-p:text-justify prose-p:leading-relaxed prose-li:marker:text-indigo-400"
-                                dangerouslySetInnerHTML={{ __html: marked.parse(section.content || '') as string }}
-                            />
-                            
-                            {!section.content && !isActive && (
-                                <div className="h-20 flex items-center justify-center bg-slate-50 rounded border border-dashed border-slate-200 text-slate-400 text-xs">
-                                    等待生成...
-                                </div>
-                            )}
+                            <div className="relative">
+                                <article 
+                                    className="prose prose-slate max-w-none prose-p:text-justify prose-p:leading-loose prose-strong:text-slate-900 prose-headings:font-black"
+                                    dangerouslySetInnerHTML={{ __html: marked.parse(section.content || '') as string }}
+                                />
+                                {isActive && !section.content && processingPhase !== 'analyzing' && (
+                                    <div className="flex flex-col items-center justify-center py-10 text-indigo-400 gap-3">
+                                        <div className="flex gap-1">
+                                            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"></div>
+                                            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                                            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                                        </div>
+                                        <span className="text-xs font-bold uppercase tracking-widest">AI 正在根据获取的情报进行逻辑合成...</span>
+                                    </div>
+                                )}
+                            </div>
                         </section>
                     );
                 })}
             </div>
             
-            <div className="mt-20 pt-10 border-t border-slate-100 text-center text-slate-300 text-xs">
-                Generated by StratifyAI Engine
+            <div className="mt-32 pt-10 border-t border-slate-100 text-center">
+                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                    Generated by StratifyAI • Autonomous Intelligence Engine v4.0
+                </p>
             </div>
         </div>
     );
@@ -198,20 +224,26 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
 }) => {
     return (
         <div className="flex-1 h-full overflow-y-auto bg-slate-50 custom-scrollbar relative scroll-smooth">
-            <div className="min-h-full p-6">
+            <div className="min-h-full">
                 {status === 'idle' && <IdleState />}
                 
-                {status === 'researching' && <ResearchVisualizer logs={logs} />}
+                {status === 'researching' && (
+                    <div className="px-6"><ResearchVisualizer logs={logs} /></div>
+                )}
                 
-                {status === 'planning' && <OutlineVisualizer outline={outline} />}
+                {status === 'planning' && (
+                    <div className="px-6"><OutlineVisualizer outline={outline} /></div>
+                )}
                 
                 {(status === 'generating' || status === 'done') && (
-                    <ReportViewer 
-                        sections={sections} 
-                        topic={topic} 
-                        processingIndex={processingIndex}
-                        processingPhase={processingPhase}
-                    />
+                    <div className="px-4 md:px-10">
+                        <ReportViewer 
+                            sections={sections} 
+                            topic={topic} 
+                            processingIndex={processingIndex}
+                            processingPhase={processingPhase}
+                        />
+                    </div>
                 )}
             </div>
         </div>

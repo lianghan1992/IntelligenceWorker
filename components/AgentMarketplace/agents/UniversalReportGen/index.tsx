@@ -54,11 +54,9 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
     const handleUserMessage = async (text: string) => {
         if (!text.trim()) return;
 
-        // Add User Message
         const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
 
-        // If idle, start the whole process
         if (status === 'idle') {
             setTopic(text);
             startResearchProcess(text);
@@ -66,7 +64,7 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
             setMessages(prev => [...prev, { 
                 id: crypto.randomUUID(), 
                 role: 'assistant', 
-                content: '当前版本暂不支持中途插话修改，请等待报告生成完毕。', 
+                content: '正在生成中，请耐心等待完成。', 
                 timestamp: Date.now() 
             }]);
         }
@@ -77,64 +75,39 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
         abortRef.current = false;
         setOutline([]);
         setSections([]);
-        setProcessingIndex(-1);
         
-        // 1. Initial Broad Research Phase
-        const searchLogId = addLog(`正在进行全局背景调查: "${query}"...`, 'search');
+        const searchLogId = addLog(`执行全局背景扫描: "${query}"...`, 'search');
         
         let globalContext = "";
         try {
             const searchRes = await searchSemanticBatchGrouped({
-                query_texts: [query, `${query} 市场规模`, `${query} 核心挑战`, `${query} 未来趋势`],
+                query_texts: [query, `${query} 核心技术`, `${query} 市场格局`, `${query} 发展趋势`],
                 max_segments_per_query: 4
             });
             updateLogStatus(searchLogId, 'done');
             
-            const items = searchRes.results?.[0]?.items || [];
-            const refs = items.flatMap((art: any) => art.segments.map((seg: any) => seg.content));
-            globalContext = refs.join('\n\n').slice(0, 8000); // Limit context
+            const results = searchRes.results || [];
+            const refs = results.flatMap((r: any) => (r.items || []).flatMap((art: any) => art.segments.map((seg: any) => seg.content)));
+            globalContext = refs.join('\n\n').slice(0, 8000);
             
             if (refs.length > 0) {
-                 const readLogId = addLog(`已阅读 ${refs.length} 条相关情报片段`, 'read');
-                 setTimeout(() => updateLogStatus(readLogId, 'done'), 800);
+                 const readLogId = addLog(`已获取 ${refs.length} 条全局背景情报`, 'read');
+                 setTimeout(() => updateLogStatus(readLogId, 'done'), 600);
             }
         } catch (e) {
-            console.error("Search failed", e);
             updateLogStatus(searchLogId, 'done');
         }
 
         // 2. Planning Phase
         setStatus('planning');
-        const planLogId = addLog('正在构建深度分析研究思路...', 'plan');
+        const planLogId = addLog('正在构建深度报告大纲...', 'plan');
         
-        const planPrompt = `
-你是一个专业的研报架构师。请根据主题【${query}】和以下背景资料，设计一个深度研究报告的大纲。
-背景资料片段：
-${globalContext.slice(0, 2000)}...
-
-要求：
-1. 分为 4-6 个核心章节。
-2. **请直接使用 JSON 格式输出**，不要包含 markdown 代码块标记。
-3. 结构要求：
-{
-  "title": "报告总标题",
-  "pages": [
-    {
-      "title": "章节标题",
-      "instruction": "本章节的写作重点和分析逻辑"
-    }
-  ]
-}
-`;
+        const planPrompt = `你是一个专业的研报架构师。根据主题【${query}】和背景资料设计深度研报大纲。
+要求：4-6个章节，JSON格式：{"title": "报告标题", "pages": [{"title": "章节名", "instruction": "写作重点"}]}。
+直接输出JSON。`;
         
         const planMsgId = crypto.randomUUID();
-        setMessages(prev => [...prev, {
-            id: planMsgId,
-            role: 'assistant',
-            content: '正在规划研究思路...', 
-            isThinking: true,
-            timestamp: Date.now()
-        }]);
+        setMessages(prev => [...prev, { id: planMsgId, role: 'assistant', content: '正在规划大纲...', isThinking: true, timestamp: Date.now() }]);
 
         let planBuffer = "";
         try {
@@ -142,129 +115,105 @@ ${globalContext.slice(0, 2000)}...
                 model: PLANNING_MODEL_ID,
                 messages: [{ role: 'user', content: planPrompt }],
                 stream: true,
-                temperature: 0.3
+                temperature: 0.1
             }, (data) => {
                 if (data.content) {
                     planBuffer += data.content;
-                    
-                    // Real-time parsing attempt
                     const partial = tryParsePartialJson(planBuffer);
-                    if (partial && partial.pages && Array.isArray(partial.pages)) {
+                    if (partial && partial.pages) {
                         setOutline(partial.pages);
                         if (partial.title) setTopic(partial.title);
                     }
                 }
             });
             
-            setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false, content: "研究思路规划完成，准备开始撰写。" } : m));
+            setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false, content: "大纲规划完成，开始深度检索与撰写。" } : m));
+            updateLogStatus(planLogId, 'done');
 
-            // Final Parse
             const parsedOutline = tryParsePartialJson(planBuffer);
-            
-            if (parsedOutline && parsedOutline.pages && parsedOutline.pages.length > 0) {
-                setOutline(parsedOutline.pages);
-                if (parsedOutline.title) setTopic(parsedOutline.title);
-                updateLogStatus(planLogId, 'done');
-                
-                // Start Recursive Writing Phase
+            if (parsedOutline && parsedOutline.pages) {
                 startWritingProcess(parsedOutline.pages, globalContext);
-            } else {
-                throw new Error("未能生成有效的大纲结构 (JSON Parsing Failed)。");
             }
         } catch (e: any) {
-             setMessages(prev => [...prev, { 
-                id: crypto.randomUUID(), 
-                role: 'system',
-                content: `❌ **生成中断**\n\n原因: ${e.message}\n\n建议尝试重新输入主题，或检查网络连接。`, 
-                timestamp: Date.now() 
-            }]);
             setStatus('idle');
         }
     };
 
     const startWritingProcess = async (outlineItems: { title: string; instruction: string }[], globalContext: string) => {
         setStatus('generating');
-        
-        // Initialize empty sections
-        setSections(outlineItems.map(item => ({ title: item.title, content: '' })));
+        // 初始化空章节
+        setSections(outlineItems.map(item => ({ title: item.title, content: '', queries: [], retrievedCount: 0 })));
 
         for (let i = 0; i < outlineItems.length; i++) {
             if (abortRef.current) break;
-            
-            const item = outlineItems[i];
             setProcessingIndex(i);
+            const item = outlineItems[i];
 
-            // --- Step A: Generate Section-Specific Queries ---
+            // 1. 规划检索词 (流式展示词)
             setProcessingPhase('analyzing');
-            let sectionContext = "";
+            let sectionQueries: string[] = [];
             try {
-                const queryPrompt = `
-我们正在撰写报告《${topic}》。
-当前章节：【${item.title}】
-写作要求：${item.instruction}
-
-请生成 3 个针对该章节的、具体的搜索关键词，以便获取详实的数据和事实支撑。
-仅返回 JSON 字符串数组，例如：["关键词1", "关键词2"]
-`;
+                const queryPrompt = `正在撰写《${topic}》之【${item.title}】。请提供3个用于深度检索的关键词，JSON数组格式。`;
                 let queryBuffer = "";
                 await streamChatCompletions({
                     model: QUERY_MODEL_ID,
                     messages: [{ role: 'user', content: queryPrompt }],
                     stream: true,
                     temperature: 0.1
-                }, (d) => { if (d.content) queryBuffer += d.content; });
+                }, (d) => {
+                    if (d.content) {
+                        queryBuffer += d.content;
+                        const partialQueries = tryParsePartialJson(queryBuffer);
+                        if (Array.isArray(partialQueries)) {
+                            setSections(prev => {
+                                const next = [...prev];
+                                next[i] = { ...next[i], queries: partialQueries };
+                                return next;
+                            });
+                        }
+                    }
+                });
+                sectionQueries = tryParsePartialJson(queryBuffer) || [];
+            } catch (e) {}
 
-                const queries = tryParsePartialJson(queryBuffer); // Reuse parser for array
-                
-                if (Array.isArray(queries) && queries.length > 0) {
-                     // --- Step B: Search ---
-                     setProcessingPhase('searching');
-                     const searchRes = await searchSemanticBatchGrouped({
-                        query_texts: queries,
-                        max_segments_per_query: 4
+            // 2. 执行检索 (更新条数)
+            setProcessingPhase('searching');
+            let sectionContext = "";
+            if (sectionQueries.length > 0) {
+                try {
+                    const searchRes = await searchSemanticBatchGrouped({
+                        query_texts: sectionQueries,
+                        max_segments_per_query: 5
                     });
+                    const results = searchRes.results || [];
+                    const refs = results.flatMap((r: any) => (r.items || []).flatMap((art: any) => art.segments.map((seg: any) => seg.content)));
+                    sectionContext = refs.join('\n\n').slice(0, 6000);
                     
-                    const refs = (searchRes.results || []).flatMap((r: any) => (r.items || []).flatMap((art: any) => art.segments.map((seg: any) => seg.content)));
-                    sectionContext = refs.join('\n\n').slice(0, 5000);
-                }
-            } catch (e) {
-                console.warn(`Section ${i} search failed, falling back to global context.`);
+                    setSections(prev => {
+                        const next = [...prev];
+                        next[i] = { ...next[i], retrievedCount: refs.length };
+                        return next;
+                    });
+                } catch (e) {}
             }
 
-            // --- Step C: Write Section ---
+            // 3. 撰写章节 (流式输出内容)
             setProcessingPhase('writing');
-            const writePrompt = `
-你是一位资深行业分析师。正在撰写报告【${topic}】的章节。
-
-当前章节：【${item.title}】
-写作要求：${item.instruction}
-
-【全局背景资料】：
-${globalContext.slice(0, 1500)}...
-
-【本章专属资料】：
-${sectionContext || "（暂无特定资料，请基于通识分析）"}
-
-请撰写本章节内容。
-- 使用 Markdown 格式。
-- 字数 500-800 字。
-- 条理清晰，多用数据支撑，引用资料中的事实。
-- 语气专业、客观。
-`;
-            let sectionContent = "";
+            const writePrompt = `你是一位资深分析师。撰写章节【${item.title}】。\n要求：${item.instruction}\n参考资料：\n${globalContext.slice(0, 1000)}\n\n${sectionContext}\n请用Markdown撰写。`;
             
+            let contentBuffer = "";
             await streamChatCompletions({
                 model: WRITING_MODEL_ID,
                 messages: [{ role: 'user', content: writePrompt }],
                 stream: true,
-                temperature: 0.4
+                temperature: 0.3
             }, (data) => {
                 if (data.content) {
-                    sectionContent += data.content;
+                    contentBuffer += data.content;
                     setSections(prev => {
-                        const newSecs = [...prev];
-                        newSecs[i] = { ...newSecs[i], content: sectionContent };
-                        return newSecs;
+                        const next = [...prev];
+                        next[i] = { ...next[i], content: contentBuffer };
+                        return next;
                     });
                 }
             });
@@ -272,17 +221,10 @@ ${sectionContext || "（暂无特定资料，请基于通识分析）"}
         
         setProcessingIndex(-1);
         setStatus('done');
-        setMessages(prev => [...prev, { 
-            id: crypto.randomUUID(), 
-            role: 'assistant', 
-            content: '报告已生成完毕！您可以在左侧预览。', 
-            timestamp: Date.now() 
-        }]);
     };
 
     return (
         <div className="flex h-full w-full bg-[#f8fafc]">
-            {/* Left: Visualization Canvas */}
             <div className="flex-1 overflow-hidden border-r border-slate-200 relative">
                 <ReportCanvas 
                     status={status}
@@ -294,13 +236,11 @@ ${sectionContext || "（暂无特定资料，请基于通识分析）"}
                     processingPhase={processingPhase}
                 />
             </div>
-
-            {/* Right: Chat Panel */}
             <div className="w-[400px] flex-shrink-0 bg-white shadow-xl z-10 h-full">
                 <SharedChatPanel 
                     messages={messages}
                     onSendMessage={handleUserMessage}
-                    isGenerating={status === 'researching' || status === 'planning' || status === 'generating'}
+                    isGenerating={status !== 'idle' && status !== 'done'}
                     placeholder="输入研究主题..."
                     title="研报助手 Copilot"
                 />
