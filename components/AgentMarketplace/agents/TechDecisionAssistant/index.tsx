@@ -83,6 +83,7 @@ const StepIndicator: React.FC<{ status: string, index: number, title: string, is
 const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack }) => {
     const [data, setData] = useState<TechEvalSessionData>({
         techName: '',
+        techDefinition: undefined,
         searchQueries: [],
         currentStepIndex: 0,
         sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
@@ -510,7 +511,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                          const tag = part;
                          // Find DOM Node
                          // We need a deterministic way to find ID. 
-                         // In ReportCanvas.tsx: const widgetId = `visual-widget-${sectionId}-${index}`;
+                         // In ReportCanvas.tsx: const widgetId = `visual-widget-${stepId}-${index}`;
                          // But index depends on the split array index in mixed renderer.
                          // Let's use the exact same split logic in ReportCanvas to infer index
                          
