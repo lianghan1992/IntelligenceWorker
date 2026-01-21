@@ -34,13 +34,13 @@ const RETRIEVAL_CONFIG = {
 };
 
 // 全局系统设定：赋予 Agent 专家人设与行为规范
-// 修改：移除关于必须生成 HTML 的指令，让文本模型专注于文本
 const GLOBAL_SYSTEM_INSTRUCTION = `你是一位拥有15年以上经验的汽车/硬科技行业技术专家。你的核心能力是基于行业情报，对技术方案进行深度的竞品分析、技术路线评估和工程风险排查。文风务实、犀利、逻辑严密，严禁营销辞藻，仅进行客观分析。
 
 核心限制 (Constraints):
 1. **中文优先**：除专业术语外，**严禁中英混合！** 严禁在中文句子中夹杂不必要的英文单词。
 2. **证据导向**：所有分析必须基于事实或检索到的情报。
-3. **格式规范**：输出标准的 Markdown 格式，层级清晰。**不要**包含任何 HTML 代码或图片占位符。`;
+3. **禁止废话**：直接输出报告内容，**不要**输出 "好的，我来为您分析..." 或 "您还需要什么帮助..." 等对话式填充语。
+4. **图文穿插**：在需要数据可视化或原理解析的地方，**必须**插入图表占位符。格式为：\`[VISUAL: 图表标题 | 图表描述]\`。请根据内容深度，在一个章节中插入 1-3 个不等的图表。`;
 
 // 定义每个阶段的任务目标，用于指导 AI 生成关键词
 const STEP_DEFINITIONS: Record<StepId, { title: string, objective: string }> = {
@@ -324,7 +324,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         const visualConfig = getModelConfig('tech_eval_visualize');
 
         setIsGenerating(true);
-        updateSection(stepId, { status: 'generating', markdown: '', usedModel: config.model });
+        updateSection(stepId, { status: 'generating', markdown: '', usedModel: config.model, visuals: {} });
         
         try {
             let activeQueries = preDefinedQueries || [];
@@ -378,33 +378,57 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 }
             }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
 
-            // 5. 生成可视化图表 (Second Pass)
-            if (visualConfig && fullMarkdown.trim().length > 100) {
-                 addMessage('assistant', `🎨 正在为【${STEP_DEFINITIONS[stepId].title}】章节绘制专业图表...`);
-                 
-                 const vizPrompt = visualConfig.contentTemplate
-                     .replace('{{ step_title }}', STEP_DEFINITIONS[stepId].title)
-                     .replace('{{ markdown_content }}', fullMarkdown);
-                
-                 let fullHtml = "";
-                 await streamChatCompletions({
-                     model: visualConfig.model, // Use the specific visualization model (e.g. Gemini/Claude)
-                     messages: [
-                        { role: 'user', content: vizPrompt }
-                     ],
-                     stream: true,
-                     temperature: 0.1, // Low temp for code stability
-                     enable_billing: true
-                 }, (chunk) => {
-                     if (chunk.content) {
-                        fullHtml += chunk.content;
-                     }
-                 }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
+            // 5. 扫描并生成多个图表 (Multi-Visual Generation)
+            // 匹配格式：[VISUAL: 标题 | 描述]
+            const visualTagsRegex = /\[VISUAL:\s*(.*?)\s*\|\s*(.*?)\]/g;
+            let match;
+            const tasks: Array<{ fullTag: string, title: string, desc: string }> = [];
 
-                 const cleanHtml = extractCleanHtml(fullHtml);
-                 if (cleanHtml) {
-                     updateSection(stepId, { html: cleanHtml });
-                 }
+            while ((match = visualTagsRegex.exec(fullMarkdown)) !== null) {
+                tasks.push({
+                    fullTag: match[0],
+                    title: match[1].trim(),
+                    desc: match[2].trim()
+                });
+            }
+
+            if (tasks.length > 0 && visualConfig) {
+                 addMessage('assistant', `🎨 正在绘制 **${tasks.length}** 张可视化图表...`);
+                 
+                 const visualsMap: Record<string, string> = {};
+
+                 // 并行生成所有图表
+                 await Promise.all(tasks.map(async (task) => {
+                     const vizPrompt = visualConfig.contentTemplate
+                         .replace('{{ chart_title }}', task.title)
+                         .replace('{{ chart_desc }}', task.desc)
+                         .replace('{{ context_summary }}', fullMarkdown.slice(0, 1500)); // 给一部分上下文
+                    
+                     let fullHtml = "";
+                     try {
+                         await streamChatCompletions({
+                             model: visualConfig.model, 
+                             messages: [
+                                { role: 'user', content: vizPrompt }
+                             ],
+                             stream: true,
+                             temperature: 0.1, 
+                             enable_billing: true
+                         }, (chunk) => {
+                             if (chunk.content) fullHtml += chunk.content;
+                         }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
+                         
+                         const cleanHtml = extractCleanHtml(fullHtml);
+                         if (cleanHtml) {
+                             visualsMap[task.fullTag] = cleanHtml;
+                         }
+                     } catch (e) {
+                         console.error("Failed to gen visual", task.title, e);
+                     }
+                 }));
+                 
+                 // 更新 State
+                 updateSection(stepId, { visuals: visualsMap });
             }
 
             updateSection(stepId, { status: 'review' });
@@ -449,8 +473,10 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             const section = data.sections[stepId];
             if (section.markdown) {
                 fullMarkdown += `\n${section.markdown}\n\n`;
-                if (section.html) {
-                    fullMarkdown += `\n> [图表: ${section.title} 可视化组件已生成]\n\n`;
+                if (section.visuals) {
+                    Object.keys(section.visuals).forEach(tag => {
+                         fullMarkdown = fullMarkdown.replace(tag, `\n> [图表生成: ${tag}]\n`);
+                    });
                 }
                 fullMarkdown += `---\n`;
             }

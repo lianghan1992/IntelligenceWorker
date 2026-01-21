@@ -1,3 +1,4 @@
+
 export type StepId = 'init' | 'route' | 'risk' | 'solution' | 'compare';
 
 export interface ReportSection {
@@ -5,9 +6,10 @@ export interface ReportSection {
     title: string;
     status: 'pending' | 'generating' | 'review' | 'done';
     markdown: string;
-    html?: string;
+    html?: string; // 兼容旧字段，但主要逻辑将迁移至 visuals
+    visuals?: Record<string, string>; // 新增：Key为占位符tag, Value为生成的HTML
     logs?: string[];
-    usedModel?: string; // 新增：记录该步骤使用的模型 (e.g. zhipu@glm-4-flash)
+    usedModel?: string; 
 }
 
 export interface TechEvalSessionData {

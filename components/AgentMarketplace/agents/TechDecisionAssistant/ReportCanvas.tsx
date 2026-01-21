@@ -1,8 +1,9 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { ReportSection, StepId } from './types';
 import VisualEditor from '../../../shared/VisualEditor';
 import { marked } from 'marked';
-import { RefreshIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon, SparklesIcon, ServerIcon, PencilIcon, CloseIcon, PhotoIcon, DownloadIcon } from '../../../icons';
+import { RefreshIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon, SparklesIcon, ServerIcon, PencilIcon, CloseIcon, PhotoIcon, DownloadIcon, CheckIcon } from '../../../icons';
 import { toBlob, toPng } from 'html-to-image';
 
 interface ReportCanvasProps {
@@ -14,7 +15,7 @@ interface ReportCanvasProps {
 
 const stepsOrder: StepId[] = ['route', 'risk', 'solution', 'compare'];
 
-// --- VisualWidget with Edit Modal ---
+// --- VisualWidget (Unchanged from previous logic, just extracted) ---
 const VisualWidget: React.FC<{ 
     html: string; 
     onEdit: (newHtml: string) => void;
@@ -52,9 +53,8 @@ const VisualWidget: React.FC<{
             const blob = await toBlob(innerDiv as HTMLElement, { 
                 width: 1600, 
                 height: 900,
-                style: { transform: 'scale(1)', transformOrigin: 'top left' } // Force scale 1 for capture
+                style: { transform: 'scale(1)', transformOrigin: 'top left' }
             });
-            
             if (blob) {
                 const item = new ClipboardItem({ "image/png": blob });
                 await navigator.clipboard.write([item]);
@@ -78,7 +78,6 @@ const VisualWidget: React.FC<{
                 height: 900,
                 style: { transform: 'scale(1)', transformOrigin: 'top left' }
             });
-            
             const link = document.createElement('a');
             link.download = `${title.replace(/\s+/g, '_')}_visualization.png`;
             link.href = dataUrl;
@@ -92,91 +91,43 @@ const VisualWidget: React.FC<{
     };
 
     return (
-        <div className="mt-8 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-slate-50 relative group w-full">
-            {/* Header Bar */}
+        <div className="my-8 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-slate-50 relative group w-full">
             <div className="h-10 px-4 bg-white border-b border-slate-200 flex justify-between items-center">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
                     <ChartIcon className="w-4 h-4 text-indigo-500" />
-                    <span>可视化分析图表</span>
+                    <span>可视化组件: {title}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                     <button 
-                        onClick={handleCopyImage}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="复制图片"
-                        disabled={isCopying}
-                     >
+                     <button onClick={handleCopyImage} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="复制" disabled={isCopying}>
                         {isCopying ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <PhotoIcon className="w-3.5 h-3.5" />}
                      </button>
-                     <button 
-                        onClick={handleDownloadImage}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="下载图片"
-                        disabled={isDownloading}
-                     >
+                     <button onClick={handleDownloadImage} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="下载" disabled={isDownloading}>
                         {isDownloading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5" />}
                      </button>
                      <div className="w-px h-3 bg-slate-200 mx-1"></div>
-                     <button 
-                        onClick={() => setIsEditing(true)}
-                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                        title="编辑图表 (或双击图表区域)"
-                     >
+                     <button onClick={() => setIsEditing(true)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="编辑">
                         <PencilIcon className="w-3.5 h-3.5" />
                      </button>
                 </div>
             </div>
             
-            {/* Canvas Container */}
-            <div 
-                ref={containerRef} 
-                onDoubleClick={() => setIsEditing(true)}
-                style={{ height: containerHeight, transition: 'height 0.2s' }} 
-                className="w-full bg-slate-100 relative overflow-hidden cursor-pointer"
-                title="双击进入编辑模式"
-            >
-                 <div ref={renderRef} style={{
-                     width: 1600,
-                     height: 900,
-                     transform: `scale(${scale})`,
-                     transformOrigin: 'top left',
-                     position: 'absolute',
-                     top: 0,
-                     left: 0,
-                     pointerEvents: 'none' // Prevent interactions with internal iframe while in preview mode to allow double click on container
-                 }}>
-                     <VisualEditor 
-                        initialHtml={html} 
-                        onSave={() => {}} 
-                        scale={1} 
-                        canvasSize={{ width: 1600, height: 900 }}
-                        hideToolbar={true} 
-                     />
+            <div ref={containerRef} onDoubleClick={() => setIsEditing(true)} style={{ height: containerHeight, transition: 'height 0.2s' }} className="w-full bg-slate-100 relative overflow-hidden cursor-pointer" title="双击进入编辑模式">
+                 <div ref={renderRef} style={{ width: 1600, height: 900, transform: `scale(${scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+                     <VisualEditor initialHtml={html} onSave={() => {}} scale={1} canvasSize={{ width: 1600, height: 900 }} hideToolbar={true} />
                  </div>
             </div>
 
-            {/* Edit Modal */}
             {isEditing && (
                 <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex flex-col animate-in fade-in duration-200">
                     <div className="h-16 bg-white border-b px-6 flex items-center justify-between shadow-sm flex-shrink-0">
                         <h3 className="font-bold text-slate-800 text-lg">编辑图表: {title}</h3>
                         <div className="flex gap-3">
                             <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-bold">取消</button>
-                            <button 
-                                onClick={() => setIsEditing(false)} 
-                                className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-sm"
-                            >
-                                完成编辑
-                            </button>
+                            <button onClick={() => setIsEditing(false)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-sm">完成编辑</button>
                         </div>
                     </div>
                     <div className="flex-1 overflow-hidden relative bg-slate-200">
-                         <VisualEditor 
-                            initialHtml={html}
-                            onSave={onEdit}
-                            scale={0.8} // Default decent scale for modal
-                            canvasSize={{ width: 1600, height: 900 }}
-                         />
+                         <VisualEditor initialHtml={html} onSave={onEdit} scale={0.8} canvasSize={{ width: 1600, height: 900 }} />
                     </div>
                 </div>
             )}
@@ -184,25 +135,75 @@ const VisualWidget: React.FC<{
     );
 };
 
+// --- Mixed Content Renderer ---
+const MixedContentRenderer: React.FC<{ 
+    markdown: string; 
+    visuals: Record<string, string>; 
+    onVisualUpdate: (tag: string, newHtml: string) => void; 
+}> = ({ markdown, visuals, onVisualUpdate }) => {
+    // Regex matches [VISUAL: Title | Desc]
+    const visualTagRegex = /(\[VISUAL:\s*.*?\s*\|\s*.*?\])/g;
+    
+    // Split content by visual tags
+    const parts = markdown.split(visualTagRegex);
+
+    return (
+        <div className="prose prose-slate prose-sm md:prose-base max-w-none text-slate-600 leading-relaxed math-content">
+            {parts.map((part, index) => {
+                if (part.match(visualTagRegex)) {
+                    // It's a visual tag
+                    const match = /\[VISUAL:\s*(.*?)\s*\|\s*(.*?)\]/.exec(part);
+                    const title = match ? match[1] : 'Unknown Chart';
+                    const html = visuals[part];
+
+                    if (html) {
+                        return (
+                            <VisualWidget 
+                                key={index} 
+                                html={html} 
+                                title={title}
+                                onEdit={(newHtml) => onVisualUpdate(part, newHtml)} 
+                            />
+                        );
+                    } else {
+                        // Placeholder while generating
+                        return (
+                            <div key={index} className="my-8 p-6 bg-slate-50 border border-indigo-100 rounded-xl flex flex-col items-center justify-center text-indigo-400 gap-2 animate-pulse">
+                                <RefreshIcon className="w-6 h-6 animate-spin"/>
+                                <span className="text-xs font-bold uppercase tracking-wider">正在生成可视化图表: {title}</span>
+                            </div>
+                        );
+                    }
+                } else {
+                    // Regular Markdown Text
+                    if (!part.trim()) return null;
+                    return <div key={index} dangerouslySetInnerHTML={{ __html: marked.parse(part) as string }} />;
+                }
+            })}
+        </div>
+    );
+};
+
 export const ReportCanvas: React.FC<ReportCanvasProps> = ({ sections, currentStep, techName, onUpdateSection }) => {
     const bottomRef = useRef<HTMLDivElement>(null);
+    const [editingSectionId, setEditingSectionId] = useState<StepId | null>(null);
+    const [editText, setEditText] = useState("");
 
-    // Auto scroll to bottom when new content arrives
+    // Auto scroll to bottom when new content arrives (only if not editing)
     useEffect(() => {
-        if (bottomRef.current) {
+        if (bottomRef.current && !editingSectionId) {
             bottomRef.current.scrollIntoView({ behavior: 'smooth' });
         }
-    }, [sections]);
+    }, [sections, editingSectionId]);
 
     // Initialize Math Rendering (KaTeX)
     useEffect(() => {
-        // Assume window.renderMathInElement is available from index.html injection
         if ((window as any).renderMathInElement) {
              (window as any).renderMathInElement(document.body, {
                 delimiters: [
                   {left: '$$', right: '$$', display: true},
                   {left: '$', right: '$', display: false},
-                  {left: '\\(', right: '\\)', display: false},
+                  {left: '\\(', right: '\\)', display: true},
                   {left: '\\[', right: '\\]', display: true}
                 ],
                 throwOnError : false
@@ -210,23 +211,45 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({ sections, currentSte
         }
     });
 
+    const handleEditStart = (section: ReportSection) => {
+        setEditText(section.markdown);
+        setEditingSectionId(section.id);
+    };
+
+    const handleEditSave = (stepId: StepId) => {
+        if (onUpdateSection) {
+            onUpdateSection(stepId, { markdown: editText });
+        }
+        setEditingSectionId(null);
+    };
+
+    const handleVisualUpdate = (stepId: StepId, tag: string, newHtml: string) => {
+        if (onUpdateSection) {
+            const currentVisuals = sections[stepId].visuals || {};
+            onUpdateSection(stepId, { 
+                visuals: { ...currentVisuals, [tag]: newHtml } 
+            });
+        }
+    };
+
     const renderSection = (key: StepId) => {
         const section = sections[key];
         if (section.status === 'pending' && !section.markdown) return null;
         
         const isGenerating = section.status === 'generating';
         const isDone = section.status === 'done' || section.status === 'review';
+        const isEditing = editingSectionId === key;
 
         return (
             <div key={key} className="mb-10 animate-in fade-in slide-in-from-bottom-6 duration-700 relative pl-4 md:pl-0">
                 
-                {/* 左侧时间轴线条 (Desktop) */}
+                {/* Timeline Line */}
                 <div className="hidden md:block absolute left-[-29px] top-0 bottom-0 w-0.5 bg-slate-200 last:bottom-auto last:h-full"></div>
                 <div className={`hidden md:flex absolute left-[-36px] top-0 w-4 h-4 rounded-full border-2 items-center justify-center bg-slate-50 transition-colors z-10 ${isDone ? 'border-indigo-500' : 'border-slate-300'}`}>
                     {isDone && <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>}
                 </div>
 
-                <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                <div className={`flex flex-col bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${isEditing ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-200 hover:shadow-md'}`}>
                     {/* Section Header */}
                     <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -246,30 +269,49 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({ sections, currentSte
                                 {isGenerating && <p className="text-xs text-indigo-500 font-medium mt-0.5">AI 正在深度分析中...</p>}
                             </div>
                         </div>
-                        {isDone && <CheckCircleIcon className="w-5 h-5 text-green-500 opacity-50" />}
+                        
+                        <div className="flex items-center gap-2">
+                             {isEditing ? (
+                                 <div className="flex gap-2">
+                                     <button onClick={() => setEditingSectionId(null)} className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg">取消</button>
+                                     <button onClick={() => handleEditSave(key)} className="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-sm flex items-center gap-1">
+                                         <CheckIcon className="w-3.5 h-3.5" /> 保存
+                                     </button>
+                                 </div>
+                             ) : (
+                                 <>
+                                     {isDone && <CheckCircleIcon className="w-5 h-5 text-green-500 opacity-50 mr-2" />}
+                                     <button 
+                                        onClick={() => handleEditStart(section)}
+                                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                        title="编辑文本"
+                                        disabled={isGenerating}
+                                     >
+                                        <PencilIcon className="w-4 h-4" />
+                                     </button>
+                                 </>
+                             )}
+                        </div>
                     </div>
 
                     <div className="p-6 md:p-8">
-                        {/* Markdown Content */}
-                        <div className="prose prose-slate prose-sm md:prose-base max-w-none text-slate-600 leading-relaxed math-content">
-                            <div dangerouslySetInnerHTML={{ __html: marked.parse(section.markdown) as string }} />
-                        </div>
-
-                        {/* HTML Widget (Integrated) */}
-                        {section.html && (
-                            <VisualWidget 
-                                html={section.html} 
-                                title={section.title}
-                                onEdit={(newHtml) => {
-                                    if (onUpdateSection) {
-                                        onUpdateSection(key, { html: newHtml });
-                                    }
-                                }}
+                        {isEditing ? (
+                            <textarea 
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                className="w-full h-[500px] p-4 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-mono text-sm leading-relaxed resize-y"
+                                placeholder="在此处编辑 Markdown 内容..."
+                            />
+                        ) : (
+                            <MixedContentRenderer 
+                                markdown={section.markdown} 
+                                visuals={section.visuals || {}}
+                                onVisualUpdate={(tag, newHtml) => handleVisualUpdate(key, tag, newHtml)}
                             />
                         )}
                         
-                        {/* Generating Placeholder if needed */}
-                        {isGenerating && !section.html && !section.markdown && (
+                        {/* Generating Placeholder */}
+                        {isGenerating && !section.markdown && (
                             <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-3">
                                 <RefreshIcon className="w-6 h-6 animate-spin text-indigo-400"/>
                                 <span className="text-sm font-medium">正在生成内容...</span>
