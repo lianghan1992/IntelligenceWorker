@@ -5,82 +5,17 @@ import { searchSemanticBatchGrouped } from '../../../../api/intelligence';
 import { AGENTS } from '../../../../agentConfig';
 import { SharedChatPanel, ChatMessage } from '../../../../components/shared/ChatPanel';
 import { ReportCanvas, ResearchLog, ReportSection } from './ReportCanvas';
+// Import robust JSON parser from ReportGenerator
+import { tryParsePartialJson } from '../../../ReportGenerator/Step1Collect';
 
 interface UniversalReportGenProps {
     onBack: () => void;
 }
 
-// Config
-const MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
+// Config: Use a stable model for JSON generation
+const PLANNING_MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free"; 
+const WRITING_MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
 const AGENT_ID = AGENTS.UNIVERSAL_REPORT_GEN;
-
-// Robust Parsing Helper: Handles JSON, Markdown, or Plain Text
-const parseOutlineFromText = (text: string): { title: string; instruction: string }[] => {
-    const cleanText = text.trim();
-    if (!cleanText) return [];
-
-    // 1. Try JSON first (Backwards compatibility)
-    try {
-        const jsonMatch = cleanText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/i) || cleanText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-            const jsonStr = jsonMatch[1] || jsonMatch[0];
-            const parsed = JSON.parse(jsonStr);
-            if (Array.isArray(parsed)) return parsed;
-        }
-    } catch (e) {
-        // Ignore JSON errors, proceed to Markdown parsing
-    }
-
-    // 2. Try Markdown Headers (## Title)
-    // Matches lines starting with "## " or "1. " as titles
-    const sections: { title: string; instruction: string }[] = [];
-    const lines = cleanText.split('\n');
-    let currentTitle = '';
-    let currentDesc = '';
-
-    const pushSection = () => {
-        if (currentTitle) {
-            sections.push({ 
-                title: currentTitle.replace(/\*\*/g, '').trim(), 
-                instruction: currentDesc.trim() || currentTitle 
-            });
-        }
-    };
-
-    for (const line of lines) {
-        const trimmed = line.trim();
-        // Detect headers: ## Title or **Chapter 1:** or 1. Title
-        const isHeader = trimmed.startsWith('## ') || trimmed.match(/^\d+\.\s+/) || (trimmed.startsWith('**') && trimmed.endsWith('**'));
-
-        if (isHeader) {
-            pushSection();
-            // Clean up title
-            currentTitle = trimmed
-                .replace(/^##\s*/, '')
-                .replace(/^\d+\.\s*/, '')
-                .replace(/^\*\*/, '')
-                .replace(/\*\*$/, '')
-                .replace(/:$/, '')
-                .trim();
-            currentDesc = '';
-        } else {
-            if (currentTitle) {
-                currentDesc += line + '\n';
-            }
-        }
-    }
-    pushSection();
-
-    // 3. Fallback: If no structure found, treat entire text as one section
-    if (sections.length === 0) {
-        return [{ 
-            title: "深度分析报告", 
-            instruction: cleanText.slice(0, 500) // First 500 chars as instruction context
-        }];
-    }
-
-    return sections;
-};
 
 const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
     // --- State ---
@@ -167,7 +102,7 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
         setStatus('planning');
         const planLogId = addLog('正在构建深度分析研究思路...', 'plan');
         
-        // Updated Prompt to request Markdown instead of JSON for better stability
+        // Use JSON prompt for better structure reliability
         const planPrompt = `
 你是一个专业的研报架构师。请根据主题【${query}】和以下背景资料，设计一个深度研究报告的大纲。
 背景资料：
@@ -175,16 +110,19 @@ ${context}
 
 要求：
 1. 分为 4-6 个核心章节。
-2. **请直接使用 Markdown 格式输出**，不要使用 JSON。
-3. 章节标题使用二级标题 (## 标题)。
-4. 在每个标题下，简要描述该章节的写作重点和分析逻辑。
+2. **请直接使用 JSON 格式输出**，确保格式合法。
+3. 结构要求：
+{
+  "title": "报告总标题",
+  "pages": [
+    {
+      "title": "章节标题",
+      "instruction": "本章节的写作重点和分析逻辑"
+    }
+  ]
+}
 
-示例输出格式：
-## 第一章：行业背景
-分析当前市场环境...
-
-## 第二章：技术架构
-详解核心技术原理...
+请只输出 JSON 代码块。
 `;
         
         // Create an empty message for streaming response
@@ -192,7 +130,7 @@ ${context}
         setMessages(prev => [...prev, {
             id: planMsgId,
             role: 'assistant',
-            content: '正在规划研究思路...\n\n', // Initial placeholder
+            content: '正在规划研究思路...', // Initial placeholder
             isThinking: true,
             timestamp: Date.now()
         }]);
@@ -200,32 +138,40 @@ ${context}
         let planBuffer = "";
         try {
             await streamChatCompletions({
-                model: MODEL_ID,
+                model: PLANNING_MODEL_ID,
                 messages: [{ role: 'user', content: planPrompt }],
                 stream: true,
                 temperature: 0.3
             }, (data) => {
                 if (data.content) {
                     planBuffer += data.content;
-                    // Stream updates to chat UI so user sees progress
-                    setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, content: planBuffer } : m));
+                    // Attempt to parse partially to update the UI on the left
+                    const partial = tryParsePartialJson(planBuffer);
+                    if (partial && partial.pages && Array.isArray(partial.pages)) {
+                        setOutline(partial.pages);
+                        if (partial.title) setTopic(partial.title);
+                    }
+                    
+                    // Keep the chat bubble simple
+                    setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, content: "正在规划研究思路..." } : m));
                 }
             });
             
             // Mark thinking as done
-            setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false } : m));
+            setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false, content: "研究思路规划完成。" } : m));
 
-            // Use robust parser
-            const parsedOutline = parseOutlineFromText(planBuffer);
+            // Final Parse
+            const parsedOutline = tryParsePartialJson(planBuffer);
             
-            if (parsedOutline && parsedOutline.length > 0) {
-                setOutline(parsedOutline);
+            if (parsedOutline && parsedOutline.pages && parsedOutline.pages.length > 0) {
+                setOutline(parsedOutline.pages);
+                if (parsedOutline.title) setTopic(parsedOutline.title);
                 updateLogStatus(planLogId, 'done');
                 
                 // Start Writing Phase
-                startWritingProcess(parsedOutline, context);
+                startWritingProcess(parsedOutline.pages, context);
             } else {
-                throw new Error("未能生成有效的大纲结构。");
+                throw new Error("未能生成有效的大纲结构 (JSON Parsing Failed)。Raw output: " + planBuffer.slice(0, 100));
             }
         } catch (e: any) {
              setMessages(prev => [...prev, { 
@@ -256,12 +202,12 @@ ${context}
 参考资料：
 ${context}
 
-请撰写本章节内容。使用 Markdown 格式。字数 300-600 字。
+请撰写本章节内容。使用 Markdown 格式。字数 300-600 字。请条理清晰，多用数据支撑。
 `;
             let sectionContent = "";
             
             await streamChatCompletions({
-                model: MODEL_ID,
+                model: WRITING_MODEL_ID,
                 messages: [{ role: 'user', content: writePrompt }],
                 stream: true,
                 temperature: 0.4
