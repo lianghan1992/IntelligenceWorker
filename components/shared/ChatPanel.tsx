@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowRightIcon, RefreshIcon, UserIcon, SparklesIcon 
-} from '../components/icons';
+} from '../icons';
 import { marked } from 'marked';
 
 export interface ChatMessage {
