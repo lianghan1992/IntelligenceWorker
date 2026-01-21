@@ -22,64 +22,52 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([{
         id: 'init',
         role: 'assistant',
-        content: '我是您的万能研报助手。请告诉我您想研究的主题，我将为您全自动生成深度报告。',
+        content: '我是您的万能研报助手。请告诉我您想研究的主题，我将为您流式规划思路、按序检索并撰写深度长文。',
         timestamp: Date.now()
     }]);
     
-    // 数据
     const [topic, setTopic] = useState('');
     const [globalContext, setGlobalContext] = useState('');
     const [outline, setOutline] = useState<{ title: string; instruction: string }[]>([]);
     const [sections, setSections] = useState<ReportSection[]>([]);
     
-    // 执行进度控制
+    // 串行控制状态
     const [processingIndex, setProcessingIndex] = useState<number>(-1);
     const [processingPhase, setProcessingPhase] = useState<'analyzing' | 'searching' | 'writing'>('analyzing');
     
     const abortRef = useRef(false);
 
-    // --- 辅助动作 ---
+    // --- 消息处理 ---
     const handleUserMessage = async (text: string) => {
-        if (!text.trim()) return;
+        if (!text.trim() || status !== 'idle') return;
+
         const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
-
-        if (status === 'idle') {
-            setTopic(text);
-            startPlanningProcess(text);
-        } else {
-            setMessages(prev => [...prev, { 
-                id: crypto.randomUUID(), 
-                role: 'assistant', 
-                content: '当前流程进行中，请在结束后再进行新的对话。', 
-                timestamp: Date.now() 
-            }]);
-        }
+        
+        setTopic(text);
+        startReasoningFlow(text);
     };
 
-    // 1. 规划研究思路 (流式解析 JSON)
-    const startPlanningProcess = async (query: string) => {
+    // 1. 流式规划研究思路 (JSON 实时解析)
+    const startReasoningFlow = async (query: string) => {
         setStatus('researching');
         setOutline([]);
         setSections([]);
-        setProcessingIndex(-1);
         
-        // A. 初始全局背景检索
+        // A. 全局检索
         try {
             const searchRes = await searchSemanticBatchGrouped({
-                query_texts: [query, `${query} 核心现状`, `${query} 未来趋势`],
+                query_texts: [query, `${query} 核心现状`, `${query} 趋势`],
                 max_segments_per_query: 4
             });
             const items = (searchRes.results || []).flatMap((r: any) => (r.items || []).flatMap((art: any) => art.segments.map((seg: any) => seg.content)));
-            setGlobalContext(items.join('\n\n').slice(0, 8000));
-        } catch (e) {
-            console.error("Global search failed");
-        }
+            setGlobalContext(items.join('\n\n').slice(0, 6000));
+        } catch (e) { console.error("Search failed"); }
 
-        // B. 流式规划思路
+        // B. 流式输出思路
         setStatus('planning');
         const planPrompt = `你是一个专业的研报架构师。请针对主题【${query}】规划深度研究思路。
-要求：4-6个章节。必须输出 JSON 格式（不要Markdown代码块）：
+要求：4-6个章节。必须输出 JSON 格式（不要包含代码块标记）：
 {
   "title": "最终报告标题",
   "pages": [
@@ -97,7 +85,7 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
             }, (data) => {
                 if (data.content) {
                     planBuffer += data.content;
-                    // 【流式解析核心】：实时尝试解析 JSON 数组
+                    // 【逐字符解析关键】：每次接收到新字符都尝试解析不完整的 JSON
                     const partial = tryParsePartialJson(planBuffer);
                     if (partial && partial.pages) {
                         setOutline(partial.pages);
@@ -110,7 +98,7 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
             setMessages(prev => [...prev, { 
                 id: crypto.randomUUID(), 
                 role: 'assistant', 
-                content: '我已经流式规划好了研究思路，请在左侧预览。确认无误后点击“开始分章节撰写”。', 
+                content: '研究思路已为您规划完毕。请在左侧预览，满意请点击“确认并开始撰写”。', 
                 timestamp: Date.now() 
             }]);
         } catch (e) {
@@ -118,34 +106,37 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
         }
     };
 
-    // 2. 分章节撰写 (严格顺序：搜-写 循环)
+    // 2. 确认思路后启动【严格串行】撰写循环
     const handleConfirmOutline = () => {
         if (outline.length === 0) return;
-        startWritingLoop();
+        startStrictSequentialLoop();
     };
 
-    const startWritingLoop = async () => {
+    const startStrictSequentialLoop = async () => {
         setStatus('generating');
-        // 初始化所有章节的占位，但内容为空
+        abortRef.current = false;
+        
+        // 预设所有章节结构
         const initialSections = outline.map(item => ({ title: item.title, content: '', queries: [], retrievedCount: 0 }));
         setSections(initialSections);
 
-        // --- 核心逻辑：严格按索引 i 顺序执行，不写完 i 绝不进入 i+1 ---
+        // --- 严格的 for 循环 + await Promise 模式 ---
         for (let i = 0; i < outline.length; i++) {
             if (abortRef.current) break;
             
             const chapter = outline[i];
-            setProcessingIndex(i); // 视觉锚点移动到第 i 章
+            setProcessingIndex(i); // 视觉锚点锁定当前章
 
-            // 【第一步】：流式规划本章检索词
+            // 【步骤 A】：流式规划检索词 (JSON 实时解析)
             setProcessingPhase('analyzing');
             let queries: string[] = [];
-            try {
-                const queryPrompt = `正在撰写《${topic}》。当前章节：【${chapter.title}】。请生成 3-5 个用于检索该章节细节的关键词。
-仅返回 JSON 数组，如：["关键词1", "关键词2"]`;
+            
+            await new Promise<void>((resolve) => {
+                const queryPrompt = `正在编写《${topic}》。章节：【${chapter.title}】。
+请提供 3-5 个深度检索词。仅返回 JSON 数组，如：["词1", "词2"]`;
                 
                 let queryBuffer = "";
-                await streamChatCompletions({
+                streamChatCompletions({
                     model: QUERY_MODEL_ID,
                     messages: [{ role: 'user', content: queryPrompt }],
                     stream: true,
@@ -153,7 +144,7 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
                 }, (d) => {
                     if (d.content) {
                         queryBuffer += d.content;
-                        // 【流式解析词】：实时将解析到的词同步到界面
+                        // 实时解析检索词，让词逐个蹦出来
                         const partialQueries = tryParsePartialJson(queryBuffer);
                         if (Array.isArray(partialQueries)) {
                             setSections(prev => {
@@ -163,20 +154,20 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
                             });
                         }
                     }
-                });
-                queries = tryParsePartialJson(queryBuffer) || [];
-            } catch (e) {
-                console.error(`Chapter ${i} query generation failed`);
-            }
+                }, () => {
+                    queries = tryParsePartialJson(queryBuffer) || [];
+                    resolve(); // 本步骤彻底结束
+                }, (err) => { resolve(); });
+            });
 
-            // 【第二步】：执行检索 (同步等待，更新命中数)
+            // 【步骤 B】：执行检索 (同步阻塞)
             setProcessingPhase('searching');
             let chapterContext = "";
             if (queries.length > 0) {
                 try {
                     const searchRes = await searchSemanticBatchGrouped({
                         query_texts: queries,
-                        max_segments_per_query: 5
+                        max_segments_per_query: 6
                     });
                     const items = (searchRes.results || []).flatMap((r: any) => (r.items || []).flatMap((art: any) => art.segments.map((seg: any) => seg.content)));
                     chapterContext = items.join('\n\n').slice(0, 6000);
@@ -186,34 +177,39 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
                         next[i] = { ...next[i], retrievedCount: items.length };
                         return next;
                     });
-                } catch (e) {
-                    console.error(`Chapter ${i} retrieval failed`);
-                }
+                } catch (e) { console.error("Search failed"); }
             }
 
-            // 【第三步】：流式撰写章节正文
+            // 【步骤 C】：流式撰写正文 (Markdown 逐字展示)
             setProcessingPhase('writing');
-            const writePrompt = `你是一位资深分析师。撰写章节【${chapter.title}】。\n分析重点：${chapter.instruction}\n参考资料：\n${chapterContext || globalContext}\n请用 Markdown 撰写，500-800 字。`;
+            await new Promise<void>((resolve) => {
+                const writePrompt = `你是一位专家。撰写章节【${chapter.title}】。
+分析重点：${chapter.instruction}
+参考情报：
+${chapterContext || globalContext}
 
-            let contentBuffer = "";
-            await streamChatCompletions({
-                model: WRITING_MODEL_ID,
-                messages: [{ role: 'user', content: writePrompt }],
-                stream: true,
-                temperature: 0.3
-            }, (data) => {
-                if (data.content) {
-                    contentBuffer += data.content;
-                    // 【流式渲染正文】：实时更新第 i 章的内容
-                    setSections(prev => {
-                        const next = [...prev];
-                        next[i] = { ...next[i], content: contentBuffer };
-                        return next;
-                    });
-                }
+请使用 Markdown 撰写，严禁废话，要求字数 800+ 字。`;
+
+                let contentBuffer = "";
+                streamChatCompletions({
+                    model: WRITING_MODEL_ID,
+                    messages: [{ role: 'user', content: writePrompt }],
+                    stream: true,
+                    temperature: 0.3
+                }, (data) => {
+                    if (data.content) {
+                        contentBuffer += data.content;
+                        // 实时更新正文，实现逐字输出效果
+                        setSections(prev => {
+                            const next = [...prev];
+                            next[i] = { ...next[i], content: contentBuffer };
+                            return next;
+                        });
+                    }
+                }, () => {
+                    resolve(); // 本章正文写完，才允许进入下一轮循环 (i + 1)
+                }, (err) => { resolve(); });
             });
-            
-            // 只有当上述内容全部完成后，循环才会进入 i + 1
         }
 
         setProcessingIndex(-1);
@@ -221,7 +217,7 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
         setMessages(prev => [...prev, { 
             id: crypto.randomUUID(), 
             role: 'assistant', 
-            content: '✅ 报告全部章节已按序生成完毕！', 
+            content: '✅ 报告已按章节顺序全部生成完毕。', 
             timestamp: Date.now() 
         }]);
     };
