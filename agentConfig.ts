@@ -47,6 +47,13 @@ export const AGENTS = {
      * 功能：分步式深度技术评估专家，生成图文并茂的评估报告。
      */
     TECH_DECISION_ASSISTANT: 'd18630c7-d643-4a6d-ab8d-1af1731a35fb',
+
+    /**
+     * 万能研报生成器 (通用 Agent)
+     * 位置：效率集市
+     * 功能：用户自定义主题 -> 生成大纲 -> 递归式分段撰写。全前端逻辑驱动。
+     */
+    UNIVERSAL_REPORT_GEN: 'univ-rep-gen-0001-beta-rc1',
 } as const;
 
 /**
@@ -58,4 +65,5 @@ export const AGENT_NAMES = {
     [AGENTS.NEW_TECH_IDENTIFIER]: '新技术识别',
     [AGENTS.STRATEGIC_COPILOT]: 'AI情报助手',
     [AGENTS.TECH_DECISION_ASSISTANT]: '技术决策评估',
+    [AGENTS.UNIVERSAL_REPORT_GEN]: '万能研报助手',
 };

@@ -1,12 +1,13 @@
 
 import React from 'react';
 import { AgentConfig } from './types';
-import { PencilIcon, SparklesIcon, ShieldCheckIcon } from '../icons'; 
+import { PencilIcon, SparklesIcon, ShieldCheckIcon, DocumentTextIcon } from '../icons'; 
 import { AGENTS } from '../../agentConfig';
 
 const HtmlVisualEditor = React.lazy(() => import('./agents/HtmlVisualEditor'));
 const TechQuadrantAnalysis = React.lazy(() => import('./agents/NewTechQuadrant'));
 const TechDecisionAssistant = React.lazy(() => import('./agents/TechDecisionAssistant'));
+const UniversalReportGen = React.lazy(() => import('./agents/UniversalReportGen'));
 
 export const AGENT_REGISTRY: AgentConfig[] = [
     {
@@ -19,13 +20,13 @@ export const AGENT_REGISTRY: AgentConfig[] = [
         tags: ['RAG', '四象限', 'HTML生成', '文章库']
     },
     {
-        id: 'html-visual-editor', 
-        name: 'HTML 视觉设计工坊',
-        description: '所见即所得的 HTML 单页编辑器。支持点击修改文字、样式与布局，快速产出精美演示文稿或海报。',
+        id: AGENTS.UNIVERSAL_REPORT_GEN,
+        name: '万能研报生成器',
+        description: '只需输入一个主题，AI 将为您规划全篇大纲，并自动分章节检索资料、撰写万字长文。支持任意行业与话题。',
         category: '内容创作',
-        icon: PencilIcon,
-        component: HtmlVisualEditor,
-        tags: ['HTML', '可视化编辑', '低代码']
+        icon: DocumentTextIcon,
+        component: UniversalReportGen,
+        tags: ['通用', '长文写作', '自动大纲']
     },
     {
         id: AGENTS.TECH_DECISION_ASSISTANT,
@@ -35,5 +36,14 @@ export const AGENT_REGISTRY: AgentConfig[] = [
         icon: ShieldCheckIcon,
         component: TechDecisionAssistant,
         tags: ['技术评估', '风险排查', '图表生成', '深度长文']
+    },
+    {
+        id: 'html-visual-editor', 
+        name: 'HTML 视觉设计工坊',
+        description: '所见即所得的 HTML 单页编辑器。支持点击修改文字、样式与布局，快速产出精美演示文稿或海报。',
+        category: '内容创作',
+        icon: PencilIcon,
+        component: HtmlVisualEditor,
+        tags: ['HTML', '可视化编辑', '低代码']
     }
 ];

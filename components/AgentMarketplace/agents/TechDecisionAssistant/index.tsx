@@ -131,56 +131,53 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         loadPrompts();
     }, []);
 
+    // --- 强制刷新费用助手 ---
+    const refreshCost = useCallback(async (sid?: string) => {
+        const activeSid = sid || sessionId;
+        if (!activeSid) return;
+        try {
+            const sess = await getSession(activeSid);
+            setSessionCost(sess.total_cost || 0);
+        } catch(e) {
+            console.warn("Failed to refresh cost", e);
+        }
+    }, [sessionId]);
+
+    // --- 延迟创建 Session 助手 ---
+    const ensureSession = async (title: string): Promise<string> => {
+        if (sessionId) return sessionId;
+        try {
+            const session = await createSession(AGENTS.TECH_DECISION_ASSISTANT, title);
+            setSessionId(session.id);
+            setSessionCost(session.total_cost || 0);
+            return session.id;
+        } catch (e) {
+            console.error("Failed to create session", e);
+            throw e;
+        }
+    };
+
     // Auto Save Logic
     useEffect(() => {
-        // If we are just starting and haven't defined a tech yet, don't auto-create sessions aggressively
-        // Wait until techName is set.
-        if (!data.techName && !sessionId) return;
+        if (!sessionId) return;
         
-        // If no session ID but we have data, create one
-        if (!sessionId && data.techName) {
-            const create = async () => {
-                setSaveStatus('saving');
-                try {
-                    const session = await createSession(AGENTS.TECH_DECISION_ASSISTANT, data.techName);
-                    setSessionId(session.id);
-                    // Immediate save content
-                    const res = await updateSession(session.id, {
-                        title: data.techName,
-                        current_stage: currentStepId,
-                        context_data: data
-                    });
-                    setSessionCost(res.total_cost || 0);
-                    setSaveStatus('saved');
-                } catch(e) {
-                    console.error("Create session failed", e);
-                    setSaveStatus('error');
-                }
-            };
-            create();
-            return;
-        }
-
-        // If session exists, update it
-        if (sessionId) {
-            const save = async () => {
-                setSaveStatus('saving');
-                try {
-                    const res = await updateSession(sessionId, {
-                        title: data.techName || '未命名技术评估',
-                        current_stage: currentStepId,
-                        context_data: data
-                    });
-                    setSessionCost(res.total_cost || 0);
-                    setSaveStatus('saved');
-                } catch (e) {
-                    console.error("Update session failed", e);
-                    setSaveStatus('error');
-                }
-            };
-            const timer = setTimeout(save, 2000); // 2s Debounce
-            return () => clearTimeout(timer);
-        }
+        const save = async () => {
+            setSaveStatus('saving');
+            try {
+                const res = await updateSession(sessionId, {
+                    title: data.techName || '未命名技术评估',
+                    current_stage: currentStepId,
+                    context_data: data
+                });
+                setSessionCost(res.total_cost || 0);
+                setSaveStatus('saved');
+            } catch (e) {
+                console.error("Update session failed", e);
+                setSaveStatus('error');
+            }
+        };
+        const timer = setTimeout(save, 2000); // 2s Debounce
+        return () => clearTimeout(timer);
     }, [data, currentStepId, sessionId]);
 
     const loadSession = useCallback(async (sid: string) => {
@@ -189,9 +186,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             setSessionId(sid);
             setSessionCost(session.total_cost || 0);
             if (session.context_data) {
-                // Restore full data state
                 const restoredSections = { ...DEFAULT_SECTIONS, ...session.context_data.sections };
-                
                 setData({
                     ...session.context_data,
                     sections: restoredSections
@@ -223,7 +218,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             });
             setSaveStatus('idle');
         } else if (!sessionId) {
-             // Reset if no session active
              setData({
                 techName: '',
                 techDefinition: undefined,
@@ -239,7 +233,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             });
         }
     };
-
 
     const addMessage = (role: 'user' | 'assistant', content: string) => {
         const msg: ChatMessage = { id: crypto.randomUUID(), role, content, timestamp: Date.now() };
@@ -267,14 +260,13 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     };
 
     const refineSearchQueries = async (text: string): Promise<string[]> => {
-        const prompt = `你是一个搜索专家。请将以下技术评估需求拆分为 5-8 个独立的语义检索关键词。
-要求：涵盖技术原理、竞品动态、工程风险、专利信息等维度。每个关键词简洁精准。
+        const prompt = `你是一个搜索专家。请将以下技术评估需求拆分为 5-8 个独立的语义检索关键词。涵盖原理、竞品、风险等维度。
 仅返回 JSON 字符串数组，如: ["关键词1", "关键词2"]
-
 评估需求：${text}`;
 
         try {
             let buffer = "";
+            const activeSid = await ensureSession(text.slice(0, 15));
             await streamChatCompletions({
                 model: QUERY_REFINER_MODEL,
                 messages: [{ role: 'user', content: prompt }],
@@ -283,7 +275,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 enable_billing: false
             }, (chunk) => {
                 if (chunk.content) buffer += chunk.content;
-            }, undefined, undefined, sessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
+            }, undefined, undefined, activeSid, AGENTS.TECH_DECISION_ASSISTANT);
             const match = buffer.match(/\[[\s\S]*\]/);
             if (match) return JSON.parse(match[0]);
         } catch (e) {
@@ -296,14 +288,13 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         const stepInfo = STEP_DEFINITIONS[stepId];
         if (!stepInfo) return [techName];
 
-        const prompt = `你是一个汽车行业技术情报专家。正在进行【${techName}】的【${stepInfo.title}】评估。
-请根据当前阶段的任务目标，生成 3-5 个具体的搜索引擎检索关键词。
-当前阶段：${stepInfo.title}
-任务重点：${stepInfo.objective}
+        const prompt = `正在进行【${techName}】的【${stepInfo.title}】评估。请生成 3-5 个检索关键词。
+当前阶段：${stepInfo.title}。任务重点：${stepInfo.objective}。
 仅返回纯 JSON 字符串数组，例如：["关键词1", "关键词2"]`;
 
         try {
             let buffer = "";
+            const activeSid = await ensureSession(techName);
             await streamChatCompletions({
                 model: QUERY_REFINER_MODEL,
                 messages: [{ role: 'user', content: prompt }],
@@ -312,7 +303,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 enable_billing: false
             }, (chunk) => {
                 if (chunk.content) buffer += chunk.content;
-            }, undefined, undefined, sessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
+            }, undefined, undefined, activeSid, AGENTS.TECH_DECISION_ASSISTANT);
             const match = buffer.match(/\[[\s\S]*\]/);
             if (match) return JSON.parse(match[0]);
         } catch (e) {
@@ -321,7 +312,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         return [`${techName} ${stepInfo.title}`];
     };
 
-    const executeBatchRetrieval = async (queries: string[]): Promise<string> => {
+    const executeBatchRetrieval = async (queries: string[]) => {
         if (!queries || queries.length === 0) return "";
         const queryListStr = queries.map(q => `• ${q}`).join('\n');
         addMessage('assistant', `🔍 正在执行情报检索...\n**策略关键词**：\n${queryListStr}`);
@@ -362,18 +353,17 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         }
     };
 
-    // --- Phase 1: Initialization (Reasoning Only) ---
+    // --- Phase 1: Initialization ---
     const runInitStep = async (input: string) => {
         const config = getModelConfig('tech_eval_init');
-        if (!config) {
-             addMessage('assistant', '系统初始化错误：找不到 Prompt 配置。');
-             return;
-        }
+        if (!config) return;
 
         setIsGenerating(true);
         updateSection('init', { status: 'generating', usedModel: config.model });
         
         try {
+            // 【计费修复 1】: 强制先创建 Session，获取 ID 后再发起 billed 调用
+            const activeSid = await ensureSession(input.slice(0, 15));
             const filledPrompt = config.contentTemplate.replace('{{ user_input }}', input);
 
             let jsonBuffer = "";
@@ -390,38 +380,17 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 enable_billing: true
             }, (chunk) => {
                 if (chunk.content) jsonBuffer += chunk.content;
-            }, undefined, undefined, sessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
+            }, () => {
+                // 【计费修复 2】: 每次流结束后强制刷新费用显示
+                refreshCost(activeSid);
+            }, undefined, activeSid, AGENTS.TECH_DECISION_ASSISTANT);
 
             let parsed;
             try {
                 const match = jsonBuffer.match(/\{[\s\S]*\}/);
                 parsed = JSON.parse(match ? match[0] : jsonBuffer);
             } catch (e) {
-                console.error("Init JSON Parse Failed", e);
-                parsed = { tech_name: input, search_queries: [input], definition: "自动解析失败，使用原始输入。" };
-            }
-
-            // Immediately create session to track subsequent costs
-            let newSessionId = sessionId;
-            if (!newSessionId && parsed.tech_name) {
-                 try {
-                     const sess = await createSession(AGENTS.TECH_DECISION_ASSISTANT, parsed.tech_name);
-                     newSessionId = sess.id;
-                     setSessionId(newSessionId);
-                     // Initial save to link everything
-                      await updateSession(sess.id, {
-                        title: parsed.tech_name,
-                        current_stage: 'init',
-                        context_data: {
-                             techName: parsed.tech_name,
-                             techDefinition: parsed.definition,
-                             searchQueries: parsed.search_queries || [input],
-                             currentStepIndex: 1,
-                             sections: data.sections, // Preserve existing
-                             messages: [...data.messages, { id: 'init_done', role: 'assistant', content: `🎯 评估对象确认：**${parsed.tech_name}**`, timestamp: Date.now() }]
-                        }
-                    });
-                 } catch(e) { console.error("Session creation error", e); }
+                parsed = { tech_name: input, search_queries: [input], definition: "解析失败。" };
             }
 
             setData(prev => ({
@@ -429,13 +398,13 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 techName: parsed.tech_name,
                 techDefinition: parsed.definition,
                 searchQueries: parsed.search_queries || [input],
-                currentStepIndex: 1, // Move to next step
+                currentStepIndex: 1,
             }));
             
             addMessage('assistant', `🎯 评估对象确认：**${parsed.tech_name}**\n> ${parsed.definition || ''}\n\n已规划检索路径，启动第一阶段：技术路线深度解析...`);
             
-            // Pass newSessionId to ensure next step uses it immediately
-            setTimeout(() => runGenerationStep('route', parsed.tech_name, undefined, parsed.search_queries, newSessionId), 500);
+            // 下一阶段
+            setTimeout(() => runGenerationStep('route', parsed.tech_name, undefined, parsed.search_queries), 500);
 
         } catch (e: any) {
             addMessage('assistant', `初始化失败: ${e.message}`);
@@ -445,9 +414,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         }
     };
 
-    // --- Phase 2 & Beyond: Execution & Generation ---
-    const runGenerationStep = async (stepId: StepId, techName: string, userInstructions?: string, preDefinedQueries?: string[], overrideSessionId?: string | null) => {
-        const activeSessionId = overrideSessionId || sessionId;
+    // --- Phase 2 & Beyond ---
+    const runGenerationStep = async (stepId: StepId, techName: string, userInstructions?: string, preDefinedQueries?: string[]) => {
         const promptKeyMap: Record<StepId, string> = {
             'init': 'tech_eval_init',
             'route': 'tech_eval_step1_route',
@@ -459,13 +427,12 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         const config = getModelConfig(promptKeyMap[stepId]);
         if (!config) return;
 
-        // Visual Engine Config
         const visualConfig = getModelConfig('tech_eval_visualize');
-
         setIsGenerating(true);
         updateSection(stepId, { status: 'generating', markdown: '', usedModel: config.model, visuals: {} });
         
         try {
+            const activeSid = await ensureSession(techName);
             let activeQueries = preDefinedQueries || [];
             
             if (activeQueries.length === 0 || userInstructions) {
@@ -479,15 +446,12 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 }
             }
 
-            // 1. 执行检索
             const ragContext = await executeBatchRetrieval(activeQueries);
 
-            // 2. 准备上下文摘要
             const prevSummary = stepId === 'risk' ? data.sections['route'].markdown.slice(0, 1000) :
                                 stepId === 'solution' ? data.sections['risk'].markdown.slice(0, 1000) :
                                 stepId === 'compare' ? (data.sections['route'].markdown + data.sections['risk'].markdown + data.sections['solution'].markdown).slice(0, 2000) : '';
 
-            // 3. 构建 Prompt
             let filledPrompt = config.contentTemplate
                 .replace(/{{ tech_name }}/g, techName)
                 .replace(/{{ retrieved_info }}/g, ragContext || '暂无外部补充资料。')
@@ -495,11 +459,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 .replace(/{{ step2_summary }}/g, prevSummary)
                 .replace(/{{ steps_summary }}/g, prevSummary);
             
-            if (userInstructions) {
-                filledPrompt += `\n\n**用户补充要求：**\n${userInstructions}`;
-            }
+            if (userInstructions) filledPrompt += `\n\n**用户补充要求：**\n${userInstructions}`;
 
-            // 4. 生成报告 Markdown (First Pass)
             let fullMarkdown = "";
             await streamChatCompletions({
                 model: config.model,
@@ -515,69 +476,63 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     fullMarkdown += chunk.content;
                     updateSection(stepId, { markdown: fullMarkdown });
                 }
-            }, undefined, undefined, activeSessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
+            }, () => {
+                // 刷新费用
+                refreshCost(activeSid);
+            }, undefined, activeSid, AGENTS.TECH_DECISION_ASSISTANT);
 
-            // 5. 扫描并生成多个图表 (Multi-Visual Generation)
-            // 匹配格式：[VISUAL: 标题 | 描述]
+            // 绘制图表
             const visualTagsRegex = /\[VISUAL:\s*(.*?)\s*\|\s*(.*?)\]/g;
             let match;
             const tasks: Array<{ fullTag: string, title: string, desc: string }> = [];
 
             while ((match = visualTagsRegex.exec(fullMarkdown)) !== null) {
-                tasks.push({
-                    fullTag: match[0],
-                    title: match[1].trim(),
-                    desc: match[2].trim()
-                });
+                tasks.push({ fullTag: match[0], title: match[1].trim(), desc: match[2].trim() });
             }
 
             if (tasks.length > 0 && visualConfig) {
                  addMessage('assistant', `🎨 正在绘制 **${tasks.length}** 张可视化图表...`);
-                 
                  const visualsMap: Record<string, string> = {};
 
-                 // 并行生成所有图表
                  await Promise.all(tasks.map(async (task) => {
                      const vizPrompt = visualConfig.contentTemplate
                          .replace('{{ chart_title }}', task.title)
                          .replace('{{ chart_desc }}', task.desc)
-                         .replace('{{ context_summary }}', fullMarkdown.slice(0, 1500)); // 给一部分上下文
+                         .replace('{{ context_summary }}', fullMarkdown.slice(0, 1500));
                     
                      let fullHtml = "";
                      try {
                          await streamChatCompletions({
                              model: visualConfig.model, 
-                             messages: [
-                                { role: 'user', content: vizPrompt }
-                             ],
+                             messages: [{ role: 'user', content: vizPrompt }],
                              stream: true,
                              temperature: 0.1, 
                              enable_billing: true
                          }, (chunk) => {
                              if (chunk.content) fullHtml += chunk.content;
-                         }, undefined, undefined, activeSessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
+                         }, () => {
+                             // 并行图表结束后也刷新一下费用
+                             refreshCost(activeSid);
+                         }, undefined, activeSid, AGENTS.TECH_DECISION_ASSISTANT);
                          
                          const cleanHtml = extractCleanHtml(fullHtml);
-                         if (cleanHtml) {
-                             visualsMap[task.fullTag] = cleanHtml;
-                         }
+                         if (cleanHtml) visualsMap[task.fullTag] = cleanHtml;
                      } catch (e) {
-                         console.error("Failed to gen visual", task.title, e);
+                         console.error("Visual gen failed", e);
                      }
                  }));
-                 
-                 // 更新 State
                  updateSection(stepId, { visuals: visualsMap });
             }
 
             updateSection(stepId, { status: 'review' });
-            addMessage('assistant', `**${data.sections[stepId].title}** 分析草稿已完成。您可以输入反馈进行微调，或直接确认。`);
+            addMessage('assistant', `**${data.sections[stepId].title}** 分析草稿已完成。`);
 
         } catch (e: any) {
             addMessage('assistant', `分析失败: ${e.message}`);
             updateSection(stepId, { status: 'pending' });
         } finally {
             setIsGenerating(false);
+            refreshCost(); // 最终落袋对账
         }
     };
 
@@ -605,57 +560,33 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     const handleRegenerateStep = () => {
         runGenerationStep(currentStepId, data.techName, "请重新审视现有情报，给出更深入的专业分析。");
     };
-    
-    // --- New Export Functions ---
 
-    // 1. Copy to Lark (Rich Text)
+    // --- Export logic (Copy/Word) ---
     const handleCopyToLark = async () => {
         if (isCopying) return;
         setIsCopying(true);
         try {
             let htmlContent = `<h1 style="text-align:center">${data.techName} - 深度技术评估报告</h1>`;
-            
             for (const stepId of DISPLAY_STEPS) {
                 const section = data.sections[stepId];
                 if (!section.markdown) continue;
-
-                // 1. Convert Markdown to HTML
-                let sectionHtml = await marked.parse(section.markdown);
-                
-                // 2. Process Visuals
                 const visualTagRegex = /(\[VISUAL:\s*.*?\s*\|\s*.*?\])/g;
-                // Need to do this async replacement carefully
-                // We will split and reconstruct
                 const parts = section.markdown.split(visualTagRegex);
+                const allParts = section.markdown.split(visualTagRegex);
                 let reconstructedHtml = "";
 
                 for (const part of parts) {
                      if (part.match(visualTagRegex)) {
                          const tag = part;
-                         // Find DOM Node
-                         // We need a deterministic way to find ID. 
-                         // In ReportCanvas.tsx: const widgetId = `visual-widget-${stepId}-${index}`;
-                         // But index depends on the split array index in mixed renderer.
-                         // Let's use the exact same split logic in ReportCanvas to infer index
-                         
-                         // Re-simulate MixedContentRenderer split to find index
-                         const allParts = section.markdown.split(visualTagRegex);
                          const visualIndex = allParts.indexOf(tag);
                          const domId = `visual-widget-${stepId}-${visualIndex}`;
                          const element = document.getElementById(domId);
-
                          if (element) {
                              try {
-                                 // Wait a bit for render
-                                 const dataUrl = await toPng(element, { 
-                                     width: 1600, 
-                                     height: 900,
-                                     style: { transform: 'scale(1)', transformOrigin: 'top left' }
-                                 });
+                                 const dataUrl = await toPng(element, { width: 1600, height: 900, style: { transform: 'scale(1)', transformOrigin: 'top left' } });
                                  reconstructedHtml += `<br/><img src="${dataUrl}" width="800" /><br/>`;
                              } catch (e) {
-                                 console.warn("Snapshot failed for", domId);
-                                 reconstructedHtml += `<p><i>[图表生成快照失败]</i></p>`;
+                                 reconstructedHtml += `<p><i>[图表快照失败]</i></p>`;
                              }
                          }
                      } else {
@@ -664,134 +595,77 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 }
                 htmlContent += `<hr/>${reconstructedHtml}`;
             }
-            
-            // 3. Write to Clipboard
             const blob = new Blob([htmlContent], { type: 'text/html' });
             const item = new ClipboardItem({ 'text/html': blob });
             await navigator.clipboard.write([item]);
-            alert('已复制图文到剪贴板！请直接粘贴。');
-
+            alert('已复制图文到剪贴板！');
         } catch (e) {
-            console.error(e);
-            alert('复制失败，请重试');
+            alert('复制失败');
         } finally {
             setIsCopying(false);
         }
     };
 
-    // 2. Export Word (.docx)
     const handleExportWord = async () => {
         if (isExportingWord) return;
         setIsExportingWord(true);
         try {
             const docChildren: any[] = [];
-            
-            // Title
-            docChildren.push(new Paragraph({
-                text: `${data.techName} - 深度技术评估报告`,
-                heading: HeadingLevel.TITLE,
-                alignment: AlignmentType.CENTER
-            }));
+            docChildren.push(new Paragraph({ text: `${data.techName} - 深度技术评估报告`, heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }));
 
             for (const stepId of DISPLAY_STEPS) {
                 const section = data.sections[stepId];
                 if (!section.markdown) continue;
-
                 const visualTagRegex = /(\[VISUAL:\s*.*?\s*\|\s*.*?\])/g;
                 const parts = section.markdown.split(visualTagRegex);
-                const allParts = section.markdown.split(visualTagRegex); // needed for index
-
+                const allParts = section.markdown.split(visualTagRegex);
                 for (const part of parts) {
                     if (part.match(visualTagRegex)) {
                         const tag = part;
                         const visualIndex = allParts.indexOf(tag);
                         const domId = `visual-widget-${stepId}-${visualIndex}`;
                         const element = document.getElementById(domId);
-
                         if (element) {
                             try {
-                                const dataUrl = await toPng(element, { 
-                                    width: 1600, 
-                                    height: 900,
-                                    style: { transform: 'scale(1)', transformOrigin: 'top left' }
-                                });
-                                // Convert Data URL to Uint8Array
+                                const dataUrl = await toPng(element, { width: 1600, height: 900, style: { transform: 'scale(1)', transformOrigin: 'top left' } });
                                 const response = await fetch(dataUrl);
                                 const blob = await response.blob();
                                 const buffer = await blob.arrayBuffer();
-                                
-                                docChildren.push(new Paragraph({
-                                    children: [
-                                        new ImageRun({
-                                            data: buffer,
-                                            transformation: { width: 600, height: 337.5 }, // 16:9 aspect
-                                            type: "png"
-                                        })
-                                    ]
-                                }));
-                            } catch (e) {
-                                console.warn("Snapshot failed for docx", domId);
-                            }
+                                docChildren.push(new Paragraph({ children: [new ImageRun({ data: buffer, transformation: { width: 600, height: 337.5 }, type: "png" })] }));
+                            } catch (e) {}
                         }
                     } else {
-                        // Simple Markdown Text parsing
                         const lines = part.split('\n');
                         for (const line of lines) {
                             if (!line.trim()) continue;
-                            
                             let text = line.trim();
                             let headingLevel = undefined;
                             let bullet = undefined;
-                            
                             if (text.startsWith('### ')) { headingLevel = HeadingLevel.HEADING_3; text = text.replace(/^###\s+/, ''); }
                             else if (text.startsWith('## ')) { headingLevel = HeadingLevel.HEADING_2; text = text.replace(/^##\s+/, ''); }
                             else if (text.startsWith('# ')) { headingLevel = HeadingLevel.HEADING_1; text = text.replace(/^#\s+/, ''); }
+                            if (text.startsWith('- ') || text.startsWith('* ')) { bullet = { level: 0 }; text = text.substring(2); }
                             
-                            // List items
-                            if (text.startsWith('- ') || text.startsWith('* ')) {
-                                bullet = { level: 0 };
-                                text = text.substring(2);
-                            }
-
-                            // Basic bold parsing (**text**)
                             const runs = [];
                             const boldRegex = /\*\*(.*?)\*\*/g;
-                            let lastIndex = 0;
-                            let match;
-                            
+                            let lastIndex = 0, match;
                             while ((match = boldRegex.exec(text)) !== null) {
-                                if (match.index > lastIndex) {
-                                    runs.push(new TextRun({ text: text.substring(lastIndex, match.index) }));
-                                }
+                                if (match.index > lastIndex) runs.push(new TextRun({ text: text.substring(lastIndex, match.index) }));
                                 runs.push(new TextRun({ text: match[1], bold: true }));
                                 lastIndex = boldRegex.lastIndex;
                             }
-                            if (lastIndex < text.length) {
-                                runs.push(new TextRun({ text: text.substring(lastIndex) }));
-                            }
-
+                            if (lastIndex < text.length) runs.push(new TextRun({ text: text.substring(lastIndex) }));
                             if (runs.length === 0) runs.push(new TextRun({ text: text }));
-
-                            docChildren.push(new Paragraph({
-                                children: runs,
-                                heading: headingLevel,
-                                bullet: bullet
-                            }));
+                            docChildren.push(new Paragraph({ children: runs, heading: headingLevel, bullet: bullet }));
                         }
                     }
                 }
             }
-
-            const doc = new Document({
-                sections: [{ properties: {}, children: docChildren }]
-            });
-
+            const doc = new Document({ sections: [{ properties: {}, children: docChildren }] });
             const blob = await Packer.toBlob(doc);
             saveAs(blob, `${data.techName}_评估报告.docx`);
-
         } catch (e: any) {
-            console.error("Export Word error:", e);
-            alert(`导出 Word 失败: ${e.message || '未知错误'}`);
+            alert(`导出 Word 失败: ${e.message}`);
         } finally {
             setIsExportingWord(false);
         }
@@ -811,7 +685,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     </div>
                 </div>
                 <div className="flex items-center gap-6">
-                    {/* Status Bar for Tech Decision Agent */}
                     <div className="flex items-center gap-3 text-xs font-medium mr-4">
                         {sessionId && (
                              <div className="flex items-center gap-1 text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
@@ -837,21 +710,11 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     
                     {data.techName && (
                         <div className="flex gap-2">
-                             <button 
-                                onClick={handleCopyToLark}
-                                disabled={isCopying}
-                                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50"
-                                title="生成图文并茂的内容到剪贴板，可直接粘贴飞书"
-                            >
+                             <button onClick={handleCopyToLark} disabled={isCopying} className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm">
                                 {isCopying ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <ClipboardIcon className="w-3.5 h-3.5" />} 
-                                复制图文到剪贴板
+                                复制图文
                             </button>
-                            <button 
-                                onClick={handleExportWord}
-                                disabled={isExportingWord}
-                                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50"
-                                title="下载 .docx 文件"
-                            >
+                            <button onClick={handleExportWord} disabled={isExportingWord} className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm">
                                 {isExportingWord ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DocumentTextIcon className="w-3.5 h-3.5" />} 
                                 导出 Word
                             </button>
@@ -859,18 +722,10 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     )}
                     
                     <div className="flex gap-2 items-center">
-                        <button 
-                             onClick={() => setIsHistoryOpen(true)} 
-                             className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
-                             title="查看历史任务"
-                        >
+                        <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors" title="查看历史任务">
                             <ClockIcon className="w-5 h-5" />
                         </button>
-                        <button 
-                             onClick={handleNewSession} 
-                             className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                             title="新建任务"
-                        >
+                        <button onClick={handleNewSession} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="新建任务">
                             <PlusIcon className="w-5 h-5" />
                         </button>
                         <div className="w-px h-6 bg-slate-200 mx-2"></div>
@@ -880,33 +735,14 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             </div>
             <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 min-w-0 border-r border-slate-200 relative">
-                    <ReportCanvas 
-                        sections={data.sections} 
-                        currentStep={currentStepId} 
-                        techName={data.techName} 
-                        onUpdateSection={updateSection}
-                    />
+                    <ReportCanvas sections={data.sections} currentStep={currentStepId} techName={data.techName} onUpdateSection={updateSection} />
                 </div>
                 <div className="w-[450px] flex-shrink-0 bg-white shadow-xl z-10">
-                    <ChatPanel 
-                        messages={data.messages} 
-                        onSendMessage={handleSendMessage} 
-                        isGenerating={isGenerating} 
-                        currentStep={currentStepId} 
-                        stepStatus={currentSection.status} 
-                        onConfirmStep={handleConfirmStep} 
-                        onRegenerateStep={handleRegenerateStep} 
-                    />
+                    <ChatPanel messages={data.messages} onSendMessage={handleSendMessage} isGenerating={isGenerating} currentStep={currentStepId} stepStatus={currentSection.status} onConfirmStep={handleConfirmStep} onRegenerateStep={handleRegenerateStep} />
                 </div>
             </div>
 
-            <SessionHistoryDrawer 
-                isOpen={isHistoryOpen} 
-                onClose={() => setIsHistoryOpen(false)} 
-                currentSessionId={sessionId || undefined}
-                onSwitchSession={loadSession}
-                agentId={AGENTS.TECH_DECISION_ASSISTANT}
-            />
+            <SessionHistoryDrawer isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} currentSessionId={sessionId || undefined} onSwitchSession={loadSession} agentId={AGENTS.TECH_DECISION_ASSISTANT} />
         </div>
     );
 };

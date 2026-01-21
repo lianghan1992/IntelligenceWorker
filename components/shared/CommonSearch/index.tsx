@@ -23,7 +23,8 @@ export const CommonSearch: React.FC<CommonSearchProps> = ({
     onResult,
     maxResults = 10,
     region = 'cn-zh',
-    searchType = 'text',
+    // FIX: Cast searchType to its specific union type to prevent widening to string during destructuring
+    searchType = 'text' as 'text' | 'news',
     fileType = '',
     timeLimit = '',
     className = '',
@@ -94,7 +95,7 @@ export const CommonSearch: React.FC<CommonSearchProps> = ({
                         {isLoading ? <RefreshIcon className="w-5 h-5 animate-spin text-indigo-500" /> : <SearchIcon className="w-5 h-5" />}
                     </div>
                     <input 
-                        type="text"
+                        type="text" 
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder={placeholder}
@@ -153,7 +154,7 @@ export const CommonSearch: React.FC<CommonSearchProps> = ({
                     </div>
                     {items.map((item, idx) => (
                         <a 
-                            key={idx}
+                            key={idx} 
                             href={item.href}
                             target="_blank"
                             rel="noopener noreferrer"
