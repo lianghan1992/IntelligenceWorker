@@ -2,24 +2,19 @@
 import React from 'react';
 import { 
     SparklesIcon, RefreshIcon, CheckCircleIcon, 
-    DocumentTextIcon, GlobeIcon, BrainIcon, SearchIcon, PencilIcon,
-    ArrowRightIcon, DatabaseIcon, CheckIcon
+    BrainIcon, SearchIcon, PencilIcon,
+    DatabaseIcon, CheckIcon, ShieldExclamationIcon, ClockIcon
 } from '../../../icons';
 import { marked } from 'marked';
 
 // --- Types ---
-export interface ResearchLog {
-    id: string;
-    message: string;
-    type: 'search' | 'read' | 'plan';
-    status: 'loading' | 'done';
-}
-
 export interface ReportSection {
     title: string;
     content: string;
     queries?: string[];
     retrievedCount?: number;
+    // 新增状态字段，精准控制UI
+    status: 'pending' | 'analyzing' | 'searching' | 'writing' | 'completed' | 'error';
 }
 
 interface ReportCanvasProps {
@@ -28,7 +23,6 @@ interface ReportCanvasProps {
     sections: ReportSection[];
     topic: string;
     processingIndex?: number;
-    processingPhase?: 'analyzing' | 'searching' | 'writing';
     onConfirmOutline?: () => void;
 }
 
@@ -39,12 +33,40 @@ const IdleState = () => (
         </div>
         <h3 className="text-xl font-bold text-slate-700">万能研报生成器</h3>
         <p className="text-sm mt-2 max-w-xs text-center leading-relaxed">
-            输入主题后，AI 将按顺序为您规划思路、深度检索并逐字撰写各章节内容。
+            输入主题，AI 将按顺序为您规划思路、深度检索并逐字撰写万字长文。
         </p>
     </div>
 );
 
-// 研究思路规划展示 (流式)
+// 阶段指示器 (仅在进行中或完成时显示)
+const SectionStatusBadge: React.FC<{ status: string; count?: number }> = ({ status, count }) => {
+    switch (status) {
+        case 'pending':
+            return <div className="text-xs text-slate-300 font-bold flex items-center gap-1"><ClockIcon className="w-3 h-3"/> 等待生成</div>;
+        case 'analyzing':
+            return <div className="text-xs text-indigo-500 font-bold flex items-center gap-1 animate-pulse"><BrainIcon className="w-3 h-3"/> 规划检索词...</div>;
+        case 'searching':
+            return <div className="text-xs text-blue-500 font-bold flex items-center gap-1 animate-bounce"><SearchIcon className="w-3 h-3"/> 检索全网情报...</div>;
+        case 'writing':
+            return <div className="text-xs text-purple-500 font-bold flex items-center gap-1 animate-pulse"><PencilIcon className="w-3 h-3"/> AI 撰写中...</div>;
+        case 'completed':
+            return (
+                <div className="flex items-center gap-3">
+                     <div className="text-xs text-green-600 font-bold flex items-center gap-1"><CheckCircleIcon className="w-3.5 h-3.5"/> 已完成</div>
+                     {count && count > 0 ? (
+                        <div className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                            <DatabaseIcon className="w-3 h-3"/> 引用 {count} 篇
+                        </div>
+                     ) : null}
+                </div>
+            );
+        case 'error':
+            return <div className="text-xs text-red-500 font-bold flex items-center gap-1"><ShieldExclamationIcon className="w-3.5 h-3.5"/> 生成中断</div>;
+        default:
+            return null;
+    }
+};
+
 const ReasoningVisualizer: React.FC<{ 
     outline: { title: string; instruction: string }[]; 
     status: string;
@@ -58,7 +80,7 @@ const ReasoningVisualizer: React.FC<{
             {status === 'planning' && (
                 <div className="flex items-center gap-2 text-indigo-500 text-xs font-bold animate-pulse">
                     <RefreshIcon className="w-4 h-4 animate-spin" />
-                    逐字解析中...
+                    AI 正在思考大纲...
                 </div>
             )}
         </div>
@@ -75,55 +97,24 @@ const ReasoningVisualizer: React.FC<{
                     </div>
                 </div>
             ))}
+            {status === 'planning' && (
+                <div className="h-20 flex items-center justify-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-indigo-400 text-xs font-bold animate-pulse">
+                    ... 正在规划下一章节 ...
+                </div>
+            )}
         </div>
 
-        {status === 'waiting_confirmation' && (
-            <div className="sticky bottom-10 flex justify-center animate-in slide-in-from-bottom-4">
+        {status === 'waiting_confirmation' && outline.length > 0 && (
+            <div className="sticky bottom-10 flex justify-center animate-in slide-in-from-bottom-4 z-20">
                 <button 
                     onClick={onConfirm}
                     className="px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-2xl shadow-2xl shadow-indigo-200 transition-all transform active:scale-95 flex items-center gap-3"
                 >
                     <CheckIcon className="w-6 h-6" />
-                    <span>确认思路，按顺序开始撰写</span>
+                    <span>确认大纲，开始按序撰写</span>
                 </button>
             </div>
         )}
-    </div>
-);
-
-// 章节执行状态指示器
-const SectionStepIndicator: React.FC<{ queries: string[]; count: number; phase: string }> = ({ queries, count, phase }) => (
-    <div className="mb-8 p-5 bg-slate-50 border border-indigo-100 rounded-2xl animate-in fade-in ring-1 ring-indigo-500/5">
-        <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-                <div className={`p-1.5 rounded-lg ${phase === 'writing' ? 'bg-green-100 text-green-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                    {phase === 'analyzing' && <BrainIcon className="w-4 h-4 animate-pulse" />}
-                    {phase === 'searching' && <SearchIcon className="w-4 h-4 animate-bounce" />}
-                    {phase === 'writing' && <PencilIcon className="w-4 h-4 animate-pulse" />}
-                </div>
-                <span className="text-xs font-black text-slate-700 uppercase tracking-widest">
-                    {phase === 'analyzing' ? '正在流式规划本章检索词' : 
-                     phase === 'searching' ? '正在执行深度情报检索' : '正在根据情报流式撰写正文'}
-                </span>
-            </div>
-            {count > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 text-white rounded-full text-[10px] font-black shadow-lg">
-                    <DatabaseIcon className="w-3 h-3" />
-                    命中 {count} 条相关情报
-                </div>
-            )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-            {queries.length > 0 ? (
-                queries.map((q, i) => (
-                    <div key={i} className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 shadow-sm animate-in zoom-in">
-                        <span className="text-indigo-400">#</span> {q}
-                    </div>
-                ))
-            ) : (
-                <div className="text-[11px] text-slate-400 italic">正在思考检索策略...</div>
-            )}
-        </div>
     </div>
 );
 
@@ -131,10 +122,11 @@ const ReportViewer: React.FC<{
     sections: ReportSection[]; 
     topic: string; 
     processingIndex?: number;
-    processingPhase?: 'analyzing' | 'searching' | 'writing';
-}> = ({ sections, topic, processingIndex, processingPhase }) => {
+}> = ({ sections, topic, processingIndex }) => {
     
     const activeRef = React.useRef<HTMLDivElement>(null);
+    
+    // 自动滚动到当前正在生成的章节
     React.useEffect(() => {
         if (processingIndex !== undefined && processingIndex >= 0 && activeRef.current) {
             activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -146,49 +138,61 @@ const ReportViewer: React.FC<{
             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
             
             <div className="border-b-4 border-slate-900 pb-10 mb-20 text-center">
-                <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tighter leading-tight uppercase">{topic}</h1>
+                <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-4 tracking-tighter leading-tight uppercase">{topic || '未命名报告'}</h1>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Autonomous AI Research Intelligence Platform</p>
             </div>
             
-            <div className="space-y-32">
+            <div className="space-y-24">
                 {sections.map((section, idx) => {
                     const isActive = idx === processingIndex;
+                    const isPending = section.status === 'pending';
                     const hasContent = !!section.content;
 
                     return (
                         <section 
                             key={idx} 
                             ref={isActive ? activeRef : null}
-                            className={`relative transition-all duration-700 ${isActive ? 'scale-[1.01]' : ''} ${!isActive && !hasContent ? 'opacity-20' : 'opacity-100'}`}
+                            className={`relative transition-all duration-500 ${isPending ? 'opacity-40 grayscale' : 'opacity-100'}`}
                         >
-                            <div className="flex items-baseline gap-4 mb-10">
-                                <span className={`text-7xl font-black select-none leading-none ${isActive ? 'text-indigo-600' : 'text-slate-100'}`}>0{idx + 1}</span>
-                                <h2 className={`text-3xl font-black border-b-2 pb-2 flex-1 transition-colors ${isActive ? 'text-slate-900 border-indigo-500' : 'text-slate-800 border-slate-100'}`}>
-                                    {section.title}
-                                </h2>
+                            <div className="flex items-center gap-6 mb-8 pb-4 border-b border-slate-100">
+                                <span className={`text-6xl font-black select-none leading-none ${isActive || hasContent ? 'text-indigo-600' : 'text-slate-200'}`}>
+                                    0{idx + 1}
+                                </span>
+                                <div className="flex-1">
+                                    <h2 className="text-2xl font-black text-slate-900 mb-1">{section.title}</h2>
+                                    <SectionStatusBadge status={section.status} count={section.retrievedCount} />
+                                </div>
                             </div>
-
-                            {isActive && processingPhase && (
-                                <SectionStepIndicator 
-                                    queries={section.queries || []} 
-                                    count={section.retrievedCount || 0}
-                                    phase={processingPhase}
-                                />
-                            )}
                             
-                            <div className="relative">
-                                <article 
-                                    className="prose prose-slate max-w-none prose-p:text-justify prose-p:leading-loose prose-strong:text-slate-900 prose-headings:font-black"
-                                    dangerouslySetInnerHTML={{ __html: marked.parse(section.content || '') as string }}
-                                />
-                                {isActive && !section.content && processingPhase === 'writing' && (
-                                    <div className="flex flex-col items-center justify-center py-20 text-indigo-400 gap-4">
-                                        <div className="flex gap-1.5">
-                                            <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full animate-bounce"></div>
-                                            <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                                            <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                            {/* 检索词展示区 */}
+                            {section.queries && section.queries.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mb-6 opacity-70">
+                                    {section.queries.map((q, i) => (
+                                        <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded border border-slate-200"># {q}</span>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="relative min-h-[100px]">
+                                {hasContent ? (
+                                    <article 
+                                        className="prose prose-slate max-w-none prose-p:text-justify prose-p:leading-loose prose-strong:text-slate-900 prose-headings:font-black"
+                                        dangerouslySetInnerHTML={{ __html: marked.parse(section.content) as string }}
+                                    />
+                                ) : (
+                                    isActive && section.status === 'writing' && (
+                                        <div className="space-y-3 animate-pulse">
+                                            <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+                                            <div className="h-4 bg-slate-100 rounded w-full"></div>
+                                            <div className="h-4 bg-slate-100 rounded w-5/6"></div>
+                                            <div className="h-4 bg-slate-100 rounded w-4/5"></div>
                                         </div>
-                                        <span className="text-xs font-black uppercase tracking-[0.2em] animate-pulse">正在逻辑合成深度正文...</span>
+                                    )
+                                )}
+                                
+                                {section.status === 'error' && (
+                                    <div className="p-4 bg-red-50 border border-red-100 rounded-lg text-red-600 text-sm">
+                                        该章节生成遭遇错误。内容可能不完整。
                                     </div>
                                 )}
                             </div>
@@ -196,12 +200,18 @@ const ReportViewer: React.FC<{
                     );
                 })}
             </div>
+            
+            <div className="mt-40 pt-10 border-t border-slate-100 text-center">
+                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                    Generated by StratifyAI • Autonomous Intelligence Engine v5.0
+                </p>
+            </div>
         </div>
     );
 };
 
 export const ReportCanvas: React.FC<ReportCanvasProps> = ({ 
-    status, outline, sections, topic, processingIndex, processingPhase, onConfirmOutline 
+    status, outline, sections, topic, processingIndex, onConfirmOutline 
 }) => {
     return (
         <div className="flex-1 h-full overflow-y-auto bg-slate-50 custom-scrollbar relative scroll-smooth">
@@ -218,7 +228,6 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
                             sections={sections} 
                             topic={topic} 
                             processingIndex={processingIndex}
-                            processingPhase={processingPhase}
                         />
                     </div>
                 )}
