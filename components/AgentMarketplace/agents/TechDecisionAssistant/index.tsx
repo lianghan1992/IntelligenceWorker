@@ -105,6 +105,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     
     // Session State
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [sessionCost, setSessionCost] = useState(0);
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'idle'>('idle');
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
@@ -136,7 +137,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         // Wait until techName is set.
         if (!data.techName && !sessionId) return;
         
-        // If no session ID but we have data, create one (debounce this in real app, but simplified here)
+        // If no session ID but we have data, create one
         if (!sessionId && data.techName) {
             const create = async () => {
                 setSaveStatus('saving');
@@ -144,11 +145,12 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     const session = await createSession(AGENTS.TECH_DECISION_ASSISTANT, data.techName);
                     setSessionId(session.id);
                     // Immediate save content
-                    await updateSession(session.id, {
+                    const res = await updateSession(session.id, {
                         title: data.techName,
                         current_stage: currentStepId,
                         context_data: data
                     });
+                    setSessionCost(res.total_cost || 0);
                     setSaveStatus('saved');
                 } catch(e) {
                     console.error("Create session failed", e);
@@ -164,11 +166,12 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             const save = async () => {
                 setSaveStatus('saving');
                 try {
-                    await updateSession(sessionId, {
+                    const res = await updateSession(sessionId, {
                         title: data.techName || '未命名技术评估',
                         current_stage: currentStepId,
                         context_data: data
                     });
+                    setSessionCost(res.total_cost || 0);
                     setSaveStatus('saved');
                 } catch (e) {
                     console.error("Update session failed", e);
@@ -184,9 +187,9 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         try {
             const session = await getSession(sid);
             setSessionId(sid);
+            setSessionCost(session.total_cost || 0);
             if (session.context_data) {
                 // Restore full data state
-                // Ensure default sections structure is preserved if missing keys in old data
                 const restoredSections = { ...DEFAULT_SECTIONS, ...session.context_data.sections };
                 
                 setData({
@@ -204,6 +207,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     const handleNewSession = () => {
         if (sessionId && confirm("确定要开始新的评估吗？当前进度已保存。")) {
             setSessionId(null);
+            setSessionCost(0);
             setData({
                 techName: '',
                 techDefinition: undefined,
@@ -279,7 +283,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 enable_billing: false
             }, (chunk) => {
                 if (chunk.content) buffer += chunk.content;
-            });
+            }, undefined, undefined, sessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
             const match = buffer.match(/\[[\s\S]*\]/);
             if (match) return JSON.parse(match[0]);
         } catch (e) {
@@ -308,7 +312,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 enable_billing: false
             }, (chunk) => {
                 if (chunk.content) buffer += chunk.content;
-            });
+            }, undefined, undefined, sessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
             const match = buffer.match(/\[[\s\S]*\]/);
             if (match) return JSON.parse(match[0]);
         } catch (e) {
@@ -386,7 +390,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 enable_billing: true
             }, (chunk) => {
                 if (chunk.content) jsonBuffer += chunk.content;
-            }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
+            }, undefined, undefined, sessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
 
             let parsed;
             try {
@@ -395,6 +399,29 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             } catch (e) {
                 console.error("Init JSON Parse Failed", e);
                 parsed = { tech_name: input, search_queries: [input], definition: "自动解析失败，使用原始输入。" };
+            }
+
+            // Immediately create session to track subsequent costs
+            let newSessionId = sessionId;
+            if (!newSessionId && parsed.tech_name) {
+                 try {
+                     const sess = await createSession(AGENTS.TECH_DECISION_ASSISTANT, parsed.tech_name);
+                     newSessionId = sess.id;
+                     setSessionId(newSessionId);
+                     // Initial save to link everything
+                      await updateSession(sess.id, {
+                        title: parsed.tech_name,
+                        current_stage: 'init',
+                        context_data: {
+                             techName: parsed.tech_name,
+                             techDefinition: parsed.definition,
+                             searchQueries: parsed.search_queries || [input],
+                             currentStepIndex: 1,
+                             sections: data.sections, // Preserve existing
+                             messages: [...data.messages, { id: 'init_done', role: 'assistant', content: `🎯 评估对象确认：**${parsed.tech_name}**`, timestamp: Date.now() }]
+                        }
+                    });
+                 } catch(e) { console.error("Session creation error", e); }
             }
 
             setData(prev => ({
@@ -407,7 +434,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             
             addMessage('assistant', `🎯 评估对象确认：**${parsed.tech_name}**\n> ${parsed.definition || ''}\n\n已规划检索路径，启动第一阶段：技术路线深度解析...`);
             
-            setTimeout(() => runGenerationStep('route', parsed.tech_name, undefined, parsed.search_queries), 500);
+            // Pass newSessionId to ensure next step uses it immediately
+            setTimeout(() => runGenerationStep('route', parsed.tech_name, undefined, parsed.search_queries, newSessionId), 500);
 
         } catch (e: any) {
             addMessage('assistant', `初始化失败: ${e.message}`);
@@ -418,7 +446,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     };
 
     // --- Phase 2 & Beyond: Execution & Generation ---
-    const runGenerationStep = async (stepId: StepId, techName: string, userInstructions?: string, preDefinedQueries?: string[]) => {
+    const runGenerationStep = async (stepId: StepId, techName: string, userInstructions?: string, preDefinedQueries?: string[], overrideSessionId?: string | null) => {
+        const activeSessionId = overrideSessionId || sessionId;
         const promptKeyMap: Record<StepId, string> = {
             'init': 'tech_eval_init',
             'route': 'tech_eval_step1_route',
@@ -486,7 +515,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     fullMarkdown += chunk.content;
                     updateSection(stepId, { markdown: fullMarkdown });
                 }
-            }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
+            }, undefined, undefined, activeSessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
 
             // 5. 扫描并生成多个图表 (Multi-Visual Generation)
             // 匹配格式：[VISUAL: 标题 | 描述]
@@ -526,7 +555,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                              enable_billing: true
                          }, (chunk) => {
                              if (chunk.content) fullHtml += chunk.content;
-                         }, undefined, undefined, undefined, AGENTS.TECH_DECISION_ASSISTANT);
+                         }, undefined, undefined, activeSessionId || undefined, AGENTS.TECH_DECISION_ASSISTANT);
                          
                          const cleanHtml = extractCleanHtml(fullHtml);
                          if (cleanHtml) {
@@ -784,6 +813,12 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 <div className="flex items-center gap-6">
                     {/* Status Bar for Tech Decision Agent */}
                     <div className="flex items-center gap-3 text-xs font-medium mr-4">
+                        {sessionId && (
+                             <div className="flex items-center gap-1 text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                                <ChartIcon className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>消耗: ¥{sessionCost.toFixed(4)}</span>
+                            </div>
+                        )}
                          <div className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
                             saveStatus === 'saving' ? 'text-blue-500 bg-blue-50' :
                             saveStatus === 'saved' ? 'text-green-600 bg-green-50' :
