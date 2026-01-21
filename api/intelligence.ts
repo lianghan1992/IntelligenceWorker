@@ -10,9 +10,6 @@ import {
     SpiderProxy, IntelligenceSourcePublic, ArticlePublic
 } from '../types';
 
-// 计费 Session ID (仅用于深度洞察)
-const BILLING_SESSION_ID = '6027074c-7c10-40ce-930c-ae1ac603564e';
-
 // Sources
 export const getSources = (): Promise<IntelligenceSourcePublic[]> => getSpiderSources().then(res => res.items.map(s => ({
     id: s.id,
@@ -387,6 +384,7 @@ export const downloadArticlePdf = async (id: string): Promise<Blob> => {
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
+    
     const response = await fetch(url, { headers, method: 'POST' }); 
     if (!response.ok) throw new Error('Download failed');
     return response.blob();
@@ -467,8 +465,6 @@ export const downloadIntelLlmTaskReport = async (id: string): Promise<Blob> => {
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
-    // 仅深度洞察相关的下载接口添加计费 Session ID
-    headers.set('X-Session-ID', BILLING_SESSION_ID);
     
     const response = await fetch(url, { method: 'GET', headers });
     if (!response.ok) throw new Error('Download failed');
@@ -572,8 +568,6 @@ export const downloadUploadedDoc = async (id: string): Promise<Blob> => {
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
-    // 仅深度洞察相关的下载接口添加计费 Session ID
-    headers.set('X-Session-ID', BILLING_SESSION_ID);
     
     const response = await fetch(url, { method: 'GET', headers });
     if (!response.ok) throw new Error('Download failed');
