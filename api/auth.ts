@@ -25,7 +25,7 @@ export const login = async (email: string, password: string): Promise<{ accessTo
     });
 };
 
-export const register = (username: string, email: string, password: string): Promise<{ message: string }> => {
+export const register = (username: string, email: string, password: string): Promise<{ message: string; user_id: string; email: string }> => {
     const cleanUsername = username.trim();
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
@@ -33,7 +33,7 @@ export const register = (username: string, email: string, password: string): Pro
     // 注册时同样清除旧 Token
     localStorage.removeItem('accessToken');
 
-    return apiFetch<{ message: string }>(`${USER_SERVICE_PATH}/register`, {
+    return apiFetch<{ message: string; user_id: string; email: string }>(`${USER_SERVICE_PATH}/register`, {
         method: 'POST',
         body: JSON.stringify({ 
             username: cleanUsername, 
