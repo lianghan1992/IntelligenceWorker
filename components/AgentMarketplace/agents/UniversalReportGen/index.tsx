@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useCallback } from 'react';
-import { streamChatCompletions, createSession, updateSession } from '../../../../api/stratify';
+import { streamChatCompletions } from '../../../../api/stratify';
 import { searchSemanticBatchGrouped } from '../../../../api/intelligence';
 import { AGENTS } from '../../../../agentConfig';
 import { SharedChatPanel, ChatMessage } from '../../../../components/shared/ChatPanel';
@@ -12,10 +12,10 @@ interface UniversalReportGenProps {
     onBack: () => void;
 }
 
-// Config: Use a stable model for JSON generation
+// Config
 const PLANNING_MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free"; 
+const QUERY_MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
 const WRITING_MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
-const AGENT_ID = AGENTS.UNIVERSAL_REPORT_GEN;
 
 const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
     // --- State ---
@@ -33,8 +33,10 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
     const [outline, setOutline] = useState<{ title: string; instruction: string }[]>([]);
     const [sections, setSections] = useState<ReportSection[]>([]);
     
-    // Session
-    const [sessionId, setSessionId] = useState<string | null>(null);
+    // Execution State
+    const [processingIndex, setProcessingIndex] = useState<number>(-1);
+    const [processingPhase, setProcessingPhase] = useState<'analyzing' | 'searching' | 'writing'>('analyzing');
+    
     const abortRef = useRef(false);
 
     // --- Actions ---
@@ -73,21 +75,24 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
     const startResearchProcess = async (query: string) => {
         setStatus('researching');
         abortRef.current = false;
+        setOutline([]);
+        setSections([]);
+        setProcessingIndex(-1);
         
-        // 1. Research Phase
-        const searchLogId = addLog(`正在检索关于 "${query}" 的核心资料...`, 'search');
+        // 1. Initial Broad Research Phase
+        const searchLogId = addLog(`正在进行全局背景调查: "${query}"...`, 'search');
         
-        let context = "";
+        let globalContext = "";
         try {
             const searchRes = await searchSemanticBatchGrouped({
-                query_texts: [query, `${query} 市场规模`, `${query} 技术趋势`],
-                max_segments_per_query: 5
+                query_texts: [query, `${query} 市场规模`, `${query} 核心挑战`, `${query} 未来趋势`],
+                max_segments_per_query: 4
             });
             updateLogStatus(searchLogId, 'done');
             
             const items = searchRes.results?.[0]?.items || [];
             const refs = items.flatMap((art: any) => art.segments.map((seg: any) => seg.content));
-            context = refs.join('\n\n').slice(0, 5000); // Limit context
+            globalContext = refs.join('\n\n').slice(0, 8000); // Limit context
             
             if (refs.length > 0) {
                  const readLogId = addLog(`已阅读 ${refs.length} 条相关情报片段`, 'read');
@@ -95,22 +100,21 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
             }
         } catch (e) {
             console.error("Search failed", e);
-            updateLogStatus(searchLogId, 'done'); // Continue anyway
+            updateLogStatus(searchLogId, 'done');
         }
 
         // 2. Planning Phase
         setStatus('planning');
         const planLogId = addLog('正在构建深度分析研究思路...', 'plan');
         
-        // Use JSON prompt for better structure reliability
         const planPrompt = `
 你是一个专业的研报架构师。请根据主题【${query}】和以下背景资料，设计一个深度研究报告的大纲。
-背景资料：
-${context}
+背景资料片段：
+${globalContext.slice(0, 2000)}...
 
 要求：
 1. 分为 4-6 个核心章节。
-2. **请直接使用 JSON 格式输出**，确保格式合法。
+2. **请直接使用 JSON 格式输出**，不要包含 markdown 代码块标记。
 3. 结构要求：
 {
   "title": "报告总标题",
@@ -121,16 +125,13 @@ ${context}
     }
   ]
 }
-
-请只输出 JSON 代码块。
 `;
         
-        // Create an empty message for streaming response
         const planMsgId = crypto.randomUUID();
         setMessages(prev => [...prev, {
             id: planMsgId,
             role: 'assistant',
-            content: '正在规划研究思路...', // Initial placeholder
+            content: '正在规划研究思路...', 
             isThinking: true,
             timestamp: Date.now()
         }]);
@@ -145,20 +146,17 @@ ${context}
             }, (data) => {
                 if (data.content) {
                     planBuffer += data.content;
-                    // Attempt to parse partially to update the UI on the left
+                    
+                    // Real-time parsing attempt
                     const partial = tryParsePartialJson(planBuffer);
                     if (partial && partial.pages && Array.isArray(partial.pages)) {
                         setOutline(partial.pages);
                         if (partial.title) setTopic(partial.title);
                     }
-                    
-                    // Keep the chat bubble simple
-                    setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, content: "正在规划研究思路..." } : m));
                 }
             });
             
-            // Mark thinking as done
-            setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false, content: "研究思路规划完成。" } : m));
+            setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false, content: "研究思路规划完成，准备开始撰写。" } : m));
 
             // Final Parse
             const parsedOutline = tryParsePartialJson(planBuffer);
@@ -168,10 +166,10 @@ ${context}
                 if (parsedOutline.title) setTopic(parsedOutline.title);
                 updateLogStatus(planLogId, 'done');
                 
-                // Start Writing Phase
-                startWritingProcess(parsedOutline.pages, context);
+                // Start Recursive Writing Phase
+                startWritingProcess(parsedOutline.pages, globalContext);
             } else {
-                throw new Error("未能生成有效的大纲结构 (JSON Parsing Failed)。Raw output: " + planBuffer.slice(0, 100));
+                throw new Error("未能生成有效的大纲结构 (JSON Parsing Failed)。");
             }
         } catch (e: any) {
              setMessages(prev => [...prev, { 
@@ -184,25 +182,74 @@ ${context}
         }
     };
 
-    const startWritingProcess = async (outlineItems: { title: string; instruction: string }[], context: string) => {
+    const startWritingProcess = async (outlineItems: { title: string; instruction: string }[], globalContext: string) => {
         setStatus('generating');
         
-        // Initialize sections
-        const initialSections = outlineItems.map(item => ({ title: item.title, content: '' }));
-        setSections(initialSections);
+        // Initialize empty sections
+        setSections(outlineItems.map(item => ({ title: item.title, content: '' })));
 
         for (let i = 0; i < outlineItems.length; i++) {
             if (abortRef.current) break;
             
             const item = outlineItems[i];
-            const writePrompt = `
-你是一位资深行业分析师。正在撰写报告【${topic}】的章节。
+            setProcessingIndex(i);
+
+            // --- Step A: Generate Section-Specific Queries ---
+            setProcessingPhase('analyzing');
+            let sectionContext = "";
+            try {
+                const queryPrompt = `
+我们正在撰写报告《${topic}》。
 当前章节：【${item.title}】
 写作要求：${item.instruction}
-参考资料：
-${context}
 
-请撰写本章节内容。使用 Markdown 格式。字数 300-600 字。请条理清晰，多用数据支撑。
+请生成 3 个针对该章节的、具体的搜索关键词，以便获取详实的数据和事实支撑。
+仅返回 JSON 字符串数组，例如：["关键词1", "关键词2"]
+`;
+                let queryBuffer = "";
+                await streamChatCompletions({
+                    model: QUERY_MODEL_ID,
+                    messages: [{ role: 'user', content: queryPrompt }],
+                    stream: true,
+                    temperature: 0.1
+                }, (d) => { if (d.content) queryBuffer += d.content; });
+
+                const queries = tryParsePartialJson(queryBuffer); // Reuse parser for array
+                
+                if (Array.isArray(queries) && queries.length > 0) {
+                     // --- Step B: Search ---
+                     setProcessingPhase('searching');
+                     const searchRes = await searchSemanticBatchGrouped({
+                        query_texts: queries,
+                        max_segments_per_query: 4
+                    });
+                    
+                    const refs = (searchRes.results || []).flatMap((r: any) => (r.items || []).flatMap((art: any) => art.segments.map((seg: any) => seg.content)));
+                    sectionContext = refs.join('\n\n').slice(0, 5000);
+                }
+            } catch (e) {
+                console.warn(`Section ${i} search failed, falling back to global context.`);
+            }
+
+            // --- Step C: Write Section ---
+            setProcessingPhase('writing');
+            const writePrompt = `
+你是一位资深行业分析师。正在撰写报告【${topic}】的章节。
+
+当前章节：【${item.title}】
+写作要求：${item.instruction}
+
+【全局背景资料】：
+${globalContext.slice(0, 1500)}...
+
+【本章专属资料】：
+${sectionContext || "（暂无特定资料，请基于通识分析）"}
+
+请撰写本章节内容。
+- 使用 Markdown 格式。
+- 字数 500-800 字。
+- 条理清晰，多用数据支撑，引用资料中的事实。
+- 语气专业、客观。
 `;
             let sectionContent = "";
             
@@ -223,6 +270,7 @@ ${context}
             });
         }
         
+        setProcessingIndex(-1);
         setStatus('done');
         setMessages(prev => [...prev, { 
             id: crypto.randomUUID(), 
@@ -242,6 +290,8 @@ ${context}
                     outline={outline}
                     sections={sections}
                     topic={topic}
+                    processingIndex={processingIndex}
+                    processingPhase={processingPhase}
                 />
             </div>
 
@@ -250,7 +300,7 @@ ${context}
                 <SharedChatPanel 
                     messages={messages}
                     onSendMessage={handleUserMessage}
-                    isGenerating={status === 'researching' || status === 'planning'}
+                    isGenerating={status === 'researching' || status === 'planning' || status === 'generating'}
                     placeholder="输入研究主题..."
                     title="研报助手 Copilot"
                 />
