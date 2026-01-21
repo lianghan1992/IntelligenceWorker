@@ -96,7 +96,9 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     });
     
     const [isGenerating, setIsGenerating] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
+    const [isCopying, setIsCopying] = useState(false);
+    const [isExportingWord, setIsExportingWord] = useState(false);
+    
     const [promptMap, setPromptMap] = useState<Record<string, StratifyPrompt>>({});
     const [isLoadingPrompts, setIsLoadingPrompts] = useState(true);
 
@@ -461,34 +463,13 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     const handleRegenerateStep = () => {
         runGenerationStep(currentStepId, data.techName, "请重新审视现有情报，给出更深入的专业分析。");
     };
-
-    const handleExportMarkdown = () => {
-        let fullMarkdown = `# ${data.techName} - 深度技术评估报告\n\n`;
-        DISPLAY_STEPS.forEach(stepId => {
-            const section = data.sections[stepId];
-            if (section.markdown) {
-                fullMarkdown += `\n${section.markdown}\n\n`;
-                if (section.visuals) {
-                    Object.keys(section.visuals).forEach(tag => {
-                         fullMarkdown = fullMarkdown.replace(tag, `\n> [图表生成: ${tag}]\n`);
-                    });
-                }
-                fullMarkdown += `---\n`;
-            }
-        });
-        navigator.clipboard.writeText(fullMarkdown).then(() => {
-            alert("完整报告 Markdown 已复制到剪贴板！");
-        }).catch(err => {
-            alert("复制失败，请重试");
-        });
-    };
     
     // --- New Export Functions ---
 
     // 1. Copy to Lark (Rich Text)
     const handleCopyToLark = async () => {
-        if (isExporting) return;
-        setIsExporting(true);
+        if (isCopying) return;
+        setIsCopying(true);
         try {
             let htmlContent = `<h1 style="text-align:center">${data.techName} - 深度技术评估报告</h1>`;
             
@@ -546,20 +527,20 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             const blob = new Blob([htmlContent], { type: 'text/html' });
             const item = new ClipboardItem({ 'text/html': blob });
             await navigator.clipboard.write([item]);
-            alert('已复制到剪贴板！请直接粘贴到飞书文档。');
+            alert('已复制图文到剪贴板！请直接粘贴。');
 
         } catch (e) {
             console.error(e);
             alert('复制失败，请重试');
         } finally {
-            setIsExporting(false);
+            setIsCopying(false);
         }
     };
 
     // 2. Export Word (.docx)
     const handleExportWord = async () => {
-        if (isExporting) return;
-        setIsExporting(true);
+        if (isExportingWord) return;
+        setIsExportingWord(true);
         try {
             const docChildren: any[] = [];
             
@@ -670,11 +651,11 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             const blob = await Packer.toBlob(doc);
             saveAs(blob, `${data.techName}_评估报告.docx`);
 
-        } catch (e) {
-            console.error(e);
-            alert('导出 Word 失败，请重试');
+        } catch (e: any) {
+            console.error("Export Word error:", e);
+            alert(`导出 Word 失败: ${e.message || '未知错误'}`);
         } finally {
-            setIsExporting(false);
+            setIsExportingWord(false);
         }
     };
 
@@ -696,27 +677,21 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                         <div className="flex gap-2">
                              <button 
                                 onClick={handleCopyToLark}
-                                disabled={isExporting}
+                                disabled={isCopying}
                                 className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50"
                                 title="生成图文并茂的内容到剪贴板，可直接粘贴飞书"
                             >
-                                {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <ClipboardIcon className="w-3.5 h-3.5" />} 
-                                复制到飞书
+                                {isCopying ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <ClipboardIcon className="w-3.5 h-3.5" />} 
+                                复制图文到剪贴板
                             </button>
                             <button 
                                 onClick={handleExportWord}
-                                disabled={isExporting}
+                                disabled={isExportingWord}
                                 className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50"
                                 title="下载 .docx 文件"
                             >
-                                {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DocumentTextIcon className="w-3.5 h-3.5" />} 
+                                {isExportingWord ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DocumentTextIcon className="w-3.5 h-3.5" />} 
                                 导出 Word
-                            </button>
-                            <button 
-                                onClick={handleExportMarkdown}
-                                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all shadow-sm"
-                            >
-                                <DownloadIcon className="w-3.5 h-3.5" /> 导出 MD
                             </button>
                         </div>
                     )}
