@@ -14,15 +14,29 @@ interface UniversalReportGenProps {
 const MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
 const AGENT_ID = AGENTS.UNIVERSAL_REPORT_GEN;
 
-// Helpers
+// Enhanced JSON Helper to handle markdown code blocks
 const extractJsonArray = (text: string): any[] | null => {
+    if (!text) return null;
+    let clean = text.trim();
+    
+    // 1. Remove markdown code blocks if present
+    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+    const match = clean.match(codeBlockRegex);
+    if (match) {
+        clean = match[1].trim();
+    }
+    
+    // 2. Find first [ and last ] to locate array
+    const start = clean.indexOf('[');
+    const end = clean.lastIndexOf(']');
+    
+    if (start === -1 || end === -1 || start >= end) return null;
+    
     try {
-        const start = text.indexOf('[');
-        const end = text.lastIndexOf(']');
-        if (start === -1 || end === -1 || start >= end) return null;
-        const jsonStr = text.substring(start, end + 1);
+        const jsonStr = clean.substring(start, end + 1);
         return JSON.parse(jsonStr);
     } catch (e) {
+        console.error("JSON Parse Error", e);
         return null;
     }
 };
@@ -71,7 +85,6 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
             setTopic(text);
             startResearchProcess(text);
         } else {
-            // Chat mode (future enhancement: refine current step)
             setMessages(prev => [...prev, { 
                 id: crypto.randomUUID(), 
                 role: 'assistant', 
@@ -120,8 +133,19 @@ ${context}
 
 要求：
 1. 分为 4-6 个核心章节。
-2. 输出纯 JSON 数组格式：[{"title": "...", "instruction": "..."}]。
+2. 输出纯 JSON 数组格式，不要包含任何 markdown 格式代码块，只返回 JSON：[{"title": "...", "instruction": "..."}]。
 `;
+        
+        // Create an empty message for streaming response
+        const planMsgId = crypto.randomUUID();
+        setMessages(prev => [...prev, {
+            id: planMsgId,
+            role: 'assistant',
+            content: '正在规划大纲...',
+            isThinking: true,
+            timestamp: Date.now()
+        }]);
+
         let planBuffer = "";
         try {
             await streamChatCompletions({
@@ -130,24 +154,32 @@ ${context}
                 stream: true,
                 temperature: 0.3
             }, (data) => {
-                if (data.content) planBuffer += data.content;
+                if (data.content) {
+                    planBuffer += data.content;
+                    // Stream updates to chat UI
+                    setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, content: planBuffer } : m));
+                }
             });
             
+            // Mark thinking as done
+            setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false } : m));
+
             const parsedOutline = extractJsonArray(planBuffer);
-            if (parsedOutline) {
+            if (parsedOutline && Array.isArray(parsedOutline)) {
                 setOutline(parsedOutline);
                 updateLogStatus(planLogId, 'done');
                 
                 // Start Writing Phase
                 startWritingProcess(parsedOutline, context);
             } else {
-                throw new Error("大纲生成失败");
+                console.error("Failed to parse outline:", planBuffer);
+                throw new Error("大纲生成格式错误，无法解析 JSON。");
             }
-        } catch (e) {
+        } catch (e: any) {
              setMessages(prev => [...prev, { 
                 id: crypto.randomUUID(), 
                 role: 'assistant', 
-                content: '大纲生成遇到问题，请重试。', 
+                content: `大纲生成遇到问题: ${e.message}`, 
                 timestamp: Date.now() 
             }]);
             setStatus('idle');

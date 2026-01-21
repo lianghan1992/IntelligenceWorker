@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowRightIcon, RefreshIcon, UserIcon, SparklesIcon 
-} from '../icons';
+} from '../../icons'; // Fixed path: components/shared/ -> components/icons
 import { marked } from 'marked';
 
 export interface ChatMessage {
@@ -10,7 +10,7 @@ export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
     timestamp: number;
-    isThinking?: boolean; // 是否正在思考/生成中
+    isThinking?: boolean;
 }
 
 interface ChatPanelProps {
@@ -31,7 +31,7 @@ export const SharedChatPanel: React.FC<ChatPanelProps> = ({
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll to bottom
+    // Auto-scroll to bottom whenever messages change
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -79,7 +79,7 @@ export const SharedChatPanel: React.FC<ChatPanelProps> = ({
                                 ) : (
                                     <div 
                                         className="prose prose-sm max-w-none text-slate-700 prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-2 prose-headings:text-slate-800"
-                                        dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) as string }}
+                                        dangerouslySetInnerHTML={{ __html: marked.parse(msg.content || '...') as string }}
                                     />
                                 )}
                             </div>

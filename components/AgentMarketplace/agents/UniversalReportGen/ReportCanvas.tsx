@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { 
-    SparklesIcon, RefreshIcon, CheckCircleIcon, SearchIcon, 
-    DocumentTextIcon, DatabaseIcon, GlobeIcon 
+    SparklesIcon, RefreshIcon, CheckCircleIcon, 
+    DocumentTextIcon, GlobeIcon 
 } from '../../../icons';
 import { marked } from 'marked';
 
@@ -127,8 +127,6 @@ const ReportViewer: React.FC<{ sections: ReportSection[]; topic: string }> = ({ 
         </div>
     </div>
 );
-
-// --- Main Canvas Component ---
 
 export const ReportCanvas: React.FC<ReportCanvasProps> = ({ status, logs, outline, sections, topic }) => {
     return (
