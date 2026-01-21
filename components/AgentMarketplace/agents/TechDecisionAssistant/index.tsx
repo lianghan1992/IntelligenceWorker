@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
-import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon, DocumentTextIcon, ClipboardIcon, DownloadIcon } from '../../../icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChartIcon, ArrowLeftIcon, CheckCircleIcon, RefreshIcon, ShieldExclamationIcon, DocumentTextIcon, ClipboardIcon, DownloadIcon, ClockIcon, CloudIcon, CheckIcon, PlusIcon } from '../../../icons';
 import { ChatPanel } from './ChatPanel';
 import { ReportCanvas } from './ReportCanvas';
 import { StepId, TechEvalSessionData, ChatMessage, ReportSection } from './types';
-import { getPrompts, streamChatCompletions } from '../../../../api/stratify';
+import { getPrompts, streamChatCompletions, createSession, getSession, updateSession } from '../../../../api/stratify';
 import { searchSemanticBatchGrouped } from '../../../../api/intelligence';
 import { AGENTS } from '../../../../agentConfig';
 import { StratifyPrompt } from '../../../../types';
@@ -12,6 +12,7 @@ import { marked } from 'marked';
 import { toPng } from 'html-to-image';
 import { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel, AlignmentType } from 'docx';
 import { saveAs } from 'file-saver';
+import { SessionHistoryDrawer } from '../../../../components/ReportGenerator/SessionHistoryModal';
 
 interface TechDecisionAssistantProps {
     onBack: () => void;
@@ -101,6 +102,11 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     
     const [promptMap, setPromptMap] = useState<Record<string, StratifyPrompt>>({});
     const [isLoadingPrompts, setIsLoadingPrompts] = useState(true);
+    
+    // Session State
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'idle'>('idle');
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
     const currentStepId = STEPS[data.currentStepIndex];
     const currentSection = data.sections[currentStepId];
@@ -123,6 +129,113 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         };
         loadPrompts();
     }, []);
+
+    // Auto Save Logic
+    useEffect(() => {
+        // If we are just starting and haven't defined a tech yet, don't auto-create sessions aggressively
+        // Wait until techName is set.
+        if (!data.techName && !sessionId) return;
+        
+        // If no session ID but we have data, create one (debounce this in real app, but simplified here)
+        if (!sessionId && data.techName) {
+            const create = async () => {
+                setSaveStatus('saving');
+                try {
+                    const session = await createSession(AGENTS.TECH_DECISION_ASSISTANT, data.techName);
+                    setSessionId(session.id);
+                    // Immediate save content
+                    await updateSession(session.id, {
+                        title: data.techName,
+                        current_stage: currentStepId,
+                        context_data: data
+                    });
+                    setSaveStatus('saved');
+                } catch(e) {
+                    console.error("Create session failed", e);
+                    setSaveStatus('error');
+                }
+            };
+            create();
+            return;
+        }
+
+        // If session exists, update it
+        if (sessionId) {
+            const save = async () => {
+                setSaveStatus('saving');
+                try {
+                    await updateSession(sessionId, {
+                        title: data.techName || '未命名技术评估',
+                        current_stage: currentStepId,
+                        context_data: data
+                    });
+                    setSaveStatus('saved');
+                } catch (e) {
+                    console.error("Update session failed", e);
+                    setSaveStatus('error');
+                }
+            };
+            const timer = setTimeout(save, 2000); // 2s Debounce
+            return () => clearTimeout(timer);
+        }
+    }, [data, currentStepId, sessionId]);
+
+    const loadSession = useCallback(async (sid: string) => {
+        try {
+            const session = await getSession(sid);
+            setSessionId(sid);
+            if (session.context_data) {
+                // Restore full data state
+                // Ensure default sections structure is preserved if missing keys in old data
+                const restoredSections = { ...DEFAULT_SECTIONS, ...session.context_data.sections };
+                
+                setData({
+                    ...session.context_data,
+                    sections: restoredSections
+                });
+            }
+            setSaveStatus('saved');
+        } catch (e) {
+            console.error("Failed to load session", e);
+            alert("加载历史会话失败");
+        }
+    }, []);
+
+    const handleNewSession = () => {
+        if (sessionId && confirm("确定要开始新的评估吗？当前进度已保存。")) {
+            setSessionId(null);
+            setData({
+                techName: '',
+                techDefinition: undefined,
+                searchQueries: [],
+                currentStepIndex: 0,
+                sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
+                messages: [{
+                    id: 'welcome',
+                    role: 'assistant',
+                    content: '我是您的技术决策评估助手。请告诉我您想要评估的技术名称（例如：800V碳化硅平台、半固态电池等）。',
+                    timestamp: Date.now()
+                }]
+            });
+            setSaveStatus('idle');
+        } else if (!sessionId) {
+             // Reset if no session active
+             setData({
+                techName: '',
+                techDefinition: undefined,
+                searchQueries: [],
+                currentStepIndex: 0,
+                sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
+                messages: [{
+                    id: 'welcome',
+                    role: 'assistant',
+                    content: '我是您的技术决策评估助手。请告诉我您想要评估的技术名称（例如：800V碳化硅平台、半固态电池等）。',
+                    timestamp: Date.now()
+                }]
+            });
+        }
+    };
+
 
     const addMessage = (role: 'user' | 'assistant', content: string) => {
         const msg: ChatMessage = { id: crypto.randomUUID(), role, content, timestamp: Date.now() };
@@ -669,6 +782,24 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     </div>
                 </div>
                 <div className="flex items-center gap-6">
+                    {/* Status Bar for Tech Decision Agent */}
+                    <div className="flex items-center gap-3 text-xs font-medium mr-4">
+                         <div className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
+                            saveStatus === 'saving' ? 'text-blue-500 bg-blue-50' :
+                            saveStatus === 'saved' ? 'text-green-600 bg-green-50' :
+                            saveStatus === 'error' ? 'text-red-500 bg-red-50' : 'text-slate-400'
+                        }`}>
+                            {saveStatus === 'saving' && <RefreshIcon className="w-3.5 h-3.5 animate-spin" />}
+                            {saveStatus === 'saved' && <CheckIcon className="w-3.5 h-3.5" />}
+                            {saveStatus === 'error' && <CloudIcon className="w-3.5 h-3.5" />}
+                            <span>
+                                {saveStatus === 'saving' ? '保存中...' : 
+                                 saveStatus === 'saved' ? '已保存' : 
+                                 saveStatus === 'error' ? '保存失败' : '草稿'}
+                            </span>
+                        </div>
+                    </div>
+                    
                     {data.techName && (
                         <div className="flex gap-2">
                              <button 
@@ -691,7 +822,23 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                             </button>
                         </div>
                     )}
-                    <div className="flex gap-2">
+                    
+                    <div className="flex gap-2 items-center">
+                        <button 
+                             onClick={() => setIsHistoryOpen(true)} 
+                             className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                             title="查看历史任务"
+                        >
+                            <ClockIcon className="w-5 h-5" />
+                        </button>
+                        <button 
+                             onClick={handleNewSession} 
+                             className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                             title="新建任务"
+                        >
+                            <PlusIcon className="w-5 h-5" />
+                        </button>
+                        <div className="w-px h-6 bg-slate-200 mx-2"></div>
                         {DISPLAY_STEPS.map((step, idx) => <StepIndicator key={step} status={data.sections[step].status} index={idx} title={data.sections[step].title} isActive={currentStepId === step} />)}
                     </div>
                 </div>
@@ -717,6 +864,14 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     />
                 </div>
             </div>
+
+            <SessionHistoryDrawer 
+                isOpen={isHistoryOpen} 
+                onClose={() => setIsHistoryOpen(false)} 
+                currentSessionId={sessionId || undefined}
+                onSwitchSession={loadSession}
+                agentId={AGENTS.TECH_DECISION_ASSISTANT}
+            />
         </div>
     );
 };

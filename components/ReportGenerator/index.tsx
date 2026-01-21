@@ -295,6 +295,7 @@ const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ onShowBilling }) 
                 onClose={() => setIsHistoryOpen(false)} 
                 currentSessionId={sessionId || undefined}
                 onSwitchSession={loadSession}
+                agentId={REPORT_GENERATOR_AGENT_ID} // Pass explicit Agent ID
             />
 
             {/* Balance Alert Modal */}

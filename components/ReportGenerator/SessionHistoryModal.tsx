@@ -6,27 +6,31 @@ import {
     CloseIcon, ClockIcon, TrashIcon, ArrowRightIcon, 
     SparklesIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon 
 } from '../icons';
-import { AGENTS } from '../../agentConfig';
 
 interface SessionHistoryDrawerProps {
     isOpen: boolean;
     onClose: () => void;
     currentSessionId?: string;
     onSwitchSession: (sessionId: string) => void;
+    agentId: string; // Made generic
 }
-
-// Agent ID for Report Generator
-// Using global configuration
-const REPORT_GENERATOR_AGENT_ID = AGENTS.REPORT_GENERATOR;
 
 const StageBadge: React.FC<{ stage: string }> = ({ stage }) => {
     const map: Record<string, { label: string; color: string }> = {
+        // Report Generator Stages
         'collect': { label: '构思中', color: 'bg-slate-100 text-slate-500 border-slate-200' },
         'outline': { label: '大纲确认', color: 'bg-purple-50 text-purple-600 border-purple-200' },
         'compose': { label: '内容生成', color: 'bg-blue-50 text-blue-600 border-blue-200' },
         'finalize': { label: '定稿', color: 'bg-green-50 text-green-600 border-green-200' },
+        
+        // Tech Decision Assistant Stages
+        'init': { label: '初始化', color: 'bg-slate-100 text-slate-500 border-slate-200' },
+        'route': { label: '技术路线', color: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
+        'risk': { label: '风险评估', color: 'bg-amber-50 text-amber-600 border-amber-200' },
+        'solution': { label: '解决方案', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+        'compare': { label: '决策建议', color: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
     };
-    const conf = map[stage] || map['collect'];
+    const conf = map[stage] || { label: stage, color: 'bg-gray-50 text-gray-500 border-gray-200' };
     
     return (
         <span className={`text-[10px] px-1.5 py-0.5 rounded border ${conf.color} font-medium`}>
@@ -36,7 +40,7 @@ const StageBadge: React.FC<{ stage: string }> = ({ stage }) => {
 };
 
 export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({ 
-    isOpen, onClose, currentSessionId, onSwitchSession 
+    isOpen, onClose, currentSessionId, onSwitchSession, agentId 
 }) => {
     const [sessions, setSessions] = useState<AgentSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -46,13 +50,12 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
         if (isOpen) {
             loadSessions();
         }
-    }, [isOpen]);
+    }, [isOpen, agentId]);
 
     const loadSessions = async () => {
         setIsLoading(true);
         try {
-            // FIX: Use specific agent_id
-            const res = await getSessions({ agent_id: REPORT_GENERATOR_AGENT_ID, sort_by: 'updated_at', order: 'desc', limit: 50 });
+            const res = await getSessions({ agent_id: agentId, sort_by: 'updated_at', order: 'desc', limit: 50 });
             setSessions(res || []);
         } catch (e) {
             console.error("Failed to load sessions", e);
@@ -63,7 +66,7 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
 
     const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
         e.stopPropagation();
-        if (!confirm('确定要永久删除这份报告任务吗？此操作无法撤销。')) return;
+        if (!confirm('确定要永久删除这份任务吗？此操作无法撤销。')) return;
         
         setDeletingId(sessionId);
         try {
@@ -94,7 +97,7 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
                         <h3 className="font-black text-xl text-slate-800 flex items-center gap-2 tracking-tight">
                             <ClockIcon className="w-5 h-5 text-indigo-600"/> 历史任务
                         </h3>
-                        <p className="text-xs text-slate-400 mt-1">共 {sessions.length} 份报告草稿</p>
+                        <p className="text-xs text-slate-400 mt-1">共 {sessions.length} 条记录</p>
                     </div>
                     <button 
                         onClick={onClose} 
@@ -119,11 +122,15 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
                     ) : (
                         sessions.map(session => {
                             const isCurrent = currentSessionId === session.id;
-                            // Parse context data safely to get page count
-                            let pageCount = 0;
+                            
+                            // Try to infer meaningful stats from generic context_data
+                            let metaInfo = "";
                             try {
-                                if (session.context_data && session.context_data.data && Array.isArray(session.context_data.data.pages)) {
-                                    pageCount = session.context_data.data.pages.length;
+                                if (session.context_data?.data?.pages) {
+                                     metaInfo = `${session.context_data.data.pages.length} Pages`;
+                                } else if (session.context_data?.techName) {
+                                     // Tech Decision Assistant specific
+                                     metaInfo = session.context_data.techName;
                                 }
                             } catch (e) {}
 
@@ -149,11 +156,11 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
                                         <div>
                                             <div className="flex justify-between items-start pr-4">
                                                 <h4 className={`font-bold text-sm leading-snug line-clamp-2 ${isCurrent ? 'text-indigo-900' : 'text-slate-800'}`}>
-                                                    {session.title || '未命名报告任务'}
+                                                    {session.title || '未命名任务'}
                                                 </h4>
                                             </div>
                                             <div className="flex items-center gap-2 mt-2">
-                                                <StageBadge stage={session.current_stage || 'collect'} />
+                                                <StageBadge stage={session.current_stage || 'init'} />
                                                 <span className="text-[10px] text-slate-400 font-mono">
                                                     {new Date(session.updated_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                 </span>
@@ -166,10 +173,12 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
                                         {/* Stats */}
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4 text-xs text-slate-500">
-                                                <div className="flex items-center gap-1" title="生成页数">
-                                                    <DocumentTextIcon className="w-3.5 h-3.5 text-slate-400" />
-                                                    <span className="font-mono">{pageCount} P</span>
-                                                </div>
+                                                {metaInfo && (
+                                                    <div className="flex items-center gap-1 max-w-[150px] truncate" title={metaInfo}>
+                                                        <DocumentTextIcon className="w-3.5 h-3.5 text-slate-400" />
+                                                        <span className="font-mono truncate">{metaInfo}</span>
+                                                    </div>
+                                                )}
                                                 <div className="flex items-center gap-1" title="预估消耗">
                                                     <ChartIcon className="w-3.5 h-3.5 text-slate-400" />
                                                     <span className="font-mono">¥{session.total_cost?.toFixed(3) || '0.000'}</span>
