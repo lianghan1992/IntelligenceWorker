@@ -14,7 +14,7 @@ interface UniversalReportGenProps {
 const MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
 const AGENT_ID = AGENTS.UNIVERSAL_REPORT_GEN;
 
-// Enhanced JSON Helper to handle markdown code blocks
+// Enhanced JSON Helper
 const extractJsonArray = (text: string): any[] | null => {
     if (!text) return null;
     let clean = text.trim();
@@ -34,9 +34,10 @@ const extractJsonArray = (text: string): any[] | null => {
     
     try {
         const jsonStr = clean.substring(start, end + 1);
-        return JSON.parse(jsonStr);
+        const parsed = JSON.parse(jsonStr);
+        return Array.isArray(parsed) ? parsed : null;
     } catch (e) {
-        console.error("JSON Parse Error", e);
+        console.warn("JSON Parse Failed, attempting loose repair", e);
         return null;
     }
 };
@@ -133,7 +134,12 @@ ${context}
 
 要求：
 1. 分为 4-6 个核心章节。
-2. 输出纯 JSON 数组格式，不要包含任何 markdown 格式代码块，只返回 JSON：[{"title": "...", "instruction": "..."}]。
+2. 必须输出符合 JSON 语法的数组，例如：
+[
+  {"title": "第一章：行业概述", "instruction": "分析市场背景和定义"},
+  {"title": "第二章：核心技术", "instruction": "详细介绍技术原理"}
+]
+3. **严禁**输出 markdown 代码块标记（如 \`\`\`json），**严禁**输出任何解释性文字。直接返回 JSON 数组字符串。
 `;
         
         // Create an empty message for streaming response
@@ -141,7 +147,7 @@ ${context}
         setMessages(prev => [...prev, {
             id: planMsgId,
             role: 'assistant',
-            content: '正在规划研究思路...',
+            content: '思考中...', // Initial placeholder
             isThinking: true,
             timestamp: Date.now()
         }]);
@@ -164,6 +170,9 @@ ${context}
             // Mark thinking as done
             setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false } : m));
 
+            // Log raw output for debugging if needed
+            // console.log("Raw Plan Output:", planBuffer);
+
             const parsedOutline = extractJsonArray(planBuffer);
             if (parsedOutline && Array.isArray(parsedOutline)) {
                 setOutline(parsedOutline);
@@ -172,14 +181,14 @@ ${context}
                 // Start Writing Phase
                 startWritingProcess(parsedOutline, context);
             } else {
-                console.error("Failed to parse outline:", planBuffer);
                 throw new Error("大纲生成格式错误，无法解析 JSON。");
             }
         } catch (e: any) {
+             // Do NOT overwrite the stream message. Add a new error message.
              setMessages(prev => [...prev, { 
                 id: crypto.randomUUID(), 
-                role: 'assistant', 
-                content: `大纲生成遇到问题: ${e.message}。请重试。`, 
+                role: 'system', // Use system role for error style
+                content: `❌ **生成中断**\n\n原因: ${e.message}\n\n您可以尝试重新输入主题。`, 
                 timestamp: Date.now() 
             }]);
             setStatus('idle');
