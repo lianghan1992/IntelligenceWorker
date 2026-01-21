@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowRightIcon, RefreshIcon, UserIcon, SparklesIcon 
-} from '../icons';
+} from '../icons'; // Correct relative import for components/shared/ChatPanel.tsx -> components/icons.tsx
 import { marked } from 'marked';
 
 export interface ChatMessage {
@@ -64,6 +64,18 @@ export const SharedChatPanel: React.FC<ChatPanelProps> = ({
             <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar" ref={scrollRef}>
                 {messages.map((msg) => {
                     const isUser = msg.role === 'user';
+                    const isSystem = msg.role === 'system';
+                    
+                    if (isSystem) {
+                        return (
+                            <div key={msg.id} className="flex justify-center animate-in fade-in slide-in-from-bottom-2">
+                                <div className="bg-red-50 border border-red-100 text-red-600 text-xs px-4 py-2 rounded-lg max-w-[90%] text-center leading-relaxed">
+                                    <div dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) as string }} />
+                                </div>
+                            </div>
+                        );
+                    }
+
                     return (
                         <div key={msg.id} className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2`}>
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${isUser ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-indigo-600'}`}>
@@ -78,7 +90,7 @@ export const SharedChatPanel: React.FC<ChatPanelProps> = ({
                                     <div className="whitespace-pre-wrap">{msg.content}</div>
                                 ) : (
                                     <div 
-                                        className="prose prose-sm max-w-none text-slate-700 prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-2 prose-headings:text-slate-800"
+                                        className="prose prose-sm max-w-none text-slate-700 prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-headings:my-2 prose-headings:text-slate-800 prose-pre:bg-slate-100 prose-pre:p-2 prose-pre:rounded-lg"
                                         dangerouslySetInnerHTML={{ __html: marked.parse(msg.content || '...') as string }}
                                     />
                                 )}

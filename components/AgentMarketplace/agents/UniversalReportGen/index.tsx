@@ -125,7 +125,7 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
 
         // 2. Planning Phase
         setStatus('planning');
-        const planLogId = addLog('正在构建深度分析大纲...', 'plan');
+        const planLogId = addLog('正在构建深度分析研究思路...', 'plan');
         
         const planPrompt = `
 你是一个专业的研报架构师。请根据主题【${query}】和以下背景资料，设计一个深度研究报告的研究思路。
@@ -147,7 +147,7 @@ ${context}
         setMessages(prev => [...prev, {
             id: planMsgId,
             role: 'assistant',
-            content: '思考中...', // Initial placeholder
+            content: '正在规划研究思路...\n\n', // Initial placeholder
             isThinking: true,
             timestamp: Date.now()
         }]);
@@ -170,9 +170,6 @@ ${context}
             // Mark thinking as done
             setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false } : m));
 
-            // Log raw output for debugging if needed
-            // console.log("Raw Plan Output:", planBuffer);
-
             const parsedOutline = extractJsonArray(planBuffer);
             if (parsedOutline && Array.isArray(parsedOutline)) {
                 setOutline(parsedOutline);
@@ -181,14 +178,14 @@ ${context}
                 // Start Writing Phase
                 startWritingProcess(parsedOutline, context);
             } else {
-                throw new Error("大纲生成格式错误，无法解析 JSON。");
+                throw new Error("研究思路生成格式错误，无法解析 JSON。");
             }
         } catch (e: any) {
              // Do NOT overwrite the stream message. Add a new error message.
              setMessages(prev => [...prev, { 
                 id: crypto.randomUUID(), 
                 role: 'system', // Use system role for error style
-                content: `❌ **生成中断**\n\n原因: ${e.message}\n\n您可以尝试重新输入主题。`, 
+                content: `❌ **生成中断**\n\n原因: ${e.message}\n\n建议尝试重新输入主题，或检查网络连接。`, 
                 timestamp: Date.now() 
             }]);
             setStatus('idle');
