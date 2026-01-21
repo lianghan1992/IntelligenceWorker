@@ -14,32 +14,72 @@ interface UniversalReportGenProps {
 const MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
 const AGENT_ID = AGENTS.UNIVERSAL_REPORT_GEN;
 
-// Enhanced JSON Helper
-const extractJsonArray = (text: string): any[] | null => {
-    if (!text) return null;
-    let clean = text.trim();
-    
-    // 1. Remove markdown code blocks if present
-    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
-    const match = clean.match(codeBlockRegex);
-    if (match) {
-        clean = match[1].trim();
-    }
-    
-    // 2. Find first [ and last ] to locate array
-    const start = clean.indexOf('[');
-    const end = clean.lastIndexOf(']');
-    
-    if (start === -1 || end === -1 || start >= end) return null;
-    
+// Robust Parsing Helper: Handles JSON, Markdown, or Plain Text
+const parseOutlineFromText = (text: string): { title: string; instruction: string }[] => {
+    const cleanText = text.trim();
+    if (!cleanText) return [];
+
+    // 1. Try JSON first (Backwards compatibility)
     try {
-        const jsonStr = clean.substring(start, end + 1);
-        const parsed = JSON.parse(jsonStr);
-        return Array.isArray(parsed) ? parsed : null;
+        const jsonMatch = cleanText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/i) || cleanText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+            const jsonStr = jsonMatch[1] || jsonMatch[0];
+            const parsed = JSON.parse(jsonStr);
+            if (Array.isArray(parsed)) return parsed;
+        }
     } catch (e) {
-        console.warn("JSON Parse Failed, attempting loose repair", e);
-        return null;
+        // Ignore JSON errors, proceed to Markdown parsing
     }
+
+    // 2. Try Markdown Headers (## Title)
+    // Matches lines starting with "## " or "1. " as titles
+    const sections: { title: string; instruction: string }[] = [];
+    const lines = cleanText.split('\n');
+    let currentTitle = '';
+    let currentDesc = '';
+
+    const pushSection = () => {
+        if (currentTitle) {
+            sections.push({ 
+                title: currentTitle.replace(/\*\*/g, '').trim(), 
+                instruction: currentDesc.trim() || currentTitle 
+            });
+        }
+    };
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        // Detect headers: ## Title or **Chapter 1:** or 1. Title
+        const isHeader = trimmed.startsWith('## ') || trimmed.match(/^\d+\.\s+/) || (trimmed.startsWith('**') && trimmed.endsWith('**'));
+
+        if (isHeader) {
+            pushSection();
+            // Clean up title
+            currentTitle = trimmed
+                .replace(/^##\s*/, '')
+                .replace(/^\d+\.\s*/, '')
+                .replace(/^\*\*/, '')
+                .replace(/\*\*$/, '')
+                .replace(/:$/, '')
+                .trim();
+            currentDesc = '';
+        } else {
+            if (currentTitle) {
+                currentDesc += line + '\n';
+            }
+        }
+    }
+    pushSection();
+
+    // 3. Fallback: If no structure found, treat entire text as one section
+    if (sections.length === 0) {
+        return [{ 
+            title: "深度分析报告", 
+            instruction: cleanText.slice(0, 500) // First 500 chars as instruction context
+        }];
+    }
+
+    return sections;
 };
 
 const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
@@ -127,19 +167,24 @@ const UniversalReportGen: React.FC<UniversalReportGenProps> = ({ onBack }) => {
         setStatus('planning');
         const planLogId = addLog('正在构建深度分析研究思路...', 'plan');
         
+        // Updated Prompt to request Markdown instead of JSON for better stability
         const planPrompt = `
-你是一个专业的研报架构师。请根据主题【${query}】和以下背景资料，设计一个深度研究报告的研究思路。
+你是一个专业的研报架构师。请根据主题【${query}】和以下背景资料，设计一个深度研究报告的大纲。
 背景资料：
 ${context}
 
 要求：
 1. 分为 4-6 个核心章节。
-2. 必须输出符合 JSON 语法的数组，例如：
-[
-  {"title": "第一章：行业概述", "instruction": "分析市场背景和定义"},
-  {"title": "第二章：核心技术", "instruction": "详细介绍技术原理"}
-]
-3. **严禁**输出 markdown 代码块标记（如 \`\`\`json），**严禁**输出任何解释性文字。直接返回 JSON 数组字符串。
+2. **请直接使用 Markdown 格式输出**，不要使用 JSON。
+3. 章节标题使用二级标题 (## 标题)。
+4. 在每个标题下，简要描述该章节的写作重点和分析逻辑。
+
+示例输出格式：
+## 第一章：行业背景
+分析当前市场环境...
+
+## 第二章：技术架构
+详解核心技术原理...
 `;
         
         // Create an empty message for streaming response
@@ -170,21 +215,22 @@ ${context}
             // Mark thinking as done
             setMessages(prev => prev.map(m => m.id === planMsgId ? { ...m, isThinking: false } : m));
 
-            const parsedOutline = extractJsonArray(planBuffer);
-            if (parsedOutline && Array.isArray(parsedOutline)) {
+            // Use robust parser
+            const parsedOutline = parseOutlineFromText(planBuffer);
+            
+            if (parsedOutline && parsedOutline.length > 0) {
                 setOutline(parsedOutline);
                 updateLogStatus(planLogId, 'done');
                 
                 // Start Writing Phase
                 startWritingProcess(parsedOutline, context);
             } else {
-                throw new Error("研究思路生成格式错误，无法解析 JSON。");
+                throw new Error("未能生成有效的大纲结构。");
             }
         } catch (e: any) {
-             // Do NOT overwrite the stream message. Add a new error message.
              setMessages(prev => [...prev, { 
                 id: crypto.randomUUID(), 
-                role: 'system', // Use system role for error style
+                role: 'system',
                 content: `❌ **生成中断**\n\n原因: ${e.message}\n\n建议尝试重新输入主题，或检查网络连接。`, 
                 timestamp: Date.now() 
             }]);
