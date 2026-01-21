@@ -10,6 +10,9 @@ import {
     SpiderProxy, IntelligenceSourcePublic, ArticlePublic
 } from '../types';
 
+// 计费 Session ID 
+const BILLING_SESSION_ID = '6027074c-7c10-40ce-930c-ae1ac603564e';
+
 // Sources
 export const getSources = (): Promise<IntelligenceSourcePublic[]> => getSpiderSources().then(res => res.items.map(s => ({
     id: s.id,
@@ -464,6 +467,9 @@ export const downloadIntelLlmTaskReport = async (id: string): Promise<Blob> => {
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
+    // 关键修复：添加计费 Session ID
+    headers.set('X-Session-ID', BILLING_SESSION_ID);
+    
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('Download failed');
     return response.blob();
@@ -562,13 +568,13 @@ export const getUploadedDocCover = async (id: string): Promise<Blob> => {
 }
 
 export const downloadUploadedDoc = async (id: string): Promise<Blob> => {
-    // Assuming a standard download path or using preview if download not explicit in list
-    // If not explicit, user might need to use preview or we assume /download endpoint exists in backend as standard
-    // Based on previous code, let's keep the download path assumption unless it fails.
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/download`; 
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
+    // 关键修复：为深度洞察页面的 PDF 下载添加计费 Session ID
+    headers.set('X-Session-ID', BILLING_SESSION_ID);
+    
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('Download failed');
     return response.blob();
