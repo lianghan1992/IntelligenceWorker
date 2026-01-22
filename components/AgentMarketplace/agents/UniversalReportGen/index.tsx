@@ -11,6 +11,7 @@ export type GenStatus = 'planning' | 'executing' | 'finished';
 
 // --- Constants ---
 const MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
+const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次，防止死循环
 
 // --- Helpers ---
 const parsePlanFromMessage = (text: string): { title: string; instruction: string }[] => {
@@ -143,7 +144,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setCurrentSectionIdx(0);
     };
 
-    // --- Phase 2: Execution Loop ---
+    // --- Phase 2: Execution Loop (ReAct Agent) ---
     
     useEffect(() => {
         if (status !== 'executing') return;
@@ -172,89 +173,177 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 return n;
             });
         };
+        const appendReferences = (newRefs: any[]) => {
+            setSections(prev => {
+                const n = [...prev];
+                // Merge and deduplicate references by URL
+                const existingUrls = new Set(n[idx].references.map(r => r.url));
+                const uniqueNewRefs = newRefs.filter(r => !existingUrls.has(r.url));
+                n[idx] = { ...n[idx], references: [...n[idx].references, ...uniqueNewRefs] };
+                return n;
+            });
+        };
 
         try {
-            // A. 生成检索词
             updateSec({ status: 'planning' });
-            addLog(`分析"${section.title}"的信息需求...`);
             
-            // 优化：要求生成更具体的搜索词，避免通用词
-            const qPrompt = `针对研究报告章节【${section.title}】（写作目标：${section.instruction}），请生成 3 个具体的 Google 搜索关键词。
-要求：
-1. 关键词必须包含具体的技术术语、公司名或年份（当前是${today}）。
-2. 不要使用“介绍”、“概述”等虚词。
-3. 只返回关键词，每行一个，不要编号。`;
+            // ReAct Loop Variables
+            let loopCount = 0;
+            let collectedContext = "";
+            let finished = false;
             
-            let qStr = "";
-            await streamChatCompletions({ model: MODEL_ID, messages: [{role:'user', content:qPrompt}], stream:true, enable_billing: true }, (c)=>{if(c.content) qStr+=c.content});
-            const queries = qStr.split('\n').map(s=>s.replace(/^\d+\.\s*|-/, '').trim()).filter(s=>s.length>1).slice(0,3);
+            // 系统提示词：定义工具和行为规范
+            const systemPrompt = `你是一个拥有向量检索工具的资深行业研究员。当前时间：${today}。
+任务：撰写报告章节【${section.title}】。
+要求：${section.instruction}
 
-            // B. 检索
-            updateSec({ status: 'searching' });
-            addLog(`执行全网检索: ${queries.join(', ')}`);
-            
-            const sRes = await searchSemanticBatchGrouped({ query_texts: queries, max_segments_per_query: 5 });
-            const allItems = (sRes.results || []).flatMap((r: any) => r.items || []);
-            
-            // 去重并提取字段，注意 original_url 的映射
-            const uniqueItems = Array.from(new Map(allItems.map((item:any) => [item.id || item.article_id, item])).values());
-            
-            const mappedRefs = uniqueItems.map((i:any)=>({ 
-                title: i.title || "未命名文档", 
-                // 优先使用 original_url，如果没有则回退到 url (如果是上传的文档通常有 original_url)
-                url: i.original_url || i.url || '#', 
-                source: i.source_name || "互联网",
-                snippet: i.segments?.[0]?.content?.slice(0, 150) || i.content?.slice(0, 150)
-            }));
+你可以使用以下工具来获取信息：
+- search_knowledge_base: 搜索内部知识库和全网数据。
 
-            updateSec({ references: mappedRefs });
-            
-            // 整理上下文给 LLM
-            const context = uniqueItems.map((it:any, i:number) => {
-                const segments = (it.segments || []).map((s:any) => s.content).join('\n...\n');
-                const fullContent = segments || it.content || '';
-                return `[资料${i+1}] 来源：${it.source_name} | 标题：${it.title}\n内容：${fullContent}`;
-            }).join('\n\n');
-            
-            if (uniqueItems.length > 0) {
-                addLog(`成功捕获 ${uniqueItems.length} 条高相关情报，正在阅读...`);
-            } else {
-                addLog(`未检索到直接资料，将尝试利用通用知识库推理...`);
-            }
+**工作流程 (ReAct)**：
+1. 分析当前章节需要什么数据。
+2. 决定是【搜索】还是【开始撰写】。
+   - 如果需要数据，输出工具调用指令：\`call:search["关键词1", "关键词2"]\`。**关键词必须使用简体中文**，具体且精准。
+   - 如果数据已足够或无法获取更多数据，直接开始撰写正文。
 
-            // C. 撰写
-            updateSec({ status: 'writing' });
-            addLog("AI 研究员正在合成最终报告...");
-            
-            const wPrompt = `你是一名资深行业分析师。当前日期：${today}。
-请基于以下检索到的【参考资料】，撰写报告章节。
+注意：
+- 每次搜索最多生成 3 个关键词。
+- 只有当你确信有足够信息时才开始写正文。
+- 正文必须使用 Markdown 格式。
+- 正文中必须引用你获取到的数据，增强可信度。
+- **严禁**在正文输出 call:search 指令。
+`;
 
-章节标题：${section.title}
-写作核心任务：${section.instruction}
+            // 对话历史：维护本章节的推理链
+            let conversationHistory: { role: string; content: string }[] = [
+                { role: 'user', content: `请开始为章节【${section.title}】收集资料并撰写内容。` }
+            ];
 
-【参考资料】
-${context || "（注意：本次检索未返回强相关结果，请基于你的训练知识库进行合理推演，并注明数据来源可能不实时。）"}
+            while (loopCount < MAX_SEARCH_ROUNDS && !finished) {
+                updateSec({ status: 'planning' }); 
+                
+                // 1. Call LLM to decide next step
+                let llmResponse = "";
+                await streamChatCompletions({
+                    model: MODEL_ID,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        ...conversationHistory
+                    ],
+                    stream: true,
+                    temperature: 0.1, // Low temperature for precise tool calling
+                    enable_billing: true
+                }, (chunk) => {
+                    if (chunk.content) llmResponse += chunk.content;
+                }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
+
+                // 2. Parse Response for Tool Call
+                // 格式如：call:search["小米汽车 销量", "SU7 交付量"]
+                const toolCallMatch = llmResponse.match(/call:search(\[.*?\])/);
+
+                if (toolCallMatch) {
+                    // --- CASE A: Tool Execution ---
+                    updateSec({ status: 'searching' });
+                    
+                    let queries: string[] = [];
+                    try {
+                        queries = JSON.parse(toolCallMatch[1]);
+                    } catch (e) {
+                        // Fallback parsing if JSON is malformed
+                        queries = [toolCallMatch[1].replace(/[\[\]"]/g, '')];
+                    }
+
+                    addLog(`[Round ${loopCount+1}] 思考中...决定检索: ${queries.join(', ')}`);
+                    
+                    // Call Vector Search API
+                    const searchRes = await searchSemanticBatchGrouped({ 
+                        query_texts: queries, 
+                        max_segments_per_query: 4,
+                        similarity_threshold: 0.35
+                    });
+                    
+                    // Process Results
+                    const allItems = (searchRes.results || []).flatMap((r: any) => r.items || []);
+                    const uniqueItems = Array.from(new Map(allItems.map((item:any) => [item.id || item.article_id, item])).values());
+                    
+                    // Update References in UI
+                    const mappedRefs = uniqueItems.map((i:any)=>({ 
+                        title: i.title || "未命名文档", 
+                        url: i.original_url || i.url || '#', 
+                        source: i.source_name || "数据库",
+                        snippet: i.segments?.[0]?.content?.slice(0, 150) || i.content?.slice(0, 150)
+                    }));
+                    appendReferences(mappedRefs);
+
+                    // Add observation to history
+                    const observation = uniqueItems.length > 0 
+                        ? uniqueItems.map((it:any, i:number) => `[资料${i+1}] ${it.title}: ${(it.segments||[]).map((s:any)=>s.content).join('... ')}`).join('\n\n')
+                        : "本次检索未找到高相关性结果。";
+                    
+                    addLog(`检索完成，捕获 ${uniqueItems.length} 条新情报。阅读中...`);
+
+                    conversationHistory.push({ role: 'assistant', content: llmResponse });
+                    conversationHistory.push({ role: 'user', content: `【工具返回结果】\n${observation}\n\n请基于以上新信息，决定是继续搜索不同维度，还是开始撰写？` });
+                    
+                    collectedContext += observation + "\n";
+                    loopCount++;
+                } else {
+                    // --- CASE B: Writing (Finish) ---
+                    // If no tool call is detected, assume the model is writing the final content
+                    finished = true;
+                    updateSec({ status: 'writing' });
+                    addLog("信息充足，开始合成最终报告...");
+                    
+                    // We can reuse the llmResponse as the start of the content if it's not just "I will write now"
+                    // But usually, it's better to force a clean write pass with full context.
+                    
+                    const wPrompt = `资料收集阶段结束。
+请基于以下所有累积的参考资料，撰写章节【${section.title}】。
+要求：${section.instruction}
+
+【所有参考资料】
+${collectedContext || "（无直接资料，请基于通识撰写）"}
 
 【写作要求】
-1. **必须引用**参考资料中的具体数据、案例或观点，增强报告的可信度。
-2. 逻辑严密，结构清晰，使用 Markdown 格式。
-3. 文风专业、客观，避免使用“我认为”、“根据搜索结果”等第一人称口语，直接陈述事实。
-4. 如果参考资料不足，请在段落开头简要说明，并基于通识进行分析。
-5. 字数控制在 500-1000 字之间。`;
+1. 逻辑严密，多引用数据。
+2. 必须使用 Markdown 格式。
+3. 直接输出正文，不要包含 "好的"、"根据资料" 等废话。`;
 
-            let contentBuffer = "";
-            await streamChatCompletions({
-                model: MODEL_ID,
-                messages: [{ role: 'user', content: wPrompt }],
-                stream: true,
-                temperature: 0.3,
-                enable_billing: true
-            }, (chunk) => {
-                if (chunk.content) {
-                    contentBuffer += chunk.content;
-                    updateSec({ content: contentBuffer });
+                    let contentBuffer = "";
+                    await streamChatCompletions({
+                        model: MODEL_ID,
+                        messages: [{ role: 'user', content: wPrompt }],
+                        stream: true,
+                        temperature: 0.4,
+                        enable_billing: true
+                    }, (chunk) => {
+                        if (chunk.content) {
+                            contentBuffer += chunk.content;
+                            updateSec({ content: contentBuffer });
+                        }
+                    }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
                 }
-            }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
+            }
+            
+            // If loop ended without writing (e.g. max rounds reached), force write
+            if (!finished) {
+                 updateSec({ status: 'writing' });
+                 addLog("检索轮次耗尽，强制生成报告...");
+                 const wPrompt = `请基于目前已有的信息撰写章节【${section.title}】。${collectedContext ? '参考资料如下：\n' + collectedContext : ''}`;
+                 let contentBuffer = "";
+                 await streamChatCompletions({
+                    model: MODEL_ID,
+                    messages: [{ role: 'user', content: wPrompt }],
+                    stream: true,
+                    temperature: 0.4,
+                    enable_billing: true
+                }, (chunk) => {
+                    if (chunk.content) {
+                        contentBuffer += chunk.content;
+                        updateSec({ content: contentBuffer });
+                    }
+                }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
+            }
 
             updateSec({ status: 'completed' });
             setCurrentSectionIdx(idx + 1);
