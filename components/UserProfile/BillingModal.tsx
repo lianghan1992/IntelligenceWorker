@@ -222,7 +222,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                     <div>
                                         <div className="text-4xl font-black text-white tracking-tighter flex items-baseline gap-1">
                                             <span className="text-2xl font-light opacity-60">¥</span>
-                                            {wallet ? wallet.balance.toFixed(2) : '--'}
+                                            {wallet ? Number(wallet.balance).toFixed(2) : '--'}
                                         </div>
                                         {wallet && wallet.plan_name && (
                                             <div className="inline-block mt-2 px-2 py-0.5 rounded bg-white/10 border border-white/10 text-[10px] text-white/80 font-bold uppercase tracking-wider">
@@ -287,7 +287,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                 <div key={i} className="bg-slate-50 border border-slate-200 p-4 rounded-xl hover:bg-white hover:shadow-md transition-all duration-300">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">{card.label}</span>
                                     <div className={`text-xl font-black truncate ${card.color}`}>
-                                        {card.prefix}{card.isCurrency ? card.value.toFixed(4) : card.value.toLocaleString()}
+                                        {card.prefix}{card.isCurrency ? Number(card.value).toFixed(4) : Number(card.value).toLocaleString()}
                                     </div>
                                 </div>
                             ))}

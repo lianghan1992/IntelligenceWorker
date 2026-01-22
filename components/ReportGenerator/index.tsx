@@ -54,7 +54,7 @@ const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ onShowBilling }) 
                 if (savedHistory) setHistory(savedHistory);
                 if (savedData) setData(savedData);
             }
-            setSessionCost(session.total_cost || 0);
+            setSessionCost(Number(session.total_cost) || 0);
             setSaveStatus('saved');
         } catch (e) {
             console.error("Failed to load session", e);
@@ -68,7 +68,7 @@ const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ onShowBilling }) 
         if (!sessionId) return;
         try {
              const session = await getSession(sessionId);
-             setSessionCost(session.total_cost || 0);
+             setSessionCost(Number(session.total_cost) || 0);
         } catch (e) {
             console.warn("Failed to refresh session stats", e);
         }
@@ -135,7 +135,7 @@ const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ onShowBilling }) 
                     context_data: { stage, history, data }
                 });
                 
-                setSessionCost(res.total_cost || 0);
+                setSessionCost(Number(res.total_cost) || 0);
                 setSaveStatus('saved');
             } catch (e) {
                 console.error("Auto-save failed", e);

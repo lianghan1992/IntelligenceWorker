@@ -6,8 +6,9 @@ import { getChannels } from '../../../api/stratify'; // Channels are still in St
 import { 
     RefreshIcon, PlusIcon, PencilIcon, CheckCircleIcon, 
     ShieldExclamationIcon, ChartIcon, LightningBoltIcon, 
-    CloseIcon, CheckIcon 
+    CloseIcon, CheckIcon, TrashIcon 
 } from '../../icons';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
 
@@ -164,6 +165,7 @@ export const PricingManager: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPricing, setEditingPricing] = useState<ModelPricing | undefined>(undefined);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -191,6 +193,17 @@ export const PricingManager: React.FC = () => {
         setEditingPricing(undefined);
         setIsModalOpen(true);
     };
+    
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        try {
+            await deleteModelPricing(deleteId);
+            setDeleteId(null);
+            fetchData();
+        } catch (e) {
+            alert('删除失败');
+        }
+    };
 
     return (
         <div className="h-full flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -198,9 +211,9 @@ export const PricingManager: React.FC = () => {
                 <div className="flex flex-col">
                     <h3 className="font-bold text-slate-700 flex items-center gap-2">
                         <ChartIcon className="w-5 h-5 text-indigo-600" />
-                        计费与定价规则管理
+                        模型定价策略
                     </h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">管理模型 Token 价格与计费倍率</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">配置各渠道模型的 Token 单价与结算倍率</p>
                 </div>
                 <div className="flex gap-2">
                     <button onClick={fetchData} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-slate-200">
@@ -240,11 +253,11 @@ export const PricingManager: React.FC = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="font-mono text-slate-600">¥{p.input_price.toFixed(2)}</span>
+                                        <span className="font-mono text-slate-600">¥{Number(p.input_price).toFixed(2)}</span>
                                         <span className="text-[9px] text-slate-400 ml-1">/ 1M</span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="font-mono text-slate-600">¥{p.output_price.toFixed(2)}</span>
+                                        <span className="font-mono text-slate-600">¥{Number(p.output_price).toFixed(2)}</span>
                                         <span className="text-[9px] text-slate-400 ml-1">/ 1M</span>
                                     </td>
                                     <td className="px-6 py-4">
@@ -269,6 +282,12 @@ export const PricingManager: React.FC = () => {
                                             className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                                         >
                                             <PencilIcon className="w-4 h-4" />
+                                        </button>
+                                         <button 
+                                            onClick={() => setDeleteId(p.id!)}
+                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
                                         </button>
                                     </td>
                                 </tr>
@@ -313,6 +332,17 @@ export const PricingManager: React.FC = () => {
                 pricing={editingPricing}
                 channels={channels}
             />
+            
+            {deleteId && (
+                <ConfirmationModal 
+                    title="删除定价规则"
+                    message="确定要删除此定价规则吗？删除后将使用默认或无法计费。"
+                    onConfirm={handleDelete}
+                    onCancel={() => setDeleteId(null)}
+                    confirmText="确认删除"
+                    variant="destructive"
+                />
+            )}
         </div>
     );
 };

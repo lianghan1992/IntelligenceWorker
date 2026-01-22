@@ -278,7 +278,7 @@ export const PricingManager: React.FC = () => {
                     <table className="w-full text-sm text-left text-slate-500">
                         <thead className="text-[10px] text-slate-400 uppercase bg-slate-50/80 border-b font-black tracking-widest">
                             <tr>
-                                <th className="px-6 py-4">模型标识 (Channel @ Model)</th>
+                                <th className="px-6 py-4">模型名称 (Model)</th>
                                 <th className="px-6 py-4">输入单价 (Input)</th>
                                 <th className="px-6 py-4">输出单价 (Output)</th>
                                 <th className="px-6 py-4">用户倍率 (x)</th>
@@ -301,11 +301,11 @@ export const PricingManager: React.FC = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="font-mono text-slate-600">¥{p.input_price.toFixed(2)}</span>
+                                        <span className="font-mono text-slate-600">¥{Number(p.input_price).toFixed(2)}</span>
                                         <span className="text-[9px] text-slate-400 ml-1">/ 1M</span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="font-mono text-slate-600">¥{p.output_price.toFixed(2)}</span>
+                                        <span className="font-mono text-slate-600">¥{Number(p.output_price).toFixed(2)}</span>
                                         <span className="text-[9px] text-slate-400 ml-1">/ 1M</span>
                                     </td>
                                     <td className="px-6 py-4">

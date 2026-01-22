@@ -137,7 +137,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         if (!activeSid) return;
         try {
             const sess = await getSession(activeSid);
-            setSessionCost(sess.total_cost || 0);
+            setSessionCost(Number(sess.total_cost) || 0);
         } catch(e) {
             console.warn("Failed to refresh cost", e);
         }
@@ -149,7 +149,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         try {
             const session = await createSession(AGENTS.TECH_DECISION_ASSISTANT, title);
             setSessionId(session.id);
-            setSessionCost(session.total_cost || 0);
+            setSessionCost(Number(session.total_cost) || 0);
             return session.id;
         } catch (e) {
             console.error("Failed to create session", e);
@@ -169,7 +169,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     current_stage: currentStepId,
                     context_data: data
                 });
-                setSessionCost(res.total_cost || 0);
+                setSessionCost(Number(res.total_cost) || 0);
                 setSaveStatus('saved');
             } catch (e) {
                 console.error("Update session failed", e);
@@ -184,7 +184,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         try {
             const session = await getSession(sid);
             setSessionId(sid);
-            setSessionCost(session.total_cost || 0);
+            setSessionCost(Number(session.total_cost) || 0);
             if (session.context_data) {
                 const restoredSections = { ...DEFAULT_SECTIONS, ...session.context_data.sections };
                 setData({
