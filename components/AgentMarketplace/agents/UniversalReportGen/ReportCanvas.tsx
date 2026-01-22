@@ -3,7 +3,8 @@ import React, { useRef, useEffect } from 'react';
 import { 
     SparklesIcon, CheckCircleIcon, RefreshIcon,
     DatabaseIcon, GlobeIcon, DocumentTextIcon,
-    ArrowRightIcon, CheckIcon
+    ArrowRightIcon, CheckIcon, ExternalLinkIcon,
+    BrainIcon, SearchIcon, PencilIcon
 } from '../../../../components/icons';
 import { marked } from 'marked';
 import { GenStatus } from './index';
@@ -55,114 +56,149 @@ const ResearchHero: React.FC<{ topic: string }> = ({ topic }) => (
             <p className="text-lg text-slate-500 leading-relaxed font-medium">
                 {topic ? `正在为您规划关于 “${topic}” 的研究路径...` : "全网实时数据检索 · 深度逻辑推理 · 专家级长文报告"}
             </p>
-            
-            {!topic && (
-                <div className="mt-12 flex gap-4 justify-center text-slate-400 text-sm">
-                    <div className="flex items-center gap-2">
-                        <GlobeIcon className="w-4 h-4" /> 全球数据源
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <SparklesIcon className="w-4 h-4" /> 深度思维链
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <DocumentTextIcon className="w-4 h-4" /> 万字研报
-                    </div>
-                </div>
-            )}
         </div>
     </div>
 );
 
-// --- Component: Processing Card ---
+// --- Component: Active Processing Card (Redesigned) ---
 const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) => {
-    const logEndRef = useRef<HTMLDivElement>(null);
-    useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [section.logs]);
-
-    const getPhaseStep = () => {
-        switch(section.status) {
-            case 'planning': return 1;
-            case 'searching': return 2;
-            case 'writing': return 3;
-            default: return 0;
+    const contentRef = useRef<HTMLDivElement>(null);
+    
+    // Auto-scroll as content generates
+    useEffect(() => {
+        if (contentRef.current && section.status === 'writing') {
+             contentRef.current.scrollTop = contentRef.current.scrollHeight;
         }
+    }, [section.content, section.status]);
+
+    const getStepStatus = (stepName: string) => {
+        const order = ['planning', 'searching', 'writing', 'completed'];
+        const currentIndex = order.indexOf(section.status);
+        const stepIndex = order.indexOf(stepName);
+        
+        if (currentIndex > stepIndex) return 'completed';
+        if (currentIndex === stepIndex) return 'active';
+        return 'pending';
     };
-    const currentStep = getPhaseStep();
+
+    const steps = [
+        { id: 'planning', label: '规划路径', icon: BrainIcon },
+        { id: 'searching', label: '全网检索', icon: SearchIcon },
+        { id: 'writing', label: '深度撰写', icon: PencilIcon },
+    ];
 
     return (
-        <div className="my-10 bg-white rounded-3xl border border-indigo-100 shadow-2xl shadow-indigo-200/40 overflow-hidden relative animate-in slide-in-from-bottom-8 duration-700 ring-1 ring-indigo-50">
-            {/* Status Header */}
-            <div className="h-1.5 w-full bg-slate-100 flex">
-                <div className={`h-full bg-indigo-500 transition-all duration-500 ease-out`} style={{ width: `${(currentStep/3)*100}%` }}></div>
-            </div>
-            
-            <div className="p-8">
-                <div className="flex justify-between items-start mb-8">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                             <div className="px-2.5 py-1 bg-indigo-600 text-white text-xs font-bold rounded-lg uppercase tracking-wider shadow-sm flex items-center gap-1.5">
-                                 <RefreshIcon className="w-3 h-3 animate-spin"/>
-                                 Processing
-                             </div>
-                             <span className="text-slate-400 text-xs font-mono uppercase tracking-widest">SECTION ANALYSIS</span>
-                        </div>
-                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">{section.title}</h2>
+        <div className="my-10 bg-white rounded-2xl border border-indigo-100 shadow-2xl shadow-indigo-200/20 overflow-hidden relative animate-in slide-in-from-bottom-8 duration-700 ring-1 ring-indigo-50/50">
+            {/* 1. Header: Steps & Title */}
+            <div className="bg-slate-50/50 border-b border-slate-100 p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                        <span className="flex h-3 w-3 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                        </span>
+                        {section.title}
+                    </h2>
+                    {/* Step Indicators */}
+                    <div className="flex items-center gap-2">
+                        {steps.map((step, i) => {
+                            const st = getStepStatus(step.id);
+                            return (
+                                <div key={step.id} className="flex items-center">
+                                    <div className={`
+                                        flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-500
+                                        ${st === 'active' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105' : 
+                                          st === 'completed' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-400 border-slate-200'}
+                                    `}>
+                                        {st === 'active' && <RefreshIcon className="w-3 h-3 animate-spin" />}
+                                        {st === 'completed' && <CheckIcon className="w-3 h-3" />}
+                                        <step.icon className={`w-3 h-3 ${st === 'pending' ? 'opacity-50' : ''}`} />
+                                        <span>{step.label}</span>
+                                    </div>
+                                    {i < steps.length - 1 && <div className="w-4 h-0.5 bg-slate-200 mx-1"></div>}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
+                
+                {/* Current Log Display */}
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm w-fit">
+                    <span className="text-indigo-500 font-bold">{'>'}</span>
+                    <span className="animate-pulse">{section.logs[section.logs.length - 1] || 'Initializing...'}</span>
+                </div>
+            </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                    {/* Left: Terminal Logs */}
-                    <div className="lg:col-span-2 flex flex-col gap-4">
-                        <div className="bg-[#0f172a] rounded-2xl p-5 font-mono text-[11px] h-64 overflow-y-auto custom-scrollbar-dark shadow-inner text-slate-300 border border-slate-800 relative group">
-                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex gap-1.5">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/20"></div>
-                                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20"></div>
-                                    <div className="w-2.5 h-2.5 rounded-full bg-green-500/20"></div>
-                                </div>
-                            </div>
-                            {section.logs.map((log, i) => (
-                                <div key={i} className="mb-2 flex gap-2 animate-in fade-in slide-in-from-left-2">
-                                    <span className="text-indigo-500 font-bold">{'>'}</span>
-                                    <span className={i === section.logs.length - 1 ? 'text-white font-bold' : 'opacity-70'}>{log}</span>
-                                </div>
-                            ))}
-                            <div ref={logEndRef} />
-                            <div className="w-2 h-4 bg-indigo-500 animate-pulse inline-block ml-2 align-middle"></div>
-                        </div>
-                    </div>
-
-                    {/* Right: Knowledge Graph / Citations */}
-                    <div className="lg:col-span-3 flex flex-col h-64">
-                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                            <DatabaseIcon className="w-3.5 h-3.5" /> 
-                            实时情报捕获 ({section.references.length})
-                         </h4>
-                         
-                         <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
-                            {section.references.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50">
-                                    <GlobeIcon className="w-8 h-8 mb-2 opacity-50" />
-                                    <span className="text-xs font-medium">等待检索数据注入...</span>
-                                </div>
-                            ) : (
-                                section.references.map((ref, i) => (
-                                    <div key={i} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex gap-3 hover:border-indigo-200 transition-colors group animate-in slide-in-from-bottom-2 fade-in">
-                                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 text-xs font-bold border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+            {/* 2. Reference Deck (Horizontal Scroll) */}
+            <div className="border-b border-slate-100 bg-slate-50/30 p-4">
+                <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                    <DatabaseIcon className="w-3.5 h-3.5" />
+                    引用来源 ({section.references.length})
+                </div>
+                
+                {section.references.length > 0 ? (
+                    <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar snap-x">
+                        {section.references.map((ref, i) => (
+                            <a 
+                                key={i} 
+                                href={ref.url} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="flex-shrink-0 w-64 bg-white p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group snap-start cursor-pointer block text-left"
+                            >
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-5 h-5 rounded bg-blue-50 text-blue-600 flex items-center justify-center text-[10px] font-bold border border-blue-100">
                                             {i + 1}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between items-start">
-                                                <h5 className="text-xs font-bold text-slate-700 truncate pr-2 group-hover:text-indigo-700">{ref.title}</h5>
-                                                <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 whitespace-nowrap">{ref.source}</span>
-                                            </div>
-                                            <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{ref.url}</p>
-                                        </div>
+                                        <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[80px]">
+                                            {ref.source}
+                                        </span>
                                     </div>
-                                ))
-                            )}
-                         </div>
+                                    <ExternalLinkIcon className="w-3 h-3 text-slate-300 group-hover:text-indigo-500" />
+                                </div>
+                                <h4 className="text-xs font-bold text-slate-700 line-clamp-2 leading-snug group-hover:text-indigo-700 transition-colors mb-1">
+                                    {ref.title}
+                                </h4>
+                                {ref.snippet && (
+                                    <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed opacity-80">
+                                        {ref.snippet}
+                                    </p>
+                                )}
+                            </a>
+                        ))}
                     </div>
+                ) : (
+                    <div className="text-xs text-slate-400 italic px-2 py-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
+                        {section.status === 'planning' ? '等待检索任务启动...' : '正在全网搜寻相关资料...'}
+                    </div>
+                )}
+            </div>
+
+            {/* 3. Live Writing Area */}
+            <div className="p-8 bg-white min-h-[300px] relative">
+                <div className="absolute top-4 right-4 text-[10px] font-bold text-slate-300 uppercase tracking-widest pointer-events-none select-none">
+                    Live Draft Preview
                 </div>
+                
+                {section.content ? (
+                    <article 
+                        className="prose prose-slate max-w-none prose-p:text-slate-600 prose-p:leading-relaxed prose-headings:font-bold prose-headings:text-slate-800"
+                        dangerouslySetInnerHTML={{ __html: marked.parse(section.content) as string }}
+                    />
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-48 text-slate-300 gap-3">
+                         <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center animate-pulse">
+                             <PencilIcon className="w-5 h-5 text-slate-300" />
+                         </div>
+                         <p className="text-sm font-medium">AI 正在组织语言...</p>
+                    </div>
+                )}
+                
+                {/* Blinking Cursor Indicator if writing */}
+                {section.status === 'writing' && (
+                    <div className="mt-2 w-2 h-4 bg-indigo-500 animate-pulse inline-block"></div>
+                )}
             </div>
         </div>
     );
