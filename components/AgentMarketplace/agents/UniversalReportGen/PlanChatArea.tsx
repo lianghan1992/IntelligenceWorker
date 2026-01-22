@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, UserIcon, 
-    BrainIcon, ChevronDownIcon, PlayIcon, PencilIcon, StopIcon
+    BrainIcon, ChevronDownIcon, PlayIcon, PencilIcon, StopIcon,
+    ViewGridIcon, CheckCircleIcon
 } from '../../../../components/icons';
 import { marked } from 'marked';
 import { GenStatus } from './index';
@@ -12,14 +13,114 @@ interface PlanChatAreaProps {
     isGenerating: boolean;
     onSendMessage: (text: string) => void;
     onStartResearch: () => void;
-    onStop?: () => void; // New Prop
+    onStop?: () => void;
     status: GenStatus;
 }
+
+// --- Helper: Robust Partial JSON Parser ---
+// 尝试修复并解析不完整的 JSON 字符串（流式输出专用）
+const tryParsePartialJson = (jsonStr: string) => {
+    if (!jsonStr) return null;
+    try {
+        let cleanStr = jsonStr.trim();
+        // 移除 markdown 代码块标记
+        cleanStr = cleanStr.replace(/^```json/, '').replace(/^```/, '').replace(/```$/, '');
+        
+        // 尝试直接解析
+        return JSON.parse(cleanStr);
+    } catch (e) {
+        // 如果失败，尝试补全
+        try {
+            let cleanStr = jsonStr.trim().replace(/^```json/, '').replace(/^```/, '');
+            // 补全数组
+            if (cleanStr.startsWith('[') && !cleanStr.endsWith(']')) {
+                // 如果结尾是逗号，去掉
+                if (cleanStr.endsWith(',')) cleanStr = cleanStr.slice(0, -1);
+                // 尝试补全对象结尾
+                if (cleanStr.endsWith('}')) {
+                    return JSON.parse(cleanStr + ']');
+                } 
+                // 尝试补全双引号和对象结尾
+                if (cleanStr.match(/"[^"]*$/)) {
+                    cleanStr += '"';
+                }
+                // 递归补全直到能解析（简化版：只补全最常见的层级）
+                return JSON.parse(cleanStr + '}]');
+            }
+        } catch (e2) {
+            return null;
+        }
+    }
+    return null;
+};
+
+// --- Component: Plan Visualizer ---
+const PlanWidget: React.FC<{ jsonContent: string; isStreaming: boolean }> = ({ jsonContent, isStreaming }) => {
+    // 使用 useMemo 缓存解析结果，避免频繁重绘导致闪烁
+    const planData = useMemo(() => {
+        const parsed = tryParsePartialJson(jsonContent);
+        return Array.isArray(parsed) ? parsed : null;
+    }, [jsonContent]);
+
+    if (!planData && isStreaming) {
+        return (
+            <div className="my-3 p-4 bg-white border border-indigo-100 rounded-xl shadow-sm animate-pulse">
+                <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                    <RefreshIcon className="w-4 h-4 animate-spin" />
+                    <span className="text-xs font-bold">正在构建研究大纲结构...</span>
+                </div>
+                <div className="space-y-2">
+                    <div className="h-4 bg-indigo-50 rounded w-3/4"></div>
+                    <div className="h-4 bg-indigo-50 rounded w-1/2"></div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!planData) return null;
+
+    return (
+        <div className="my-4 border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+            <div className="px-4 py-3 bg-white border-b border-slate-100 flex justify-between items-center">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <ViewGridIcon className="w-4 h-4 text-indigo-600" />
+                    建议研究大纲
+                </h4>
+                {isStreaming && <span className="text-[10px] text-indigo-500 font-medium animate-pulse">生成中...</span>}
+            </div>
+            <div className="p-3 space-y-2">
+                {planData.map((item: any, idx: number) => (
+                    <div key={idx} className="flex gap-3 p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                            {idx + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold text-slate-800 truncate">
+                                {item.title || '生成标题中...'}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                {item.instruction || item.desc || '...'}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+                {isStreaming && (
+                    <div className="flex justify-center py-2">
+                         <div className="flex gap-1">
+                             <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{animationDelay:'0s'}}></div>
+                             <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{animationDelay:'0.1s'}}></div>
+                             <div className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-bounce" style={{animationDelay:'0.2s'}}></div>
+                         </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 // --- Thinking Bubble Component ---
 const ThinkingBubble: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
     const [isExpanded, setIsExpanded] = useState(true);
-    // Auto-scroll logic inside thinking bubble if needed
     const ref = useRef<HTMLDivElement>(null);
     useEffect(() => {
         if(isStreaming && isExpanded && ref.current) {
@@ -78,8 +179,9 @@ export const PlanChatArea: React.FC<PlanChatAreaProps> = ({
                     <SparklesIcon className="w-6 h-6 text-indigo-600"/> 深度研究规划
                 </h3>
                 {status === 'executing' && (
-                    <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full animate-pulse">
-                        正在研究中...
+                    <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full animate-pulse flex items-center gap-1">
+                        <RefreshIcon className="w-3 h-3 animate-spin" />
+                        研究进行中
                     </span>
                 )}
             </div>
@@ -99,14 +201,26 @@ export const PlanChatArea: React.FC<PlanChatAreaProps> = ({
                     const isUser = msg.role === 'user';
                     const isLast = idx === messages.length - 1;
                     
-                    // Parse <think> tag
+                    // --- Parsing Logic ---
                     let thinkContent = "";
+                    let planContent = "";
                     let displayContent = msg.content;
+
+                    // 1. Extract <think>
                     const thinkMatch = msg.content.match(/<think>([\s\S]*?)(?:<\/think>|$)/i);
                     if (thinkMatch) {
                         thinkContent = thinkMatch[1];
-                        displayContent = msg.content.replace(thinkMatch[0], '').trim();
+                        displayContent = displayContent.replace(thinkMatch[0], '');
                     }
+
+                    // 2. Extract <plan>
+                    const planMatch = msg.content.match(/<plan>([\s\S]*?)(?:<\/plan>|$)/i);
+                    if (planMatch) {
+                        planContent = planMatch[1];
+                        displayContent = displayContent.replace(planMatch[0], '');
+                    }
+
+                    displayContent = displayContent.trim();
 
                     return (
                         <div key={idx} className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2`}>
@@ -114,31 +228,46 @@ export const PlanChatArea: React.FC<PlanChatAreaProps> = ({
                                 {isUser ? <UserIcon className="w-4 h-4" /> : <SparklesIcon className="w-4 h-4" />}
                             </div>
                             
-                            <div className={`flex flex-col max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
-                                <div className={`px-5 py-4 rounded-2xl shadow-sm text-sm leading-relaxed ${
+                            <div className={`flex flex-col max-w-[90%] ${isUser ? 'items-end' : 'items-start'}`}>
+                                <div className={`px-5 py-4 rounded-2xl shadow-sm text-sm leading-relaxed w-full ${
                                     isUser ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm'
                                 }`}>
                                     {/* Thinking Block */}
-                                    {!isUser && (thinkContent || (isGenerating && isLast && !displayContent)) && (
+                                    {!isUser && (thinkContent || (isGenerating && isLast && !planContent && !displayContent)) && (
                                         <ThinkingBubble 
                                             content={thinkContent} 
                                             isStreaming={isGenerating && isLast} 
                                         />
                                     )}
 
-                                    {/* Main Content */}
-                                    <div className={`markdown-body ${isUser ? 'text-white' : ''}`}>
-                                        {displayContent ? (
+                                    {/* Plan Visualizer (The new Widget) */}
+                                    {!isUser && (planContent || (isGenerating && isLast && !displayContent && !thinkContent)) && (
+                                        <PlanWidget 
+                                            jsonContent={planContent} 
+                                            isStreaming={isGenerating && isLast}
+                                        />
+                                    )}
+
+                                    {/* Main Text Content */}
+                                    {displayContent && (
+                                        <div className={`markdown-body ${isUser ? 'text-white' : ''}`}>
                                             <div dangerouslySetInnerHTML={{ __html: marked.parse(displayContent) as string }} />
-                                        ) : (
-                                            isGenerating && isLast && <span className="animate-pulse">...</span>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
+
+                                    {/* Fallback Loading Indicator */}
+                                    {isGenerating && isLast && !displayContent && !thinkContent && !planContent && (
+                                        <span className="animate-pulse flex items-center gap-1 text-slate-400 mt-2">
+                                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
+                                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
+                                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
+                                        </span>
+                                    )}
                                 </div>
 
                                 {/* Action Buttons (Only for last Assistant message if not generating) */}
-                                {!isUser && isLast && !isGenerating && status === 'planning' && (
-                                    <div className="mt-3 flex gap-3 animate-in fade-in slide-in-from-top-1">
+                                {!isUser && isLast && !isGenerating && status === 'planning' && planContent && (
+                                    <div className="mt-3 flex gap-3 animate-in fade-in slide-in-from-top-1 w-full justify-end">
                                         <button 
                                             onClick={() => document.getElementById('chat-input')?.focus()}
                                             className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl shadow-sm hover:border-indigo-300 hover:text-indigo-600 transition-all"
@@ -149,7 +278,7 @@ export const PlanChatArea: React.FC<PlanChatAreaProps> = ({
                                             onClick={onStartResearch}
                                             className="flex items-center gap-1.5 px-5 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-md hover:bg-indigo-700 hover:scale-105 transition-all active:scale-95"
                                         >
-                                            <PlayIcon className="w-3.5 h-3.5" /> 开始研究
+                                            <PlayIcon className="w-3.5 h-3.5" /> 确认并开始研究
                                         </button>
                                     </div>
                                 )}
@@ -199,8 +328,18 @@ export const PlanChatArea: React.FC<PlanChatAreaProps> = ({
             ) : (
                 /* Execution Status Bar */
                 <div className="p-4 bg-white border-t border-slate-200 flex justify-between items-center">
-                    <div className="text-sm font-bold text-slate-600">
-                        {status === 'executing' ? "智能体正在自主执行..." : "任务已结束"}
+                    <div className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                        {status === 'executing' ? (
+                            <>
+                                <RefreshIcon className="w-4 h-4 animate-spin text-indigo-500"/>
+                                智能体正在自主执行...
+                            </>
+                        ) : (
+                            <>
+                                <CheckCircleIcon className="w-4 h-4 text-green-500"/>
+                                任务已结束
+                            </>
+                        )}
                     </div>
                     {status === 'executing' && onStop && (
                         <button 
