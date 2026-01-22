@@ -25,5 +25,6 @@ export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant' | 'system';
     content: string;
+    reasoning?: string; // New: For thinking process
     timestamp: number;
 }

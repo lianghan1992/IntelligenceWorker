@@ -1,10 +1,11 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { 
     SparklesIcon, CheckCircleIcon, RefreshIcon,
     DatabaseIcon, GlobeIcon, DocumentTextIcon,
     ArrowRightIcon, CheckIcon, ExternalLinkIcon,
-    BrainIcon, SearchIcon, PencilIcon, StopIcon
+    BrainIcon, SearchIcon, PencilIcon, StopIcon,
+    ChevronDownIcon
 } from '../../../../components/icons';
 import { marked } from 'marked';
 import { GenStatus } from './index';
@@ -19,6 +20,7 @@ export interface ReportSection {
     content: string;
     logs: string[];
     references: { title: string; url: string; source: string; snippet?: string }[];
+    currentThought?: string; // New: Agent's reasoning stream
 }
 
 interface ReportCanvasProps {
@@ -60,6 +62,40 @@ const ResearchHero: React.FC<{ topic: string }> = ({ topic }) => (
     </div>
 );
 
+// --- Component: Thinking Bubble (Reused) ---
+const ThinkingBubble: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
+    const [isExpanded, setIsExpanded] = useState(true);
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if(isStreaming && isExpanded && ref.current) {
+            ref.current.scrollTop = ref.current.scrollHeight;
+        }
+    }, [content, isStreaming, isExpanded]);
+
+    if (!content) return null;
+
+    return (
+        <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/50 overflow-hidden shadow-sm mx-6 mt-4">
+            <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-indigo-600 hover:bg-indigo-100/50 transition-colors select-none"
+            >
+                <BrainIcon className={`w-3.5 h-3.5 ${isStreaming ? 'animate-pulse' : ''}`} />
+                <span>Agent 思考过程 {isStreaming ? '...' : ''}</span>
+                <ChevronDownIcon className={`w-3 h-3 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            {isExpanded && (
+                <div 
+                    ref={ref}
+                    className="px-4 pb-3 max-h-48 overflow-y-auto custom-scrollbar text-xs text-slate-600 font-mono leading-relaxed whitespace-pre-wrap italic"
+                >
+                    {content}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- Component: Active Processing Card (Redesigned) ---
 const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) => {
     const contentRef = useRef<HTMLDivElement>(null);
@@ -99,51 +135,58 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
     return (
         <div className={`my-10 bg-white rounded-2xl border shadow-2xl shadow-indigo-200/20 overflow-hidden relative animate-in slide-in-from-bottom-8 duration-700 ring-1 ${isStopped ? 'border-red-200 ring-red-100' : 'border-indigo-100 ring-indigo-50/50'}`}>
             {/* 1. Header: Steps & Title */}
-            <div className={`border-b p-6 ${isStopped ? 'bg-red-50/30 border-red-100' : 'bg-slate-50/50 border-slate-100'}`}>
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                        {isStopped ? (
-                            <span className="flex h-3 w-3 relative items-center justify-center">
-                                <StopIcon className="w-4 h-4 text-red-500" />
-                            </span>
-                        ) : (
-                            <span className="flex h-3 w-3 relative">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                            </span>
-                        )}
-                        {section.title}
-                        {isStopped && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200">已停止</span>}
-                    </h2>
-                    {/* Step Indicators */}
-                    <div className="flex items-center gap-2">
-                        {steps.map((step, i) => {
-                            const st = getStepStatus(step.id);
-                            return (
-                                <div key={step.id} className="flex items-center">
-                                    <div className={`
-                                        flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-500
-                                        ${st === 'active' && !isStopped ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105' : 
-                                          st === 'active' && isStopped ? 'bg-red-100 text-red-500 border-red-200' :
-                                          st === 'completed' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-400 border-slate-200'}
-                                    `}>
-                                        {st === 'active' && !isStopped && <RefreshIcon className="w-3 h-3 animate-spin" />}
-                                        {st === 'completed' && <CheckIcon className="w-3 h-3" />}
-                                        <step.icon className={`w-3 h-3 ${st === 'pending' ? 'opacity-50' : ''}`} />
-                                        <span>{step.label}</span>
+            <div className={`border-b ${isStopped ? 'bg-red-50/30 border-red-100' : 'bg-slate-50/50 border-slate-100'}`}>
+                <div className="p-6 pb-4">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                            {isStopped ? (
+                                <span className="flex h-3 w-3 relative items-center justify-center">
+                                    <StopIcon className="w-4 h-4 text-red-500" />
+                                </span>
+                            ) : (
+                                <span className="flex h-3 w-3 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                                </span>
+                            )}
+                            {section.title}
+                            {isStopped && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200">已停止</span>}
+                        </h2>
+                        {/* Step Indicators */}
+                        <div className="flex items-center gap-2">
+                            {steps.map((step, i) => {
+                                const st = getStepStatus(step.id);
+                                return (
+                                    <div key={step.id} className="flex items-center">
+                                        <div className={`
+                                            flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-500
+                                            ${st === 'active' && !isStopped ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105' : 
+                                            st === 'active' && isStopped ? 'bg-red-100 text-red-500 border-red-200' :
+                                            st === 'completed' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-400 border-slate-200'}
+                                        `}>
+                                            {st === 'active' && !isStopped && <RefreshIcon className="w-3 h-3 animate-spin" />}
+                                            {st === 'completed' && <CheckIcon className="w-3 h-3" />}
+                                            <step.icon className={`w-3 h-3 ${st === 'pending' ? 'opacity-50' : ''}`} />
+                                            <span>{step.label}</span>
+                                        </div>
+                                        {i < steps.length - 1 && <div className="w-4 h-0.5 bg-slate-200 mx-1"></div>}
                                     </div>
-                                    {i < steps.length - 1 && <div className="w-4 h-0.5 bg-slate-200 mx-1"></div>}
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
+                    </div>
+                    
+                    {/* Current Log Display */}
+                    <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm w-fit">
+                        <span className="text-indigo-500 font-bold">{'>'}</span>
+                        <span className={isStopped ? '' : 'animate-pulse'}>{section.logs[section.logs.length - 1] || 'Initializing...'}</span>
                     </div>
                 </div>
-                
-                {/* Current Log Display */}
-                <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm w-fit">
-                    <span className="text-indigo-500 font-bold">{'>'}</span>
-                    <span className={isStopped ? '' : 'animate-pulse'}>{section.logs[section.logs.length - 1] || 'Initializing...'}</span>
-                </div>
+
+                {/* Agent Thinking Stream - Displayed before References/Content if available */}
+                {section.currentThought && section.status !== 'completed' && !isStopped && (
+                    <ThinkingBubble content={section.currentThought} isStreaming={true} />
+                )}
             </div>
 
             {/* 2. Reference Deck (Horizontal Scroll) */}

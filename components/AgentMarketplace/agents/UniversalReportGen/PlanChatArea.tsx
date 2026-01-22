@@ -56,11 +56,21 @@ const tryParsePartialJson = (jsonStr: string) => {
 
 // --- Component: Plan Visualizer ---
 const PlanWidget: React.FC<{ jsonContent: string; isStreaming: boolean }> = ({ jsonContent, isStreaming }) => {
-    // 使用 useMemo 缓存解析结果，避免频繁重绘导致闪烁
+    // 使用 useRef 保持上一次有效的解析结果，防止流式传输中间断导致的闪烁
+    const lastValidPlan = useRef<any[] | null>(null);
+
     const planData = useMemo(() => {
         const parsed = tryParsePartialJson(jsonContent);
-        return Array.isArray(parsed) ? parsed : null;
-    }, [jsonContent]);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            lastValidPlan.current = parsed;
+            return parsed;
+        }
+        // 如果当前解析失败，且正在流式传输，返回旧数据避免闪烁
+        if (isStreaming && lastValidPlan.current) {
+            return lastValidPlan.current;
+        }
+        return null;
+    }, [jsonContent, isStreaming]);
 
     if (!planData && isStreaming) {
         return (
@@ -80,7 +90,7 @@ const PlanWidget: React.FC<{ jsonContent: string; isStreaming: boolean }> = ({ j
     if (!planData) return null;
 
     return (
-        <div className="my-4 border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+        <div className="my-4 border border-slate-200 rounded-xl overflow-hidden bg-slate-50 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="px-4 py-3 bg-white border-b border-slate-100 flex justify-between items-center">
                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
                     <ViewGridIcon className="w-4 h-4 text-indigo-600" />

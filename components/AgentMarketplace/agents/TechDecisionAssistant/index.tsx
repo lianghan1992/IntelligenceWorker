@@ -234,8 +234,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         }
     };
 
-    const addMessage = (role: 'user' | 'assistant', content: string) => {
-        const msg: ChatMessage = { id: crypto.randomUUID(), role, content, timestamp: Date.now() };
+    const addMessage = (role: 'user' | 'assistant', content: string, reasoning?: string) => {
+        const msg: ChatMessage = { id: crypto.randomUUID(), role, content, reasoning, timestamp: Date.now() };
         setData(prev => ({ ...prev, messages: [...prev.messages, msg] }));
     };
 
@@ -361,13 +361,20 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         setIsGenerating(true);
         updateSection('init', { status: 'generating', usedModel: config.model });
         
+        // Prepare a placeholder message for streaming
+        const msgId = crypto.randomUUID();
+        setData(prev => ({ 
+            ...prev, 
+            messages: [...prev.messages, { id: msgId, role: 'assistant', content: '', timestamp: Date.now() }] 
+        }));
+
         try {
             // 【计费修复 1】: 强制先创建 Session，获取 ID 后再发起 billed 调用
             const activeSid = await ensureSession(input.slice(0, 15));
             const filledPrompt = config.contentTemplate.replace('{{ user_input }}', input);
 
             let jsonBuffer = "";
-            addMessage('assistant', `🤔 正在分析需求并规划评估路径...`);
+            let reasoningBuffer = "";
 
             await streamChatCompletions({
                 model: config.model,
@@ -379,7 +386,17 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 temperature: 0.1,
                 enable_billing: true
             }, (chunk) => {
-                if (chunk.content) jsonBuffer += chunk.content;
+                if (chunk.reasoning) {
+                    reasoningBuffer += chunk.reasoning;
+                }
+                if (chunk.content) {
+                    jsonBuffer += chunk.content;
+                }
+                // Update streaming message
+                setData(prev => ({
+                    ...prev,
+                    messages: prev.messages.map(m => m.id === msgId ? { ...m, content: '🤔 正在分析需求并规划评估路径...', reasoning: reasoningBuffer } : m)
+                }));
             }, () => {
                 // 【计费修复 2】: 每次流结束后强制刷新费用显示
                 refreshCost(activeSid);
@@ -399,9 +416,13 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 techDefinition: parsed.definition,
                 searchQueries: parsed.search_queries || [input],
                 currentStepIndex: 1,
+                // Update the placeholder message with final result
+                messages: prev.messages.map(m => m.id === msgId ? { 
+                    ...m, 
+                    content: `🎯 评估对象确认：**${parsed.tech_name}**\n> ${parsed.definition || ''}\n\n已规划检索路径，启动第一阶段：技术路线深度解析...`,
+                    reasoning: reasoningBuffer
+                } : m)
             }));
-            
-            addMessage('assistant', `🎯 评估对象确认：**${parsed.tech_name}**\n> ${parsed.definition || ''}\n\n已规划检索路径，启动第一阶段：技术路线深度解析...`);
             
             // 下一阶段
             setTimeout(() => runGenerationStep('route', parsed.tech_name, undefined, parsed.search_queries), 500);
@@ -537,11 +558,14 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
     };
 
     const handleSendMessage = (text: string) => {
-        addMessage('user', text);
+        // Init step doesn't show message immediately, it's handled in runInitStep to attach reasoning
         if (currentStepId === 'init') {
             runInitStep(text);
-        } else if (currentSection.status === 'review') {
-            runGenerationStep(currentStepId, data.techName, text);
+        } else {
+            addMessage('user', text);
+            if (currentSection.status === 'review') {
+                runGenerationStep(currentStepId, data.techName, text);
+            }
         }
     };
 

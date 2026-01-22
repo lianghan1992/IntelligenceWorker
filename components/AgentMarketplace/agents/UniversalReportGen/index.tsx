@@ -208,7 +208,8 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             status: 'pending',
             content: '',
             logs: [],
-            references: []
+            references: [],
+            currentThought: '' // Initialize thought
         }));
 
         setSections(initialSections);
@@ -266,7 +267,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         };
 
         try {
-            updateSec({ status: 'planning' });
+            updateSec({ status: 'planning', currentThought: '' });
             
             let loopCount = 0;
             let collectedContext = "";
@@ -303,7 +304,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             while (loopCount < MAX_SEARCH_ROUNDS && !finished) {
                 if (signal.aborted) break;
 
-                updateSec({ status: 'planning' }); 
+                updateSec({ status: 'planning', currentThought: '' }); 
                 
                 // 策略：首轮强制注入搜索指令 (Anti-Laziness Strategy)
                 if (loopCount === 0) {
@@ -314,6 +315,9 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 }
 
                 let llmResponse = "";
+                // Reset thought for new turn
+                updateSec({ currentThought: '' });
+
                 await streamChatCompletions({
                     model: MODEL_ID,
                     messages: [
@@ -324,12 +328,25 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     temperature: 0.1, // 低温以保证指令遵循
                     enable_billing: true
                 }, (chunk) => {
-                    if (chunk.content) llmResponse += chunk.content;
+                    if (chunk.content) {
+                        llmResponse += chunk.content;
+                        // Stream thought to UI
+                        updateSec({ currentThought: llmResponse });
+                    }
                 }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN, signal);
 
                 if (signal.aborted) break;
 
-                const toolCallMatch = llmResponse.match(/call:search(\[.*?\])/);
+                // Try to find tool call
+                let toolCallMatch = llmResponse.match(/call:search\s*(\[.*?\])/i);
+                
+                // --- HARD FALLBACK for First Round ---
+                // If round 0 and no tool call found, force search with title
+                if (loopCount === 0 && !toolCallMatch) {
+                    addLog("检测到模型未调用工具，强制执行兜底搜索策略...");
+                    // Inject a fake tool call match structure
+                    toolCallMatch = [`call:search["${section.title}"]`, `["${section.title}"]`] as any;
+                }
 
                 if (toolCallMatch) {
                     // --- CASE A: Tool Execution ---
@@ -339,8 +356,12 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     try {
                         queries = JSON.parse(toolCallMatch[1]);
                     } catch (e) {
-                        queries = [toolCallMatch[1].replace(/[\[\]"]/g, '')];
+                        // Fallback parsing if JSON is malformed
+                         const rawParams = toolCallMatch[1].replace(/[\[\]"]/g, '').split(',');
+                         queries = rawParams.map(q => q.trim()).filter(Boolean);
                     }
+
+                    if (queries.length === 0) queries = [section.title];
 
                     addLog(`[第 ${loopCount+1} 轮] 正在检索: ${queries.join(', ')}`);
                     
@@ -376,15 +397,8 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     loopCount++;
                 } else {
                     // --- CASE B: Writing (Finish) ---
-                    // 如果第一轮就没有调用工具，大概率是模型偷懒。
-                    // 但由于我们在 System Prompt 和 First Round 做了强制，这里通常是正常结束。
-                    if (loopCount === 0 && !collectedContext) {
-                        // 兜底：如果模型依然坚持不搜索直接写（极少情况），我们在界面上记录一个警告
-                        addLog("警告：模型尝试在无资料情况下直接写作。");
-                    }
-                    
                     finished = true;
-                    updateSec({ status: 'writing' });
+                    updateSec({ status: 'writing', currentThought: '' }); // Clear thought for writing phase
                     addLog("信息研判完成，开始生成报告...");
                     
                     const wPrompt = `资料收集阶段结束。
@@ -418,7 +432,7 @@ ${collectedContext || "（无直接资料，请基于通识撰写，但需注明
             
             // 轮次耗尽兜底
             if (!finished && !signal.aborted) {
-                 updateSec({ status: 'writing' });
+                 updateSec({ status: 'writing', currentThought: '' });
                  addLog("最大检索轮次已达，强制生成报告...");
                  const wPrompt = `请基于目前已有的信息撰写章节【${section.title}】。${collectedContext ? '参考资料如下：\n' + collectedContext : ''}`;
                  let contentBuffer = "";
@@ -437,7 +451,7 @@ ${collectedContext || "（无直接资料，请基于通识撰写，但需注明
             }
 
             if (!signal.aborted) {
-                updateSec({ status: 'completed' });
+                updateSec({ status: 'completed', currentThought: '' });
                 setCurrentSectionIdx(idx + 1);
             }
 
