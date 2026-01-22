@@ -15,14 +15,26 @@ const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次，防止死循环
 
 // --- Helpers ---
 const parsePlanFromMessage = (text: string): { title: string; instruction: string }[] => {
-    const lines = text.split('\n');
-    const steps: { title: string; instruction: string }[] = [];
-    const cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    // 1. 尝试提取 <plan> 标签内的内容 (最精准)
+    const planMatch = text.match(/<plan>([\s\S]*?)<\/plan>/i);
+    let contentToParse = "";
+
+    if (planMatch && planMatch[1]) {
+        contentToParse = planMatch[1];
+    } else {
+        // 2. 降级策略：如果没有标签，先剔除 <think> 块，解析剩余全文
+        contentToParse = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    }
     
-    cleanText.split('\n').forEach(line => {
-        const match = line.match(/^(\d+)\.\s+(.*)/);
+    const lines = contentToParse.split('\n');
+    const steps: { title: string; instruction: string }[] = [];
+    
+    lines.forEach(line => {
+        // 匹配 "1. 标题: 说明" 或 "1. 标题 - 说明" 或 "1. 标题"
+        const match = line.match(/^\s*(\d+)\.\s+(.*)/);
         if (match) {
             const fullContent = match[2].trim();
+            // 尝试分割 标题 和 指令
             const splitIdx = fullContent.search(/[:：-]/);
             
             if (splitIdx > -1 && splitIdx < fullContent.length - 1) {
@@ -33,13 +45,17 @@ const parsePlanFromMessage = (text: string): { title: string; instruction: strin
             } else {
                 steps.push({
                     title: fullContent,
-                    instruction: "综合分析该部分内容"
+                    instruction: "综合分析该部分内容并撰写详细报告"
                 });
             }
         }
     });
     
+    // 如果解析失败，返回默认兜底
     if (steps.length === 0) {
+        // 仅在完全无法解析时才返回兜底，避免用户看到错误的默认值
+        if (!text.trim()) return []; 
+        
         return [
             { title: "市场背景分析", instruction: "分析行业宏观背景" },
             { title: "核心技术趋势", instruction: "分析技术发展路线" },
@@ -80,16 +96,22 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 当前时间：${today}。
 你的目标是帮助用户制定一份详尽的研究报告大纲。
 
-用户输入主题后，请按以下步骤思考：
+用户输入主题后，请按以下步骤执行：
 1. 分析用户的意图和研究深度。
 2. 在 <think> 标签中输出你的思考过程（分析用户需求、拆解关键维度）。
-3. 输出一份建议的研究方案清单（Markdown 有序列表格式）。
-4. 询问用户是否需要修改方案。
+3. **重要：** 生成一份建议的研究方案清单，并**必须**将其包裹在 <plan> 标签中。
+   <plan> 标签内部只允许包含 markdown 有序列表，格式如下：
+   <plan>
+   1. 第一章标题：本章的具体写作指令和研究重点
+   2. 第二章标题：本章的具体写作指令
+   ...
+   </plan>
+4. 在 <plan> 标签外部，你可以用自然的语言询问用户是否满意或需要调整。
 
 注意：
 - 保持对话风格专业且乐于助人。
 - **必须** 包含 <think> 标签的思考过程。
-- 方案清单必须使用 "1. ", "2. " 这样的有序列表格式，以便后续解析。`;
+- **必须** 使用 <plan> 标签包裹最终大纲，以便系统识别。`;
 
         let fullContent = "";
         const assistantMsgId = crypto.randomUUID();
@@ -127,6 +149,11 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         if (!lastAiMsg) return;
 
         const outline = parsePlanFromMessage(lastAiMsg.content);
+        
+        if (outline.length === 0) {
+            alert("未能识别到有效的大纲，请让 AI 重新生成或明确大纲结构。");
+            return;
+        }
         
         // 2. 初始化执行状态
         const initialSections: ReportSection[] = outline.map((item, idx) => ({
