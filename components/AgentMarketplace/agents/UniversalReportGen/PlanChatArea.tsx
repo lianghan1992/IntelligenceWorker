@@ -240,19 +240,19 @@ export const PlanChatArea: React.FC<PlanChatAreaProps> = ({
                                         />
                                     )}
 
-                                    {/* Plan Visualizer (The new Widget) */}
-                                    {!isUser && (planContent || (isGenerating && isLast && !displayContent && !thinkContent)) && (
-                                        <PlanWidget 
-                                            jsonContent={planContent} 
-                                            isStreaming={isGenerating && isLast}
-                                        />
-                                    )}
-
                                     {/* Main Text Content */}
                                     {displayContent && (
                                         <div className={`markdown-body ${isUser ? 'text-white' : ''}`}>
                                             <div dangerouslySetInnerHTML={{ __html: marked.parse(displayContent) as string }} />
                                         </div>
+                                    )}
+
+                                    {/* Plan Visualizer (The new Widget) - Moved after text */}
+                                    {!isUser && (planContent || (isGenerating && isLast && !displayContent && !thinkContent)) && (
+                                        <PlanWidget 
+                                            jsonContent={planContent} 
+                                            isStreaming={isGenerating && isLast}
+                                        />
                                     )}
 
                                     {/* Fallback Loading Indicator */}
