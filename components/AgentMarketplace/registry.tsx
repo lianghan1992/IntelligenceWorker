@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { AgentConfig } from './types';
-import { PencilIcon, SparklesIcon, ShieldCheckIcon, DocumentTextIcon } from '../icons'; 
+import { PencilIcon, SparklesIcon, ShieldCheckIcon, DocumentTextIcon, GlobeIcon } from '../icons'; 
 import { AGENTS } from '../../agentConfig';
 
 const HtmlVisualEditor = React.lazy(() => import('./agents/HtmlVisualEditor'));
@@ -11,6 +11,15 @@ const UniversalReportGen = React.lazy(() => import('./agents/UniversalReportGen'
 
 export const AGENT_REGISTRY: AgentConfig[] = [
     {
+        id: AGENTS.UNIVERSAL_REPORT_GEN,
+        name: '深度研究 (Deep Research)',
+        description: '基于全网实时数据的深度研究助手。自动拆解复杂课题，执行多轮次、多维度的信息检索与交叉验证，交付专家级分析报告。',
+        category: '数据分析',
+        icon: GlobeIcon,
+        component: UniversalReportGen,
+        tags: ['深度推理', '全网检索', '长文报告']
+    },
+    {
         id: '5e99897c-6d91-4c72-88e5-653ea162e52b',
         name: '新技术四象限分析',
         description: '从文章库提取技术点，经由 RAG 深度检索与四象限分析，生成可交互的 HTML 研报。',
@@ -18,15 +27,6 @@ export const AGENT_REGISTRY: AgentConfig[] = [
         icon: SparklesIcon,
         component: TechQuadrantAnalysis,
         tags: ['RAG', '四象限', 'HTML生成', '文章库']
-    },
-    {
-        id: AGENTS.UNIVERSAL_REPORT_GEN,
-        name: '万能研报生成器',
-        description: '只需输入一个主题，AI 将为您规划全篇大纲，并自动分章节检索资料、撰写万字长文。支持任意行业与话题。',
-        category: '内容创作',
-        icon: DocumentTextIcon,
-        component: UniversalReportGen,
-        tags: ['通用', '长文写作', '自动大纲']
     },
     {
         id: AGENTS.TECH_DECISION_ASSISTANT,

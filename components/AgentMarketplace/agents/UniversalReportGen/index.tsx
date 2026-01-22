@@ -14,17 +14,13 @@ const MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
 
 // --- Helpers ---
 const parsePlanFromMessage = (text: string): { title: string; instruction: string }[] => {
-    // 简单解析 markdown 列表 (1. xxx \n 2. xxx)
     const lines = text.split('\n');
     const steps: { title: string; instruction: string }[] = [];
-    
-    // 移除 <think> 块干扰
     const cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
     
     cleanText.split('\n').forEach(line => {
         const match = line.match(/^(\d+)\.\s+(.*)/);
         if (match) {
-            // 尝试分离标题和说明 (假设格式: 标题：说明 或 标题 - 说明)
             const fullContent = match[2].trim();
             const splitIdx = fullContent.search(/[:：-]/);
             
@@ -42,7 +38,6 @@ const parsePlanFromMessage = (text: string): { title: string; instruction: strin
         }
     });
     
-    // 如果解析失败，回退默认
     if (steps.length === 0) {
         return [
             { title: "市场背景分析", instruction: "分析行业宏观背景" },
@@ -178,7 +173,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         try {
             // A. 生成检索词
             updateSec({ status: 'planning' });
-            addLog("正在分析本章信息缺口...");
+            addLog("分析本章信息缺口与核心问题...");
             const qPrompt = `针对章节【${section.title}】（要求：${section.instruction}），请生成 3 个用于 Google 搜索的关键词。只返回关键词，每行一个。`;
             let qStr = "";
             await streamChatCompletions({ model: MODEL_ID, messages: [{role:'user', content:qPrompt}], stream:true, enable_billing: true }, (c)=>{if(c.content) qStr+=c.content});
@@ -186,17 +181,31 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
             // B. 检索
             updateSec({ status: 'searching' });
-            addLog(`执行全网检索: ${queries.join(', ')}`);
+            addLog(`执行多维全网检索: ${queries.join(', ')}`);
             const sRes = await searchSemanticBatchGrouped({ query_texts: queries, max_segments_per_query: 4 });
             const allItems = (sRes.results || []).flatMap((r: any) => r.items || []);
             const uniqueItems = Array.from(new Map(allItems.map((item:any) => [item.id || item.article_id, item])).values());
             
-            updateSec({ references: uniqueItems.map((i:any)=>({ title:i.title, url:i.url, source:i.source_name })) });
+            // 丰富引用数据
+            const mappedRefs = uniqueItems.map((i:any)=>({ 
+                title:i.title, 
+                url:i.url, 
+                source:i.source_name,
+                snippet: i.segments?.[0]?.content?.slice(0, 100) || i.content?.slice(0, 100)
+            }));
+
+            updateSec({ references: mappedRefs });
             const context = uniqueItems.map((it:any, i:number) => `[资料${i+1}] ${it.title}: ${(it.segments||[]).map((s:any)=>s.content).join('\n')}`).join('\n\n');
+            
+            if (uniqueItems.length > 0) {
+                addLog(`捕获 ${uniqueItems.length} 条高相关情报，正在进行交叉验证...`);
+            } else {
+                addLog(`未检索到直接资料，将调用通用知识库...`);
+            }
 
             // C. 撰写
             updateSec({ status: 'writing' });
-            addLog("检索完成，AI 研究员正在撰写...");
+            addLog("AI 研究员正在合成最终报告...");
             
             const wPrompt = `你是一名资深行业分析师。请基于以下检索到的资料，撰写报告章节。
 章节标题：${section.title}
@@ -229,36 +238,32 @@ ${context || "（无直接资料，请基于通识撰写）"}
 
         } catch (e: any) {
             updateSec({ status: 'error', logs: [...(sections[idx].logs||[]), `错误: ${e.message}`] });
-            // 出错暂停，手动重试
         }
     };
 
     return (
-        <div className="flex h-full w-full bg-[#f8fafc] relative overflow-hidden">
-            {/* Left: Chat & Planning Area (Always visible, but changes mode) */}
-            <div className={`
-                flex-shrink-0 bg-white border-r border-slate-200 h-full transition-all duration-500 ease-in-out z-20 shadow-xl
-                ${status === 'planning' ? 'w-full md:w-[600px] lg:w-[700px]' : 'w-[400px] hidden md:flex'}
-            `}>
+        <div className="flex h-full w-full bg-[#f1f5f9] relative overflow-hidden">
+            {/* Left: Canvas Area (Fluid) */}
+            <div className="flex-1 relative bg-slate-50 transition-all duration-500 overflow-hidden border-r border-slate-200">
+                <ReportCanvas 
+                    mainStatus={status}
+                    topic={topic}
+                    outline={[]} 
+                    sections={sections}
+                    currentSectionIdx={currentSectionIdx}
+                    onStart={()=>{}}
+                    onRetry={(i) => setCurrentSectionIdx(i)}
+                />
+            </div>
+
+            {/* Right: Chat & Control Area (Fixed Width) */}
+            <div className="w-[450px] flex-shrink-0 bg-white h-full z-20 shadow-xl flex flex-col">
                 <PlanChatArea 
                     messages={chatMessages}
                     isGenerating={isGenerating}
                     onSendMessage={handleUserSend}
                     onStartResearch={handleStartResearch}
                     status={status}
-                />
-            </div>
-            
-            {/* Right: Canvas (Hidden during initial planning, slides in for execution) */}
-            <div className={`flex-1 relative bg-slate-50 transition-all duration-500 ${status === 'planning' ? 'translate-x-full opacity-0 absolute right-0 w-0' : 'translate-x-0 opacity-100'}`}>
-                <ReportCanvas 
-                    mainStatus={status}
-                    topic={topic}
-                    outline={[]} // Execution phase uses sections directly
-                    sections={sections}
-                    currentSectionIdx={currentSectionIdx}
-                    onStart={()=>{}} // Auto started
-                    onRetry={(i) => setCurrentSectionIdx(i)}
                 />
             </div>
         </div>
