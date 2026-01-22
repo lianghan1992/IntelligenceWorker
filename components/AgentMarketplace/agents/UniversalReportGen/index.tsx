@@ -1,194 +1,153 @@
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { streamChatCompletions } from '../../../../api/stratify';
 import { searchSemanticBatchGrouped } from '../../../../api/intelligence';
-import { SharedChatPanel, ChatMessage } from '../../../../components/shared/ChatPanel';
 import { ReportCanvas, ReportSection } from './ReportCanvas';
 import { AGENTS } from '../../../../agentConfig';
+import { PlanChatArea } from './PlanChatArea';
+
+// --- Types ---
+export type GenStatus = 'planning' | 'executing' | 'finished';
+
+// --- Constants ---
+const MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
 
 // --- Helpers ---
-const tryParseJson = (text: string) => {
-    if (!text) return null;
-    try {
-        const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (match) return JSON.parse(match[1]);
-        return JSON.parse(text);
-    } catch (e) {
-        try {
-            const firstOpen = text.indexOf('{');
-            const lastClose = text.lastIndexOf('}');
-            if (firstOpen !== -1 && lastClose > firstOpen) {
-                return JSON.parse(text.substring(firstOpen, lastClose + 1));
+const parsePlanFromMessage = (text: string): { title: string; instruction: string }[] => {
+    // 简单解析 markdown 列表 (1. xxx \n 2. xxx)
+    const lines = text.split('\n');
+    const steps: { title: string; instruction: string }[] = [];
+    
+    // 移除 <think> 块干扰
+    const cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    
+    cleanText.split('\n').forEach(line => {
+        const match = line.match(/^(\d+)\.\s+(.*)/);
+        if (match) {
+            // 尝试分离标题和说明 (假设格式: 标题：说明 或 标题 - 说明)
+            const fullContent = match[2].trim();
+            const splitIdx = fullContent.search(/[:：-]/);
+            
+            if (splitIdx > -1 && splitIdx < fullContent.length - 1) {
+                steps.push({
+                    title: fullContent.substring(0, splitIdx).trim(),
+                    instruction: fullContent.substring(splitIdx + 1).trim()
+                });
+            } else {
+                steps.push({
+                    title: fullContent,
+                    instruction: "综合分析该部分内容"
+                });
             }
-        } catch (e2) {}
-        return null;
+        }
+    });
+    
+    // 如果解析失败，回退默认
+    if (steps.length === 0) {
+        return [
+            { title: "市场背景分析", instruction: "分析行业宏观背景" },
+            { title: "核心技术趋势", instruction: "分析技术发展路线" },
+            { title: "主要竞争格局", instruction: "分析主要玩家及份额" },
+            { title: "未来展望", instruction: "预测未来发展趋势" }
+        ];
     }
+    return steps;
 };
-
-const extractListFromText = (text: string): string[] => {
-    const json = tryParseJson(text);
-    if (Array.isArray(json)) return json;
-    return text.split('\n')
-        .map(line => line.replace(/^\d+\.\s*|-\s*/, '').trim())
-        .filter(line => line.length > 2)
-        .slice(0, 5);
-};
-
-// --- Models ---
-// 统一使用 OpenRouter 代理的小米模型
-const PLANNING_MODEL = "openrouter@xiaomi/mimo-v2-flash:free";
-const WRITING_MODEL = "openrouter@xiaomi/mimo-v2-flash:free";
-
-export type GenStatus = 'idle' | 'analyzing_intent' | 'initial_retrieval' | 'planning' | 'review_plan' | 'executing' | 'finished';
 
 const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-    // 核心状态机
-    const [status, setStatus] = useState<GenStatus>('idle');
+    // 状态机
+    const [status, setStatus] = useState<GenStatus>('planning');
     const [topic, setTopic] = useState('');
     
-    // 阶段数据
-    const [intentSummary, setIntentSummary] = useState('');
-    const [seedReferences, setSeedReferences] = useState<any[]>([]);
-    const [outline, setOutline] = useState<{ title: string; instruction: string }[]>([]);
+    // 规划阶段数据
+    const [chatMessages, setChatMessages] = useState<any[]>([]);
+    const [isGenerating, setIsGenerating] = useState(false);
+    
+    // 执行阶段数据
     const [sections, setSections] = useState<ReportSection[]>([]);
     const [currentSectionIdx, setCurrentSectionIdx] = useState<number>(-1);
     
-    // 聊天状态
-    const [messages, setMessages] = useState<ChatMessage[]>([{
-        id: 'init',
-        role: 'assistant',
-        content: '我是您的 **深度研报 Agent**。\n\n请告诉我您想要研究的主题，我将通过“意图识别-种子检索-动态规划-深度撰写”的全流程为您交付高质量报告。',
-        timestamp: Date.now()
-    }]);
+    // --- Phase 1: Planning Interaction ---
+    
+    const handleUserSend = async (input: string) => {
+        if (!input.trim() || isGenerating) return;
 
-    // --- Step 1: 意图识别与种子检索词生成 ---
-    const handleUserMessage = async (text: string) => {
-        if (!text.trim() || ['analyzing_intent', 'planning', 'executing'].includes(status)) return;
+        const newMessages = [...chatMessages, { role: 'user', content: input, id: crypto.randomUUID() }];
+        setChatMessages(newMessages);
+        setIsGenerating(true);
 
-        const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: Date.now() };
-        setMessages(prev => [...prev, userMsg]);
+        if (!topic) setTopic(input); // 第一次输入作为主题
 
-        if (status === 'idle') {
-            setTopic(text);
-            await startResearchWorkflow(text);
-        } else if (status === 'review_plan') {
-            // 用户在审查大纲阶段提出的修改意见
-            await planResearchRoute(topic, text); 
-        }
-    };
+        // 构建 Prompt
+        const systemPrompt = `你是一个专业的深度研究规划专家。
+你的目标是帮助用户制定一份详尽的研究报告大纲。
 
-    const startResearchWorkflow = async (query: string) => {
-        setStatus('analyzing_intent');
+用户输入主题后，请按以下步骤思考：
+1. 分析用户的意图和研究深度。
+2. 在 <think> 标签中输出你的思考过程（分析用户需求、拆解关键维度）。
+3. 输出一份建议的研究方案清单（Markdown 有序列表格式）。
+4. 询问用户是否需要修改方案。
+
+注意：
+- 保持对话风格专业且乐于助人。
+- **必须** 包含 <think> 标签的思考过程。
+- 方案清单必须使用 "1. ", "2. " 这样的有序列表格式，以便后续解析。`;
+
+        let fullContent = "";
+        const assistantMsgId = crypto.randomUUID();
         
-        // 1. 意图分析与种子关键词
-        const intentPrompt = `针对用户研究主题【${query}】，请执行以下任务：
-1. 识别用户的核心研究意图（100字以内）。
-2. 生成 5 个用于构建知识底座的种子检索词（覆盖技术背景、行业现状、主要竞争者等维度）。
-**必须**以 JSON 格式返回：
-{
-  "intent": "你的分析...",
-  "queries": ["词1", "词2", "词3", "词4", "词5"]
-}`;
+        // 乐观更新 UI
+        setChatMessages(prev => [...prev, { role: 'assistant', content: '', id: assistantMsgId }]);
 
-        let intentBuffer = "";
         try {
             await streamChatCompletions({
-                model: PLANNING_MODEL,
-                messages: [{ role: 'user', content: intentPrompt }],
+                model: MODEL_ID,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    ...newMessages.map(m => ({ role: m.role, content: m.content }))
+                ],
                 stream: true,
-                temperature: 0.1,
+                temperature: 0.7,
                 enable_billing: true
-            }, (chunk) => { if(chunk.content) intentBuffer += chunk.content; }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
-
-            const parsedIntent = tryParseJson(intentBuffer);
-            if (!parsedIntent || !parsedIntent.queries) throw new Error("意图解析失败");
-
-            setIntentSummary(parsedIntent.intent);
-            
-            // 2. 执行初始检索
-            setStatus('initial_retrieval');
-            const searchRes = await searchSemanticBatchGrouped({
-                query_texts: parsedIntent.queries,
-                max_segments_per_query: 3
-            });
-            const allItems = (searchRes.results || []).flatMap((r: any) => r.items || []);
-            const uniqueRefs = Array.from(new Map(allItems.map((item:any) => [item.id || item.article_id, item])).values());
-            setSeedReferences(uniqueRefs);
-
-            // 3. 进入研究思路规划
-            await planResearchRoute(query, "", uniqueRefs);
-
-        } catch (e: any) {
-            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: `启动失败: ${e.message}`, timestamp: Date.now() }]);
-            setStatus('idle');
-        }
-    };
-
-    // --- Step 2: 根据检索内容生成研究思路 (Outline) ---
-    const planResearchRoute = async (query: string, revisionMsg = "", refs: any[] = []) => {
-        setStatus('planning');
-        
-        const contextText = refs.map((r, i) => `[参考资料${i+1}] ${r.title}: ${r.content || ''}`).join('\n');
-        
-        const planningPrompt = `你是一个资深行业分析师。
-主题：${query}
-初始背景资料：\n${contextText}
-${revisionMsg ? `用户修改建议：${revisionMsg}` : ''}
-
-请基于现有资料规划这份研究报告的大纲。
-要求：
-1. 包含 4-6 个逻辑递进的章节。
-2. 每个章节必须有写作指导（instruction），说明本章要解决的问题。
-3. 必须返回 JSON 格式：
-{
-  "chapters": [
-    { "title": "章节标题", "instruction": "本章重点分析..." }
-  ]
-}`;
-
-        let planBuffer = "";
-        try {
-            await streamChatCompletions({
-                model: PLANNING_MODEL,
-                messages: [{ role: 'user', content: planningPrompt }],
-                stream: true,
-                temperature: 0.2,
-                enable_billing: true
-            }, (chunk) => { if(chunk.content) planBuffer += chunk.content; }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
-
-            const parsedPlan = tryParseJson(planBuffer);
-            if (!parsedPlan || !parsedPlan.chapters) throw new Error("大纲生成失败");
-
-            setOutline(parsedPlan.chapters);
-            setStatus('review_plan');
-            setMessages(prev => [...prev, {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: '研究思路已规划完毕。我已经基于初步检索的资料为您设计了报告架构，请在左侧预览。如果没有问题，请点击“确认并开始撰写”。',
-                timestamp: Date.now()
-            }]);
+            }, (chunk) => {
+                if (chunk.content) {
+                    fullContent += chunk.content;
+                    setChatMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: fullContent } : m));
+                }
+            }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
         } catch (e) {
-            setStatus('idle');
+            setChatMessages(prev => [...prev, { role: 'assistant', content: '抱歉，规划服务暂时繁忙，请重试。', id: crypto.randomUUID() }]);
+        } finally {
+            setIsGenerating(false);
         }
     };
 
-    // --- Step 3: 启动分步研究执行 (Execution) ---
-    const handleStartExecution = () => {
+    // 用户确认方案，开始研究
+    const handleStartResearch = () => {
+        // 1. 从最后一条 AI 消息中解析大纲
+        const lastAiMsg = [...chatMessages].reverse().find(m => m.role === 'assistant');
+        if (!lastAiMsg) return;
+
+        const outline = parsePlanFromMessage(lastAiMsg.content);
+        
+        // 2. 初始化执行状态
         const initialSections: ReportSection[] = outline.map((item, idx) => ({
             id: `sec-${idx}`,
             title: item.title,
             instruction: item.instruction,
-            content: '',
             status: 'pending',
+            content: '',
             logs: [],
             references: []
         }));
-        
+
         setSections(initialSections);
         setStatus('executing');
         setCurrentSectionIdx(0);
     };
 
+    // --- Phase 2: Execution Loop ---
+    
     useEffect(() => {
         if (status !== 'executing') return;
         if (currentSectionIdx < 0 || currentSectionIdx >= sections.length) {
@@ -217,40 +176,43 @@ ${revisionMsg ? `用户修改建议：${revisionMsg}` : ''}
         };
 
         try {
-            // A. 精准检索词生成
+            // A. 生成检索词
             updateSec({ status: 'planning' });
-            addLog("生成本章专项检索词...");
-            const qPrompt = `针对章节【${section.title}】，请生成 3 个深度检索词。每行一个。`;
+            addLog("正在分析本章信息缺口...");
+            const qPrompt = `针对章节【${section.title}】（要求：${section.instruction}），请生成 3 个用于 Google 搜索的关键词。只返回关键词，每行一个。`;
             let qStr = "";
-            await streamChatCompletions({ model: PLANNING_MODEL, messages: [{role:'user', content:qPrompt}], stream:true, enable_billing: true }, (c)=>{if(c.content) qStr+=c.content}, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
-            const queries = extractListFromText(qStr);
+            await streamChatCompletions({ model: MODEL_ID, messages: [{role:'user', content:qPrompt}], stream:true, enable_billing: true }, (c)=>{if(c.content) qStr+=c.content});
+            const queries = qStr.split('\n').map(s=>s.replace(/^\d+\.\s*|-/, '').trim()).filter(s=>s.length>1).slice(0,3);
 
-            // B. 专项向量检索
+            // B. 检索
             updateSec({ status: 'searching' });
-            addLog(`执行专项检索: ${queries.join(', ')}`);
-            const sRes = await searchSemanticBatchGrouped({ query_texts: queries, max_segments_per_query: 5 });
+            addLog(`执行全网检索: ${queries.join(', ')}`);
+            const sRes = await searchSemanticBatchGrouped({ query_texts: queries, max_segments_per_query: 4 });
             const allItems = (sRes.results || []).flatMap((r: any) => r.items || []);
             const uniqueItems = Array.from(new Map(allItems.map((item:any) => [item.id || item.article_id, item])).values());
             
             updateSec({ references: uniqueItems.map((i:any)=>({ title:i.title, url:i.url, source:i.source_name })) });
-            
-            const context = uniqueItems.map((it:any, i:number) => `[文献${i+1}] ${it.title}: ${(it.segments||[]).map((s:any)=>s.content).join('\n')}`).join('\n\n');
+            const context = uniqueItems.map((it:any, i:number) => `[资料${i+1}] ${it.title}: ${(it.segments||[]).map((s:any)=>s.content).join('\n')}`).join('\n\n');
 
-            // C. 深度撰写
+            // C. 撰写
             updateSec({ status: 'writing' });
-            addLog("正在由资深专家 Agent 撰写正文...");
-            const wPrompt = `你是一个行业研究专家。请根据以下参考资料，撰写报告章节【${section.title}】。
-要求：
-1. 核心任务：${section.instruction}
-2. 风格：专业、详实，必须引用参考资料中的具体数据或观点。
-3. 格式：Markdown。
+            addLog("检索完成，AI 研究员正在撰写...");
+            
+            const wPrompt = `你是一名资深行业分析师。请基于以下检索到的资料，撰写报告章节。
+章节标题：${section.title}
+写作要求：${section.instruction}
+
 参考资料：
-${context || "请基于你的专业知识库撰写。"}
-直接输出正文，不要开场白。`;
+${context || "（无直接资料，请基于通识撰写）"}
+
+要求：
+1. 内容详实，逻辑严密，多引用数据。
+2. 必须使用 Markdown 格式。
+3. **不要**写“根据资料”、“综上所述”等套话，直接输出干货内容。`;
 
             let contentBuffer = "";
             await streamChatCompletions({
-                model: WRITING_MODEL,
+                model: MODEL_ID,
                 messages: [{ role: 'user', content: wPrompt }],
                 stream: true,
                 temperature: 0.3,
@@ -267,32 +229,36 @@ ${context || "请基于你的专业知识库撰写。"}
 
         } catch (e: any) {
             updateSec({ status: 'error', logs: [...(sections[idx].logs||[]), `错误: ${e.message}`] });
+            // 出错暂停，手动重试
         }
     };
 
     return (
-        <div className="flex h-full w-full bg-[#f8fafc] relative">
-            <div className="flex-1 overflow-hidden border-r border-slate-200 relative">
-                <ReportCanvas 
-                    mainStatus={status}
-                    topic={topic}
-                    intentSummary={intentSummary}
-                    seedReferences={seedReferences}
-                    outline={outline}
-                    sections={sections}
-                    currentSectionIdx={currentSectionIdx}
-                    onStart={handleStartExecution}
-                    onRetry={(i) => setCurrentSectionIdx(i)}
+        <div className="flex h-full w-full bg-[#f8fafc] relative overflow-hidden">
+            {/* Left: Chat & Planning Area (Always visible, but changes mode) */}
+            <div className={`
+                flex-shrink-0 bg-white border-r border-slate-200 h-full transition-all duration-500 ease-in-out z-20 shadow-xl
+                ${status === 'planning' ? 'w-full md:w-[600px] lg:w-[700px]' : 'w-[400px] hidden md:flex'}
+            `}>
+                <PlanChatArea 
+                    messages={chatMessages}
+                    isGenerating={isGenerating}
+                    onSendMessage={handleUserSend}
+                    onStartResearch={handleStartResearch}
+                    status={status}
                 />
             </div>
             
-            <div className="w-[360px] flex-shrink-0 bg-white shadow-xl z-10 h-full flex flex-col">
-                <SharedChatPanel 
-                    messages={messages}
-                    onSendMessage={handleUserMessage}
-                    isGenerating={['analyzing_intent', 'planning', 'executing'].includes(status)}
-                    title="研报控制中心"
-                    placeholder={status === 'idle' ? "输入研究主题..." : "输入修改指令..."}
+            {/* Right: Canvas (Hidden during initial planning, slides in for execution) */}
+            <div className={`flex-1 relative bg-slate-50 transition-all duration-500 ${status === 'planning' ? 'translate-x-full opacity-0 absolute right-0 w-0' : 'translate-x-0 opacity-100'}`}>
+                <ReportCanvas 
+                    mainStatus={status}
+                    topic={topic}
+                    outline={[]} // Execution phase uses sections directly
+                    sections={sections}
+                    currentSectionIdx={currentSectionIdx}
+                    onStart={()=>{}} // Auto started
+                    onRetry={(i) => setCurrentSectionIdx(i)}
                 />
             </div>
         </div>
