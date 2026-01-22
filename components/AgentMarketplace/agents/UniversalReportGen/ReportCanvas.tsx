@@ -2,8 +2,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { 
     SparklesIcon, CheckCircleIcon, RefreshIcon,
-    DatabaseIcon, DocumentTextIcon,
-    CheckIcon, ExternalLinkIcon,
+    DatabaseIcon, GlobeIcon, DocumentTextIcon,
+    ArrowRightIcon, CheckIcon, ExternalLinkIcon,
     BrainIcon, SearchIcon, PencilIcon, StopIcon,
     ChevronDownIcon, ClipboardIcon, DownloadIcon
 } from '../../../../components/icons';
@@ -194,7 +194,53 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
                 )}
             </div>
 
-            {/* 2. Live Writing Area */}
+            {/* 2. Reference Deck (Horizontal Scroll) */}
+            <div className="border-b border-slate-100 bg-slate-50/30 p-4">
+                <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                    <DatabaseIcon className="w-3.5 h-3.5" />
+                    引用来源 ({section.references.length})
+                </div>
+                
+                {section.references.length > 0 ? (
+                    <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar snap-x">
+                        {section.references.map((ref, i) => (
+                            <a 
+                                key={i} 
+                                href={ref.url} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="flex-shrink-0 w-64 bg-white p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group snap-start cursor-pointer block text-left"
+                            >
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-5 h-5 rounded bg-blue-50 text-blue-600 flex items-center justify-center text-[10px] font-bold border border-blue-100">
+                                            {i + 1}
+                                        </div>
+                                        <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[80px]">
+                                            {ref.source}
+                                        </span>
+                                    </div>
+                                    <ExternalLinkIcon className="w-3 h-3 text-slate-300 group-hover:text-indigo-500" />
+                                </div>
+                                <h4 className="text-xs font-bold text-slate-700 line-clamp-2 leading-snug group-hover:text-indigo-700 transition-colors mb-1">
+                                    {ref.title}
+                                </h4>
+                                {ref.snippet && (
+                                    <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed opacity-80">
+                                        {ref.snippet}
+                                    </p>
+                                )}
+                            </a>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-xs text-slate-400 italic px-2 py-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
+                        {section.status === 'planning' ? '等待检索任务启动...' : (isStopped ? '未找到引用资料' : '正在全网搜寻相关资料...')}
+                    </div>
+                )}
+            </div>
+
+            {/* 3. Live Writing Area */}
             <div className="p-8 bg-white min-h-[300px] relative">
                 <div className="absolute top-4 right-4 text-[10px] font-bold text-slate-300 uppercase tracking-widest pointer-events-none select-none">
                     Live Draft Preview
@@ -217,48 +263,6 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
                 {/* Blinking Cursor Indicator if writing */}
                 {section.status === 'writing' && (
                     <div className="mt-2 w-2 h-4 bg-indigo-500 animate-pulse inline-block"></div>
-                )}
-            </div>
-
-            {/* 3. Reference Deck (Beautiful Card Style) - Moved to bottom */}
-            <div className="border-t border-slate-100 bg-slate-50/50 p-5">
-                <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
-                    <DatabaseIcon className="w-3.5 h-3.5" />
-                    引用来源 & 事实依据 ({section.references.length})
-                </div>
-                
-                {section.references.length > 0 ? (
-                    <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar snap-x px-1">
-                        {section.references.map((ref, i) => (
-                            <a 
-                                key={i} 
-                                href={ref.url} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="flex-shrink-0 w-64 bg-white p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group snap-start cursor-pointer block text-left flex flex-col h-24"
-                            >
-                                <div className="flex items-start justify-between mb-1.5">
-                                    <div className="flex items-center gap-2 max-w-[85%]">
-                                        <div className="w-4 h-4 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-[9px] font-bold border border-indigo-100">
-                                            {i + 1}
-                                        </div>
-                                        <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[100px] border border-slate-100">
-                                            {ref.source}
-                                        </span>
-                                    </div>
-                                    <ExternalLinkIcon className="w-3 h-3 text-slate-300 group-hover:text-indigo-500 transition-colors" />
-                                </div>
-                                <h4 className="text-xs font-bold text-slate-700 line-clamp-2 leading-snug group-hover:text-indigo-700 transition-colors flex-1" title={ref.title}>
-                                    {ref.title}
-                                </h4>
-                            </a>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-xs text-slate-400 italic px-4 py-3 border border-dashed border-slate-200 rounded-xl flex items-center gap-2 bg-white/50">
-                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                        {section.status === 'planning' ? '等待检索任务启动...' : (isStopped ? '未找到引用资料' : '正在全网搜寻相关资料...')}
-                    </div>
                 )}
             </div>
         </div>
@@ -384,7 +388,7 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
                 <div className="flex gap-2">
                     <button 
                         onClick={handleCopyMarkdown}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
                     >
                         <ClipboardIcon className="w-3.5 h-3.5" />
                         复制 Markdown
@@ -392,7 +396,7 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
                     <button 
                         onClick={handleExportWord}
                         disabled={isExportingWord}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isExportingWord ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5" />}
                         导出 Word
@@ -443,30 +447,21 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
                                             dangerouslySetInnerHTML={{ __html: marked.parse(section.content) as string }}
                                         />
                                         
-                                        {/* References Footnote - Card Style */}
+                                        {/* References Footnote */}
                                         {section.references.length > 0 && (
-                                            <div className="mt-8 pt-6 border-t border-slate-100">
-                                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                    <DatabaseIcon className="w-3 h-3" /> 引用来源
-                                                </h4>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                            <div className="mt-6 pt-4 border-t border-slate-100">
+                                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sources</h4>
+                                                <div className="flex flex-wrap gap-2">
                                                     {section.references.map((r, ri) => (
                                                         <a 
                                                             key={ri} 
                                                             href={r.url} 
                                                             target="_blank" 
                                                             rel="noreferrer" 
-                                                            className="flex flex-col p-3 bg-white border border-slate-200 rounded-xl hover:border-indigo-300 hover:shadow-md transition-all group h-full"
+                                                            className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded text-[10px] text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-sm transition-all max-w-[200px]"
                                                         >
-                                                            <div className="flex items-center justify-between mb-2">
-                                                                <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 truncate max-w-[100px]">
-                                                                    {r.source}
-                                                                </span>
-                                                                <ExternalLinkIcon className="w-3 h-3 text-slate-300 group-hover:text-indigo-500 transition-colors" />
-                                                            </div>
-                                                            <span className="text-xs font-bold text-slate-700 line-clamp-2 group-hover:text-indigo-700 transition-colors">
-                                                                {r.title}
-                                                            </span>
+                                                            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                                            <span className="truncate">{r.title}</span>
                                                         </a>
                                                     ))}
                                                 </div>
