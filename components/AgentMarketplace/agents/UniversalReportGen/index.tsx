@@ -84,16 +84,25 @@ const parsePlanFromMessage = (text: string): { title: string; instruction: strin
     return steps;
 };
 
-// 工具指令掩码处理函数
+// 工具指令掩码处理函数 (Enhanced)
 const maskToolContent = (text: string) => {
-    // 1. 替换完整的工具调用 (包含参数)
-    let display = text.replace(/call:search\s*\[[\s\S]*?\]/gi, '\n(⚡️ AI正在调用全网检索工具...)\n');
+    let display = text;
+
+    // 1. 隐藏 Markdown 代码块中的 JSON 工具调用
+    // 匹配 ```json { "call": "search" ... } ```
+    display = display.replace(/```json\s*\{[\s\S]*?"call":\s*"search"[\s\S]*?\}[\s\S]*?```/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
     
-    // 2. 替换流式输出中尚未完成的工具调用 (例如 "call:sea", "call:search[\"...")
-    // 匹配以 call: 开头，后面跟随字母、下划线、方括号、引号等字符，直到字符串末尾的部分
+    // 2. 隐藏裸 JSON 工具调用
+    display = display.replace(/\{[\s\S]*?"call":\s*"search"[\s\S]*?\}/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
+
+    // 3. 隐藏标准格式 call:search[...]
+    // 匹配以 call: 开头，后面跟随字母、下划线、方括号、引号等字符
+    display = display.replace(/call:search\s*(\[.*?\])?/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
+    
+    // 4. 隐藏流式传输中不完整的 call:search
     const partialRegex = /(^|\n)call:[a-z_]*(\s*\[[\s\S]*)?$/i;
     if (partialRegex.test(display)) {
-        display = display.replace(partialRegex, '\n(⚡️ AI正在调用全网检索工具...)\n');
+        display = display.replace(partialRegex, '\n(⚡️ 正在调用全网检索工具...)\n');
     }
     
     return display;
@@ -289,7 +298,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             let collectedContext = "";
             let finished = false;
             
-            // 核心 Prompt 优化：强调“无知”属性，强制搜索
+            // 核心 Prompt 优化
             const systemPrompt = `你是一个严谨的研究员。当前时间：${today}。
 任务：撰写报告章节【${section.title}】。
 要求：${section.instruction}
@@ -298,6 +307,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 1. **你对当前实时信息一无所知**。必须且只能依靠工具获取信息。
 2. 在没有使用 \`search_knowledge_base\` 获取到足够信息前，**严禁**开始撰写正文。
 3. 如果是第一轮交互，**必须**调用搜索工具。
+4. 如果已进行过搜索并获取了资料，请**优先撰写正文**，不要重复搜索相同内容。
 
 工具：
 - search_knowledge_base: 搜索内部知识库和全网数据。
@@ -305,12 +315,13 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 **工作流程**：
 1. 思考当前缺失什么数据。
 2. **决策**：
-   - 缺数据 -> 输出工具指令：\`call:search["关键词1", "关键词2"]\` (JSON数组)。
+   - 缺数据 -> 输出工具指令：\`call:search["关键词1", "关键词2"]\`
    - 资料已完全充足 -> 直接开始撰写正文 (Markdown格式，必须引用数据)。
 
-注意：
-- 严禁在正文中输出 call:search 指令。
-- 严禁编造数据，必须基于 search_knowledge_base 返回的内容。
+**输出格式规范**：
+- 工具调用格式 1: \`call:search["关键词"]\`
+- 工具调用格式 2 (JSON): \`\`\`json { "call": "search", "keywords": ["关键词"] } \`\`\`
+- 正文：直接输出 Markdown 文本。
 `;
 
             let conversationHistory: { role: string; content: string }[] = [
@@ -322,12 +333,11 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
                 updateSec({ status: 'planning', currentThought: '' }); 
                 
-                // 策略：首轮强制注入搜索指令 (Anti-Laziness Strategy)
-                if (loopCount === 0) {
-                     conversationHistory.push({ 
-                         role: 'system', 
-                         content: `(系统强制指令：这是第一轮思考。你目前没有任何资料。请务必先输出 call:search 指令进行初步调研。)` 
-                     });
+                // 策略：动态 System Prompt 注入
+                let dynamicSystemPrompt = systemPrompt;
+                if (loopCount > 0) {
+                     // 既然已经搜索过，强烈建议开始写
+                     dynamicSystemPrompt += `\n\n(系统提示：你已经进行了 ${loopCount} 轮搜索。如果已有相关资料，请立即开始撰写正文，停止搜索。)`;
                 }
 
                 let llmResponse = "";
@@ -337,7 +347,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 await streamChatCompletions({
                     model: MODEL_ID,
                     messages: [
-                        { role: 'system', content: systemPrompt },
+                        { role: 'system', content: dynamicSystemPrompt },
                         ...conversationHistory
                     ],
                     stream: true,
@@ -353,32 +363,57 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
                 if (signal.aborted) break;
 
-                // Try to find tool call
-                let toolCallMatch = llmResponse.match(/call:search\s*(\[.*?\])/i);
-                
-                // --- HARD FALLBACK for First Round ---
-                // If round 0 and no tool call found, force search with title
-                if (loopCount === 0 && !toolCallMatch) {
-                    addLog("检测到模型未调用工具，强制执行兜底搜索策略...");
-                    // Inject a fake tool call match structure
-                    toolCallMatch = [`call:search["${section.title}"]`, `["${section.title}"]`] as any;
+                // --- Enhanced Tool Call Parsing ---
+                let queries: string[] = [];
+                let toolCallFound = false;
+
+                // 1. Try standard format: call:search[...]
+                let standardMatch = llmResponse.match(/call:search\s*(\[.*?\])/i);
+                if (standardMatch) {
+                    try {
+                        queries = JSON.parse(standardMatch[1]);
+                        toolCallFound = true;
+                    } catch (e) {
+                         const rawParams = standardMatch[1].replace(/[\[\]"]/g, '').split(',');
+                         queries = rawParams.map(q => q.trim()).filter(Boolean);
+                         toolCallFound = true;
+                    }
                 }
 
-                if (toolCallMatch) {
+                // 2. Try JSON block format: ```json { "call": "search", "keywords": [...] } ```
+                if (!toolCallFound) {
+                    const jsonBlockMatch = llmResponse.match(/```json\s*(\{[\s\S]*?"call":\s*"search"[\s\S]*?\})\s*```/i);
+                    if (jsonBlockMatch) {
+                        try {
+                            const parsed = JSON.parse(jsonBlockMatch[1]);
+                            if (parsed.keywords && Array.isArray(parsed.keywords)) {
+                                queries = parsed.keywords;
+                                toolCallFound = true;
+                            }
+                        } catch(e) {}
+                    }
+                }
+
+                // 3. Try Raw JSON format: { "call": "search", "keywords": [...] }
+                if (!toolCallFound) {
+                     const rawJsonMatch = llmResponse.match(/(\{[\s\S]*?"call":\s*"search"[\s\S]*?\})/i);
+                     if (rawJsonMatch) {
+                        try {
+                            const parsed = JSON.parse(rawJsonMatch[1]);
+                            if (parsed.keywords && Array.isArray(parsed.keywords)) {
+                                queries = parsed.keywords;
+                                toolCallFound = true;
+                            }
+                        } catch(e) {}
+                    }
+                }
+                
+                // --- HARD FALLBACK REMOVED ---
+                // We trust the AI to decide whether to search or not.
+
+                if (toolCallFound && queries.length > 0) {
                     // --- CASE A: Tool Execution ---
                     updateSec({ status: 'searching' });
-                    
-                    let queries: string[] = [];
-                    try {
-                        queries = JSON.parse(toolCallMatch[1]);
-                    } catch (e) {
-                        // Fallback parsing if JSON is malformed
-                         const rawParams = toolCallMatch[1].replace(/[\[\]"]/g, '').split(',');
-                         queries = rawParams.map(q => q.trim()).filter(Boolean);
-                    }
-
-                    if (queries.length === 0) queries = [section.title];
-
                     addLog(`[第 ${loopCount+1} 轮] 正在检索: ${queries.join(', ')}`);
                     
                     const searchRes = await searchSemanticBatchGrouped({ 
@@ -406,8 +441,12 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     
                     addLog(`检索完成，阅读 ${uniqueItems.length} 篇资料中...`);
 
-                    conversationHistory.push({ role: 'assistant', content: llmResponse });
-                    conversationHistory.push({ role: 'user', content: `【工具返回结果】\n${observation}\n\n请评估信息是否充足。如果不足，请换个角度继续搜索；如果充足，请开始撰写。` });
+                    // Remove the raw tool call from history to save context space, replace with summary
+                    conversationHistory.push({ role: 'assistant', content: `(已执行搜索: ${queries.join(', ')})` });
+                    conversationHistory.push({ 
+                        role: 'user', 
+                        content: `【工具返回结果】\n${observation}\n\n系统提示：资料已更新。如果信息足够，请**立即停止搜索**并开始撰写报告正文。不要再输出 call:search 指令。` 
+                    });
                     
                     collectedContext += observation + "\n";
                     loopCount++;
@@ -417,6 +456,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     updateSec({ status: 'writing', currentThought: '' }); // Clear thought for writing phase
                     addLog("信息研判完成，开始生成报告...");
                     
+                    // Construct final writing prompt
                     const wPrompt = `资料收集阶段结束。
 请基于以下所有累积的参考资料，撰写章节【${section.title}】。
 要求：${section.instruction}
@@ -428,7 +468,8 @@ ${collectedContext || "（无直接资料，请基于通识撰写，但需注明
 1. 逻辑严密，多引用数据。
 2. 必须使用 Markdown 格式。
 3. 结构清晰，分点论述。
-4. **直接输出正文**，不要包含 "好的"、"根据资料"、"报告如下" 等废话。`;
+4. **直接输出正文**，不要包含 "好的"、"根据资料"、"报告如下" 等废话。
+5. 不要输出任何 JSON 或工具指令。`;
 
                     let contentBuffer = "";
                     await streamChatCompletions({
