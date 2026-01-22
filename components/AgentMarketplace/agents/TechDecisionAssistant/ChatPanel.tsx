@@ -54,6 +54,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -61,10 +62,27 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         }
     }, [messages, isGenerating]);
 
+    // Auto-resize textarea
+    useEffect(() => {
+        if (textareaRef.current) {
+            // Reset height to auto to correctly calculate scrollHeight for shrinking
+            textareaRef.current.style.height = 'auto';
+            const scrollHeight = textareaRef.current.scrollHeight;
+            // Limit to approx 5 lines (assuming ~24px line height, 120px max)
+            const newHeight = Math.min(scrollHeight, 120); 
+            // Min height 44px
+            textareaRef.current.style.height = `${Math.max(44, newHeight)}px`;
+        }
+    }, [input]);
+
     const handleSend = () => {
         if (!input.trim()) return;
         onSendMessage(input);
         setInput('');
+        // Reset height immediately after sending
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -77,7 +95,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return (
         <div className="flex flex-col h-full bg-white border-l border-slate-200">
             {/* Header */}
-            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center flex-shrink-0">
                 <h3 className="font-bold text-slate-700 flex items-center gap-2">
                     <SparklesIcon className="w-5 h-5 text-indigo-600"/> 评估助手 Copilot
                 </h3>
@@ -136,7 +154,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
 
             {/* Actions / Input */}
-            <div className="p-4 border-t border-slate-100 bg-white">
+            <div className="p-4 border-t border-slate-100 bg-white flex-shrink-0">
                 {stepStatus === 'review' ? (
                     <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2">
                         <div className="p-3 bg-amber-50 text-amber-800 text-xs rounded-lg border border-amber-100 mb-2 flex gap-2">
@@ -161,17 +179,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                             </button>
                         </div>
                         <div className="relative">
-                            <input 
+                            <textarea 
+                                ref={textareaRef}
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder="输入修改意见 (e.g. 补充一下竞品特斯拉的参数)..."
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow resize-none overflow-hidden min-h-[44px]"
+                                rows={1}
                             />
                             <button 
                                 onClick={handleSend}
                                 disabled={!input.trim()}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:bg-slate-300"
+                                className="absolute right-2 bottom-2 p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:bg-slate-300"
                             >
                                 <ArrowRightIcon className="w-4 h-4" />
                             </button>
@@ -179,18 +199,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     </div>
                 ) : (
                     <div className="relative">
-                        <input 
+                        <textarea 
+                            ref={textareaRef}
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={handleKeyDown}
                             disabled={isGenerating || stepStatus === 'done'} 
                             placeholder={currentStep === 'init' ? "输入要评估的技术名称 (如: 800V碳化硅)..." : "输入指令..."}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed transition-shadow"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-60 disabled:cursor-not-allowed transition-shadow resize-none overflow-hidden min-h-[44px]"
+                            rows={1}
                         />
                         <button 
                             onClick={handleSend}
                             disabled={!input.trim() || isGenerating}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:bg-slate-300 shadow-sm"
+                            className="absolute right-2 bottom-2 p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:bg-slate-300 shadow-sm"
                         >
                             <ArrowRightIcon className="w-4 h-4" />
                         </button>

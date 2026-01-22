@@ -18,7 +18,8 @@ export interface TechEvalSessionData {
     searchQueries: string[];
     currentStepIndex: number; // 0 to 4
     sections: Record<StepId, ReportSection>;
-    messages: ChatMessage[];
+    messages: ChatMessage[]; // UI 聊天记录
+    llmContext?: Array<{ role: string; content: string }>; // LLM 全局上下文记忆
 }
 
 export interface ChatMessage {

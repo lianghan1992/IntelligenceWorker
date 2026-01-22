@@ -93,7 +93,9 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             role: 'assistant',
             content: '我是您的技术决策评估助手。请告诉我您想要评估的技术名称（例如：800V碳化硅平台、半固态电池等）。',
             timestamp: Date.now()
-        }]
+        }],
+        // 初始化 LLM 上下文，包含全局系统指令
+        llmContext: [{ role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION }]
     });
     
     const [isGenerating, setIsGenerating] = useState(false);
@@ -189,6 +191,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 const restoredSections = { ...DEFAULT_SECTIONS, ...session.context_data.sections };
                 setData({
                     ...session.context_data,
+                    // 确保恢复时如果 llmContext 丢失（旧数据），重新初始化
+                    llmContext: session.context_data.llmContext || [{ role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION }],
                     sections: restoredSections
                 });
             }
@@ -203,35 +207,28 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         if (sessionId && confirm("确定要开始新的评估吗？当前进度已保存。")) {
             setSessionId(null);
             setSessionCost(0);
-            setData({
-                techName: '',
-                techDefinition: undefined,
-                searchQueries: [],
-                currentStepIndex: 0,
-                sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
-                messages: [{
-                    id: 'welcome',
-                    role: 'assistant',
-                    content: '我是您的技术决策评估助手。请告诉我您想要评估的技术名称（例如：800V碳化硅平台、半固态电池等）。',
-                    timestamp: Date.now()
-                }]
-            });
+            resetData();
             setSaveStatus('idle');
         } else if (!sessionId) {
-             setData({
-                techName: '',
-                techDefinition: undefined,
-                searchQueries: [],
-                currentStepIndex: 0,
-                sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
-                messages: [{
-                    id: 'welcome',
-                    role: 'assistant',
-                    content: '我是您的技术决策评估助手。请告诉我您想要评估的技术名称（例如：800V碳化硅平台、半固态电池等）。',
-                    timestamp: Date.now()
-                }]
-            });
+             resetData();
         }
+    };
+
+    const resetData = () => {
+        setData({
+            techName: '',
+            techDefinition: undefined,
+            searchQueries: [],
+            currentStepIndex: 0,
+            sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
+            messages: [{
+                id: 'welcome',
+                role: 'assistant',
+                content: '我是您的技术决策评估助手。请告诉我您想要评估的技术名称（例如：800V碳化硅平台、半固态电池等）。',
+                timestamp: Date.now()
+            }],
+            llmContext: [{ role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION }]
+        });
     };
 
     const addMessage = (role: 'user' | 'assistant', content: string, reasoning?: string) => {
@@ -369,19 +366,22 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         }));
 
         try {
-            // 【计费修复 1】: 强制先创建 Session，获取 ID 后再发起 billed 调用
             const activeSid = await ensureSession(input.slice(0, 15));
             const filledPrompt = config.contentTemplate.replace('{{ user_input }}', input);
+
+            // Construct new context
+            const history = data.llmContext || [{ role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION }];
+            const newMessages = [
+                ...history,
+                { role: 'user', content: filledPrompt }
+            ];
 
             let jsonBuffer = "";
             let reasoningBuffer = "";
 
             await streamChatCompletions({
                 model: config.model,
-                messages: [
-                    { role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION },
-                    { role: 'user', content: filledPrompt }
-                ],
+                messages: newMessages,
                 stream: true,
                 temperature: 0.1,
                 enable_billing: true
@@ -398,10 +398,12 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     messages: prev.messages.map(m => m.id === msgId ? { ...m, content: '🤔 正在分析需求并规划评估路径...', reasoning: reasoningBuffer } : m)
                 }));
             }, () => {
-                // 【计费修复 2】: 每次流结束后强制刷新费用显示
                 refreshCost(activeSid);
             }, undefined, activeSid, AGENTS.TECH_DECISION_ASSISTANT);
 
+            // Update persistent context with the result
+            const finalAssistantMsg = { role: 'assistant', content: jsonBuffer };
+            
             let parsed;
             try {
                 const match = jsonBuffer.match(/\{[\s\S]*\}/);
@@ -416,6 +418,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                 techDefinition: parsed.definition,
                 searchQueries: parsed.search_queries || [input],
                 currentStepIndex: 1,
+                // Add the new turn to context history
+                llmContext: [...newMessages, finalAssistantMsg],
                 // Update the placeholder message with final result
                 messages: prev.messages.map(m => m.id === msgId ? { 
                     ...m, 
@@ -482,13 +486,17 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             
             if (userInstructions) filledPrompt += `\n\n**用户补充要求：**\n${userInstructions}`;
 
+            // Use the accumulated history
+            const history = data.llmContext || [];
+            const newMessages = [
+                ...history,
+                { role: 'user', content: filledPrompt }
+            ];
+
             let fullMarkdown = "";
             await streamChatCompletions({
                 model: config.model,
-                messages: [
-                    { role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION },
-                    { role: 'user', content: filledPrompt }
-                ],
+                messages: newMessages,
                 stream: true,
                 temperature: 0.2,
                 enable_billing: true
@@ -498,11 +506,16 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     updateSection(stepId, { markdown: fullMarkdown });
                 }
             }, () => {
-                // 刷新费用
                 refreshCost(activeSid);
             }, undefined, activeSid, AGENTS.TECH_DECISION_ASSISTANT);
 
-            // 绘制图表
+            // Update history with result
+            setData(prev => ({
+                ...prev,
+                llmContext: [...newMessages, { role: 'assistant', content: fullMarkdown }]
+            }));
+
+            // 绘制图表 (独立调用，不进入主 History)
             const visualTagsRegex = /\[VISUAL:\s*(.*?)\s*\|\s*(.*?)\]/g;
             let match;
             const tasks: Array<{ fullTag: string, title: string, desc: string }> = [];
@@ -523,6 +536,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     
                      let fullHtml = "";
                      try {
+                         // Independent call, fresh context for viz
                          await streamChatCompletions({
                              model: visualConfig.model, 
                              messages: [{ role: 'user', content: vizPrompt }],
@@ -532,7 +546,6 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                          }, (chunk) => {
                              if (chunk.content) fullHtml += chunk.content;
                          }, () => {
-                             // 并行图表结束后也刷新一下费用
                              refreshCost(activeSid);
                          }, undefined, activeSid, AGENTS.TECH_DECISION_ASSISTANT);
                          
@@ -553,12 +566,11 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             updateSection(stepId, { status: 'pending' });
         } finally {
             setIsGenerating(false);
-            refreshCost(); // 最终落袋对账
+            refreshCost(); 
         }
     };
 
     const handleSendMessage = (text: string) => {
-        // Init step doesn't show message immediately, it's handled in runInitStep to attach reasoning
         if (currentStepId === 'init') {
             runInitStep(text);
         } else {
