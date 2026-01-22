@@ -4,7 +4,7 @@ import {
     SparklesIcon, CheckCircleIcon, RefreshIcon,
     DatabaseIcon, GlobeIcon, DocumentTextIcon,
     ArrowRightIcon, CheckIcon, ExternalLinkIcon,
-    BrainIcon, SearchIcon, PencilIcon
+    BrainIcon, SearchIcon, PencilIcon, StopIcon
 } from '../../../../components/icons';
 import { marked } from 'marked';
 import { GenStatus } from './index';
@@ -63,6 +63,7 @@ const ResearchHero: React.FC<{ topic: string }> = ({ topic }) => (
 // --- Component: Active Processing Card (Redesigned) ---
 const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) => {
     const contentRef = useRef<HTMLDivElement>(null);
+    const isStopped = section.status === 'error'; // We use error status for stopped state too
     
     // Auto-scroll as content generates
     useEffect(() => {
@@ -72,6 +73,14 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
     }, [section.content, section.status]);
 
     const getStepStatus = (stepName: string) => {
+        // If stopped, freeze the indicators
+        if (isStopped) {
+             const order = ['planning', 'searching', 'writing'];
+             if (section.content && stepName === 'writing') return 'active'; // Stopped while writing
+             if (section.references.length > 0 && stepName === 'searching') return 'completed';
+             return 'pending';
+        }
+
         const order = ['planning', 'searching', 'writing', 'completed'];
         const currentIndex = order.indexOf(section.status);
         const stepIndex = order.indexOf(stepName);
@@ -88,16 +97,23 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
     ];
 
     return (
-        <div className="my-10 bg-white rounded-2xl border border-indigo-100 shadow-2xl shadow-indigo-200/20 overflow-hidden relative animate-in slide-in-from-bottom-8 duration-700 ring-1 ring-indigo-50/50">
+        <div className={`my-10 bg-white rounded-2xl border shadow-2xl shadow-indigo-200/20 overflow-hidden relative animate-in slide-in-from-bottom-8 duration-700 ring-1 ${isStopped ? 'border-red-200 ring-red-100' : 'border-indigo-100 ring-indigo-50/50'}`}>
             {/* 1. Header: Steps & Title */}
-            <div className="bg-slate-50/50 border-b border-slate-100 p-6">
+            <div className={`border-b p-6 ${isStopped ? 'bg-red-50/30 border-red-100' : 'bg-slate-50/50 border-slate-100'}`}>
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                        <span className="flex h-3 w-3 relative">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                        </span>
+                        {isStopped ? (
+                            <span className="flex h-3 w-3 relative items-center justify-center">
+                                <StopIcon className="w-4 h-4 text-red-500" />
+                            </span>
+                        ) : (
+                            <span className="flex h-3 w-3 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                            </span>
+                        )}
                         {section.title}
+                        {isStopped && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200">已停止</span>}
                     </h2>
                     {/* Step Indicators */}
                     <div className="flex items-center gap-2">
@@ -107,10 +123,11 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
                                 <div key={step.id} className="flex items-center">
                                     <div className={`
                                         flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-500
-                                        ${st === 'active' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105' : 
+                                        ${st === 'active' && !isStopped ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105' : 
+                                          st === 'active' && isStopped ? 'bg-red-100 text-red-500 border-red-200' :
                                           st === 'completed' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-400 border-slate-200'}
                                     `}>
-                                        {st === 'active' && <RefreshIcon className="w-3 h-3 animate-spin" />}
+                                        {st === 'active' && !isStopped && <RefreshIcon className="w-3 h-3 animate-spin" />}
                                         {st === 'completed' && <CheckIcon className="w-3 h-3" />}
                                         <step.icon className={`w-3 h-3 ${st === 'pending' ? 'opacity-50' : ''}`} />
                                         <span>{step.label}</span>
@@ -125,7 +142,7 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
                 {/* Current Log Display */}
                 <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm w-fit">
                     <span className="text-indigo-500 font-bold">{'>'}</span>
-                    <span className="animate-pulse">{section.logs[section.logs.length - 1] || 'Initializing...'}</span>
+                    <span className={isStopped ? '' : 'animate-pulse'}>{section.logs[section.logs.length - 1] || 'Initializing...'}</span>
                 </div>
             </div>
 
@@ -170,7 +187,7 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
                     </div>
                 ) : (
                     <div className="text-xs text-slate-400 italic px-2 py-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
-                        {section.status === 'planning' ? '等待检索任务启动...' : '正在全网搜寻相关资料...'}
+                        {section.status === 'planning' ? '等待检索任务启动...' : (isStopped ? '未找到引用资料' : '正在全网搜寻相关资料...')}
                     </div>
                 )}
             </div>
@@ -188,10 +205,10 @@ const ActiveSectionCard: React.FC<{ section: ReportSection }> = ({ section }) =>
                     />
                 ) : (
                     <div className="flex flex-col items-center justify-center h-48 text-slate-300 gap-3">
-                         <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center animate-pulse">
+                         <div className={`w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center ${isStopped ? '' : 'animate-pulse'}`}>
                              <PencilIcon className="w-5 h-5 text-slate-300" />
                          </div>
-                         <p className="text-sm font-medium">AI 正在组织语言...</p>
+                         <p className="text-sm font-medium">{isStopped ? '内容生成已中断' : 'AI 正在组织语言...'}</p>
                     </div>
                 )}
                 
@@ -239,7 +256,8 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
                 {/* Sections */}
                 <div className="space-y-12">
                     {sections.map((section, idx) => {
-                        // Completed Section
+                        // Completed Section (Or past stopped sections if user continued later - hypothetical)
+                        // For now, if it's completed, show simple view
                         if (section.status === 'completed') {
                             return (
                                 <section key={section.id} className="animate-in fade-in slide-in-from-bottom-8 duration-700 relative group">
@@ -283,8 +301,9 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
                             );
                         }
                         
-                        // Active Section
-                        if (idx === currentSectionIdx) {
+                        // Active Section (Current or Stopped)
+                        // If it's the current one being processed, OR it's a stopped section (error status)
+                        if (idx === currentSectionIdx || section.status === 'error') {
                             return <ActiveSectionCard key={section.id} section={section} />;
                         }
 
@@ -301,7 +320,7 @@ export const ReportCanvas: React.FC<ReportCanvasProps> = ({
                 </div>
 
                 {/* Completion Banner */}
-                {mainStatus === 'finished' && (
+                {mainStatus === 'finished' && sections.every(s => s.status !== 'error') && (
                     <div className="mt-24 p-12 bg-gradient-to-br from-slate-900 to-indigo-900 rounded-[40px] text-center space-y-6 animate-in zoom-in duration-1000 relative overflow-hidden shadow-2xl">
                         <div className="absolute top-0 right-0 p-10 opacity-10">
                             <SparklesIcon className="w-64 h-64 text-white" />

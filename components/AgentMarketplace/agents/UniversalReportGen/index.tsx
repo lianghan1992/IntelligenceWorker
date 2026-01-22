@@ -11,7 +11,7 @@ export type GenStatus = 'planning' | 'executing' | 'finished';
 
 // --- Constants ---
 const MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
-const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次，防止死循环
+const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次
 
 // --- Helpers ---
 const parsePlanFromMessage = (text: string): { title: string; instruction: string }[] => {
@@ -20,7 +20,7 @@ const parsePlanFromMessage = (text: string): { title: string; instruction: strin
     
     if (planMatch && planMatch[1]) {
         try {
-            // 清理可能存在的 markdown 代码块标记，如 ```json ... ```
+            // 清理可能存在的 markdown 代码块标记
             const cleanJson = planMatch[1]
                 .replace(/```json/gi, '')
                 .replace(/```/g, '')
@@ -38,41 +38,29 @@ const parsePlanFromMessage = (text: string): { title: string; instruction: strin
         }
     }
 
-    // 2. 降级策略：如果 JSON 解析失败，尝试智能正则提取
-    // 移除 <think> 和 <plan> 标签本身，只保留文本内容
+    // 2. 降级策略
     const contentToParse = text
         .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .replace(/<\/?plan>/gi, ''); // 移除 plan 标签，防止干扰
+        .replace(/<\/?plan>/gi, '');
 
     const lines = contentToParse.split('\n');
     const steps: { title: string; instruction: string }[] = [];
     
-    // 正则策略：
-    // 1. 匹配 "1. 标题: 说明" 
-    // 2. 匹配 "章节一：标题" (不带点)
-    // 3. 匹配 "**标题**" (Markdown 加粗)
     lines.forEach(line => {
         const cleanLine = line.trim();
         if (!cleanLine) return;
-
-        // 尝试匹配 "数字. 标题" 或 "数字 标题"
         let match = cleanLine.match(/^(\d+)[\.\、\s]\s*(.*)/);
-        
-        // 如果没匹配到数字，尝试匹配 "章节X："
         if (!match) {
             match = cleanLine.match(/^(?:章节|Chapter)\s*[\d一二三四五六七八九十]+[：:](.*)/);
         }
-
         if (match) {
             const fullContent = (match[2] || match[1]).trim();
-            // 尝试分割 标题 和 指令 (支持冒号、破折号、空格后跟"研究重点"等)
-            // 例子: "背景分析 - 研究重点：xxx"
             const splitRegex = /[:：\-\—]|\s(?=研究重点|写作指令)/;
             const splitIdx = fullContent.search(splitRegex);
             
             if (splitIdx > -1 && splitIdx < fullContent.length - 1) {
                 steps.push({
-                    title: fullContent.substring(0, splitIdx).trim().replace(/\*\*/g, ''), // 去除 markdown 加粗
+                    title: fullContent.substring(0, splitIdx).trim().replace(/\*\*/g, ''), 
                     instruction: fullContent.substring(splitIdx + 1).trim()
                 });
             } else {
@@ -84,7 +72,6 @@ const parsePlanFromMessage = (text: string): { title: string; instruction: strin
         }
     });
     
-    // 3. 最终兜底
     if (steps.length === 0) {
         if (!text.trim()) return []; 
         return [
@@ -98,19 +85,15 @@ const parsePlanFromMessage = (text: string): { title: string; instruction: strin
 };
 
 const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-    // 状态机
     const [status, setStatus] = useState<GenStatus>('planning');
     const [topic, setTopic] = useState('');
     
-    // 规划阶段数据
     const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     
-    // 执行阶段数据
     const [sections, setSections] = useState<ReportSection[]>([]);
     const [currentSectionIdx, setCurrentSectionIdx] = useState<number>(-1);
     
-    // Abort Controller for stopping generation
     const abortRef = useRef<AbortController | null>(null);
 
     // --- Actions ---
@@ -123,19 +106,22 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setIsGenerating(false);
         if (status === 'executing') {
             setSections(prev => {
+                // 将当前正在执行的章节标记为 'stopped' 而非 'error'，体验更好
                 if (currentSectionIdx >= 0 && currentSectionIdx < prev.length) {
                     const n = [...prev];
+                    const currentLog = n[currentSectionIdx].logs || [];
                     n[currentSectionIdx] = { 
                         ...n[currentSectionIdx], 
                         status: 'error', 
-                        logs: [...(n[currentSectionIdx].logs || []), '用户手动停止生成。'] 
+                        logs: [...currentLog, '🛑 用户手动停止了任务。'] 
                     };
                     return n;
                 }
                 return prev;
             });
-            setStatus('planning'); 
-            setChatMessages(prev => [...prev, { role: 'system', content: '任务已手动终止。您可以修改主题后重新开始。' }]);
+            // 关键修改：停止后进入 finished 状态，保留 Canvas 内容，而不是 planning
+            setStatus('finished'); 
+            setChatMessages(prev => [...prev, { role: 'system', content: '任务已手动终止。您可以查看已生成的内容，或刷新页面重新开始。' }]);
         }
     };
     
@@ -147,44 +133,35 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const newMessages = [...chatMessages, { role: 'user', content: input, id: crypto.randomUUID() }];
         setChatMessages(newMessages);
         setIsGenerating(true);
-
-        // Init AbortController
         abortRef.current = new AbortController();
 
-        if (!topic) setTopic(input); // 第一次输入作为主题
+        if (!topic) setTopic(input); 
 
-        // 构建 Prompt (核心优化点)
         const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         const systemPrompt = `你是一个专业的深度研究规划专家。当前时间：${today}。
-你的目标是帮助用户制定一份详尽的研究报告大纲。
+目标：帮助用户制定一份详尽的研究报告大纲。
 
-用户输入主题后，请按以下步骤执行：
-1. **思考阶段**：在 <think> 标签中分析用户意图、关键研究维度和逻辑结构。
-2. **交互阶段**：用自然的语言向用户简要介绍你的思路，询问是否满意。
-3. **结构化输出**：**必须**生成一份标准 JSON 格式的大纲，并包裹在 <plan> 标签中。
+步骤：
+1. **思考**：在 <think> 标签中分析用户意图。
+2. **交互**：用自然语言简述思路。
+3. **输出**：**必须**生成一份标准 JSON 格式的大纲，包裹在 <plan> 标签中。
 
-**<plan> 标签内部格式要求：**
-- 必须是纯 JSON 数组 (Array)。
-- 每个对象包含 "title" (章节标题) 和 "instruction" (具体的写作指令/研究重点)。
-- 不要包含 Markdown 代码块标记 (\`\`\`json)，直接输出 JSON 字符串。
+**<plan> 格式要求：**
+- 纯 JSON 数组。
+- 每个对象包含 "title" (章节标题) 和 "instruction" (具体写作指令/重点)。
+- 无 Markdown 代码块标记。
 
 **JSON 示例：**
 <plan>
 [
   {"title": "第一章：行业背景", "instruction": "分析宏观经济政策与市场规模，引用近三年数据。"},
-  {"title": "第二章：核心技术路线", "instruction": "对比 A 技术与 B 技术的优劣，分析技术成熟度。"}
+  {"title": "第二章：核心技术路线", "instruction": "对比 A 技术与 B 技术的优劣。"}
 ]
-</plan>
-
-注意：
-- JSON 必须合法，不要有多余逗号。
-- instruction 要具体，用于指导后续的 AI 研究员进行搜索和写作。
-`;
+</plan>`;
 
         let fullContent = "";
         const assistantMsgId = crypto.randomUUID();
         
-        // 乐观更新 UI
         setChatMessages(prev => [...prev, { role: 'assistant', content: '', id: assistantMsgId }]);
 
         try {
@@ -213,9 +190,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         }
     };
 
-    // 用户确认方案，开始研究
     const handleStartResearch = () => {
-        // 1. 从最后一条 AI 消息中解析大纲
         const lastAiMsg = [...chatMessages].reverse().find(m => m.role === 'assistant');
         if (!lastAiMsg) return;
 
@@ -226,7 +201,6 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             return;
         }
         
-        // 2. 初始化执行状态
         const initialSections: ReportSection[] = outline.map((item, idx) => ({
             id: `sec-${idx}`,
             title: item.title,
@@ -298,23 +272,28 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             let collectedContext = "";
             let finished = false;
             
-            const systemPrompt = `你是一个拥有向量检索工具的资深行业研究员。当前时间：${today}。
+            // 核心 Prompt 优化：强调“无知”属性，强制搜索
+            const systemPrompt = `你是一个严谨的研究员。当前时间：${today}。
 任务：撰写报告章节【${section.title}】。
 要求：${section.instruction}
+
+**重要原则**：
+1. **你对当前实时信息一无所知**。必须且只能依靠工具获取信息。
+2. 在没有使用 \`search_knowledge_base\` 获取到足够信息前，**严禁**开始撰写正文。
+3. 如果是第一轮交互，**必须**调用搜索工具。
 
 工具：
 - search_knowledge_base: 搜索内部知识库和全网数据。
 
-**工作流程 (ReAct)**：
-1. 分析当前章节需要什么数据。
-2. 决定是【搜索】还是【开始撰写】。
-   - 需要数据 -> 输出: \`call:search["关键词1", "关键词2"]\` (JSON数组格式的关键词)。
-   - 数据足够 -> 直接开始撰写正文 (Markdown格式)。
+**工作流程**：
+1. 思考当前缺失什么数据。
+2. **决策**：
+   - 缺数据 -> 输出工具指令：\`call:search["关键词1", "关键词2"]\` (JSON数组)。
+   - 资料已完全充足 -> 直接开始撰写正文 (Markdown格式，必须引用数据)。
 
 注意：
-- 关键词使用简体中文。
 - 严禁在正文中输出 call:search 指令。
-- 必须引用数据来源。
+- 严禁编造数据，必须基于 search_knowledge_base 返回的内容。
 `;
 
             let conversationHistory: { role: string; content: string }[] = [
@@ -326,6 +305,14 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
                 updateSec({ status: 'planning' }); 
                 
+                // 策略：首轮强制注入搜索指令 (Anti-Laziness Strategy)
+                if (loopCount === 0) {
+                     conversationHistory.push({ 
+                         role: 'system', 
+                         content: `(系统强制指令：这是第一轮思考。你目前没有任何资料。请务必先输出 call:search 指令进行初步调研。)` 
+                     });
+                }
+
                 let llmResponse = "";
                 await streamChatCompletions({
                     model: MODEL_ID,
@@ -334,7 +321,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         ...conversationHistory
                     ],
                     stream: true,
-                    temperature: 0.1, 
+                    temperature: 0.1, // 低温以保证指令遵循
                     enable_billing: true
                 }, (chunk) => {
                     if (chunk.content) llmResponse += chunk.content;
@@ -355,7 +342,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         queries = [toolCallMatch[1].replace(/[\[\]"]/g, '')];
                     }
 
-                    addLog(`[Round ${loopCount+1}] 思考中...决定检索: ${queries.join(', ')}`);
+                    addLog(`[第 ${loopCount+1} 轮] 正在检索: ${queries.join(', ')}`);
                     
                     const searchRes = await searchSemanticBatchGrouped({ 
                         query_texts: queries, 
@@ -380,30 +367,38 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         ? uniqueItems.map((it:any, i:number) => `[资料${i+1}] ${it.title}: ${(it.segments||[]).map((s:any)=>s.content).join('... ')}`).join('\n\n')
                         : "本次检索未找到高相关性结果。";
                     
-                    addLog(`检索完成，捕获 ${uniqueItems.length} 条新情报。阅读中...`);
+                    addLog(`检索完成，阅读 ${uniqueItems.length} 篇资料中...`);
 
                     conversationHistory.push({ role: 'assistant', content: llmResponse });
-                    conversationHistory.push({ role: 'user', content: `【工具返回结果】\n${observation}\n\n请基于以上新信息，决定是继续搜索不同维度，还是开始撰写？` });
+                    conversationHistory.push({ role: 'user', content: `【工具返回结果】\n${observation}\n\n请评估信息是否充足。如果不足，请换个角度继续搜索；如果充足，请开始撰写。` });
                     
                     collectedContext += observation + "\n";
                     loopCount++;
                 } else {
                     // --- CASE B: Writing (Finish) ---
+                    // 如果第一轮就没有调用工具，大概率是模型偷懒。
+                    // 但由于我们在 System Prompt 和 First Round 做了强制，这里通常是正常结束。
+                    if (loopCount === 0 && !collectedContext) {
+                        // 兜底：如果模型依然坚持不搜索直接写（极少情况），我们在界面上记录一个警告
+                        addLog("警告：模型尝试在无资料情况下直接写作。");
+                    }
+                    
                     finished = true;
                     updateSec({ status: 'writing' });
-                    addLog("信息充足，开始合成最终报告...");
+                    addLog("信息研判完成，开始生成报告...");
                     
                     const wPrompt = `资料收集阶段结束。
 请基于以下所有累积的参考资料，撰写章节【${section.title}】。
 要求：${section.instruction}
 
 【所有参考资料】
-${collectedContext || "（无直接资料，请基于通识撰写）"}
+${collectedContext || "（无直接资料，请基于通识撰写，但需注明数据来源不详）"}
 
 【写作要求】
 1. 逻辑严密，多引用数据。
 2. 必须使用 Markdown 格式。
-3. 直接输出正文，不要包含 "好的"、"根据资料" 等废话。`;
+3. 结构清晰，分点论述。
+4. **直接输出正文**，不要包含 "好的"、"根据资料"、"报告如下" 等废话。`;
 
                     let contentBuffer = "";
                     await streamChatCompletions({
@@ -421,9 +416,10 @@ ${collectedContext || "（无直接资料，请基于通识撰写）"}
                 }
             }
             
+            // 轮次耗尽兜底
             if (!finished && !signal.aborted) {
                  updateSec({ status: 'writing' });
-                 addLog("检索轮次耗尽，强制生成报告...");
+                 addLog("最大检索轮次已达，强制生成报告...");
                  const wPrompt = `请基于目前已有的信息撰写章节【${section.title}】。${collectedContext ? '参考资料如下：\n' + collectedContext : ''}`;
                  let contentBuffer = "";
                  await streamChatCompletions({
