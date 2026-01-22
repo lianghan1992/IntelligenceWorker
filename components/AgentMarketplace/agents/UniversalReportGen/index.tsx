@@ -330,8 +330,9 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 }, (chunk) => {
                     if (chunk.content) {
                         llmResponse += chunk.content;
-                        // Stream thought to UI
-                        updateSec({ currentThought: llmResponse });
+                        // Stream thought to UI, but mask tool calls
+                        const displayThought = llmResponse.replace(/call:search\s*(\[.*?\])?/gi, '⚡️ 正在调用全网检索工具...');
+                        updateSec({ currentThought: displayThought });
                     }
                 }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN, signal);
 
