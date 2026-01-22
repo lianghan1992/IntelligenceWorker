@@ -139,7 +139,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         if (!activeSid) return;
         try {
             const sess = await getSession(activeSid);
-            setSessionCost(sess.total_cost || 0);
+            // 修复: 强制转换为 Number 防止 toFixed 报错
+            setSessionCost(Number(sess.total_cost) || 0);
         } catch(e) {
             console.warn("Failed to refresh cost", e);
         }
@@ -151,7 +152,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         try {
             const session = await createSession(AGENTS.TECH_DECISION_ASSISTANT, title);
             setSessionId(session.id);
-            setSessionCost(session.total_cost || 0);
+            // 修复: 强制转换为 Number
+            setSessionCost(Number(session.total_cost) || 0);
             return session.id;
         } catch (e) {
             console.error("Failed to create session", e);
@@ -171,7 +173,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                     current_stage: currentStepId,
                     context_data: data
                 });
-                setSessionCost(res.total_cost || 0);
+                // 修复: 强制转换为 Number
+                setSessionCost(Number(res.total_cost) || 0);
                 setSaveStatus('saved');
             } catch (e) {
                 console.error("Update session failed", e);
@@ -186,7 +189,8 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
         try {
             const session = await getSession(sid);
             setSessionId(sid);
-            setSessionCost(session.total_cost || 0);
+            // 修复: 强制转换为 Number
+            setSessionCost(Number(session.total_cost) || 0);
             if (session.context_data) {
                 const restoredSections = { ...DEFAULT_SECTIONS, ...session.context_data.sections };
                 setData({
@@ -406,15 +410,24 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             
             let parsed;
             try {
-                const match = jsonBuffer.match(/\{[\s\S]*\}/);
-                parsed = JSON.parse(match ? match[0] : jsonBuffer);
+                // Robust JSON parsing: Try to find first { and last }
+                const firstBrace = jsonBuffer.indexOf('{');
+                const lastBrace = jsonBuffer.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    const jsonCandidate = jsonBuffer.substring(firstBrace, lastBrace + 1);
+                    parsed = JSON.parse(jsonCandidate);
+                } else {
+                    const match = jsonBuffer.match(/\{[\s\S]*\}/);
+                    parsed = JSON.parse(match ? match[0] : jsonBuffer);
+                }
             } catch (e) {
+                console.warn("Init JSON parse error, fallback to raw input", e);
                 parsed = { tech_name: input, search_queries: [input], definition: "解析失败。" };
             }
 
             setData(prev => ({
                 ...prev,
-                techName: parsed.tech_name,
+                techName: parsed.tech_name || input,
                 techDefinition: parsed.definition,
                 searchQueries: parsed.search_queries || [input],
                 currentStepIndex: 1,
