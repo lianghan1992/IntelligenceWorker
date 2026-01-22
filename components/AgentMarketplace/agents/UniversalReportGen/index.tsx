@@ -84,6 +84,21 @@ const parsePlanFromMessage = (text: string): { title: string; instruction: strin
     return steps;
 };
 
+// 工具指令掩码处理函数
+const maskToolContent = (text: string) => {
+    // 1. 替换完整的工具调用 (包含参数)
+    let display = text.replace(/call:search\s*\[[\s\S]*?\]/gi, '\n(⚡️ AI正在调用全网检索工具...)\n');
+    
+    // 2. 替换流式输出中尚未完成的工具调用 (例如 "call:sea", "call:search[\"...")
+    // 匹配以 call: 开头，后面跟随字母、下划线、方括号、引号等字符，直到字符串末尾的部分
+    const partialRegex = /(^|\n)call:[a-z_]*(\s*\[[\s\S]*)?$/i;
+    if (partialRegex.test(display)) {
+        display = display.replace(partialRegex, '\n(⚡️ AI正在调用全网检索工具...)\n');
+    }
+    
+    return display;
+};
+
 const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [status, setStatus] = useState<GenStatus>('planning');
     const [topic, setTopic] = useState('');
@@ -177,6 +192,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             }, (chunk) => {
                 if (chunk.content) {
                     fullContent += chunk.content;
+                    // 对 chatMessages 中的 plan 内容暂不屏蔽，因为这里通常不调用工具，主要是 JSON
                     setChatMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: fullContent } : m));
                 }
             }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN, abortRef.current?.signal);
@@ -330,9 +346,8 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 }, (chunk) => {
                     if (chunk.content) {
                         llmResponse += chunk.content;
-                        // Stream thought to UI, but mask tool calls
-                        const displayThought = llmResponse.replace(/call:search\s*(\[.*?\])?/gi, '⚡️ 正在调用全网检索工具...');
-                        updateSec({ currentThought: displayThought });
+                        // Stream thought to UI, but mask tool calls more aggressively
+                        updateSec({ currentThought: maskToolContent(llmResponse) });
                     }
                 }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN, signal);
 
