@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, UserIcon, 
-    BrainIcon, ChevronDownIcon, PlayIcon, PencilIcon 
+    BrainIcon, ChevronDownIcon, PlayIcon, PencilIcon, StopIcon
 } from '../../../../components/icons';
 import { marked } from 'marked';
 import { GenStatus } from './index';
@@ -12,6 +12,7 @@ interface PlanChatAreaProps {
     isGenerating: boolean;
     onSendMessage: (text: string) => void;
     onStartResearch: () => void;
+    onStop?: () => void; // New Prop
     status: GenStatus;
 }
 
@@ -51,7 +52,7 @@ const ThinkingBubble: React.FC<{ content: string; isStreaming: boolean }> = ({ c
 };
 
 export const PlanChatArea: React.FC<PlanChatAreaProps> = ({ 
-    messages, isGenerating, onSendMessage, onStartResearch, status 
+    messages, isGenerating, onSendMessage, onStartResearch, onStop, status 
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -159,7 +160,7 @@ export const PlanChatArea: React.FC<PlanChatAreaProps> = ({
             </div>
 
             {/* Input Area */}
-            {status === 'planning' && (
+            {status === 'planning' ? (
                 <div className="p-4 bg-white border-t border-slate-200">
                     <div className="relative">
                         <textarea 
@@ -171,19 +172,44 @@ export const PlanChatArea: React.FC<PlanChatAreaProps> = ({
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none resize-none h-14 custom-scrollbar shadow-inner transition-all"
                             disabled={isGenerating}
                         />
-                        <button 
-                            onClick={handleSend}
-                            disabled={!input.trim() || isGenerating}
-                            className="absolute right-2 top-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
-                        >
-                            {isGenerating ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <ArrowRightIcon className="w-4 h-4" />}
-                        </button>
+                        {isGenerating && onStop ? (
+                            <button 
+                                onClick={onStop}
+                                className="absolute right-2 top-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors shadow-sm animate-in fade-in zoom-in"
+                                title="停止生成"
+                            >
+                                <StopIcon className="w-4 h-4" />
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={handleSend}
+                                disabled={!input.trim() || isGenerating}
+                                className="absolute right-2 top-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+                            >
+                                {isGenerating ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <ArrowRightIcon className="w-4 h-4" />}
+                            </button>
+                        )}
                     </div>
                     <div className="text-center mt-2">
                         <span className="text-[10px] text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
                             Model: Xiaomi Mimo v2 Flash (Free)
                         </span>
                     </div>
+                </div>
+            ) : (
+                /* Execution Status Bar */
+                <div className="p-4 bg-white border-t border-slate-200 flex justify-between items-center">
+                    <div className="text-sm font-bold text-slate-600">
+                        {status === 'executing' ? "智能体正在自主执行..." : "任务已结束"}
+                    </div>
+                    {status === 'executing' && onStop && (
+                        <button 
+                            onClick={onStop}
+                            className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-red-100"
+                        >
+                            <StopIcon className="w-3.5 h-3.5" /> 停止任务
+                        </button>
+                    )}
                 </div>
             )}
         </div>

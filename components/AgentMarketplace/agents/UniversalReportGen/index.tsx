@@ -15,47 +15,78 @@ const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次，防止死循环
 
 // --- Helpers ---
 const parsePlanFromMessage = (text: string): { title: string; instruction: string }[] => {
-    // 1. 尝试提取 <plan> 标签内的内容 (最精准)
+    // 1. 优先尝试提取 <plan> 标签内的 JSON 内容 (最稳健)
     const planMatch = text.match(/<plan>([\s\S]*?)<\/plan>/i);
-    let contentToParse = "";
-
-    if (planMatch && planMatch[1]) {
-        contentToParse = planMatch[1];
-    } else {
-        // 2. 降级策略：如果没有标签，先剔除 <think> 块，解析剩余全文
-        contentToParse = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
-    }
     
+    if (planMatch && planMatch[1]) {
+        try {
+            // 清理可能存在的 markdown 代码块标记，如 ```json ... ```
+            const cleanJson = planMatch[1]
+                .replace(/```json/gi, '')
+                .replace(/```/g, '')
+                .trim();
+            
+            const parsed = JSON.parse(cleanJson);
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].title) {
+                return parsed.map((item: any) => ({
+                    title: item.title,
+                    instruction: item.instruction || item.desc || "综合分析本章内容"
+                }));
+            }
+        } catch (e) {
+            console.warn("JSON parse failed inside <plan>, falling back to regex", e);
+        }
+    }
+
+    // 2. 降级策略：如果 JSON 解析失败，尝试智能正则提取
+    // 移除 <think> 和 <plan> 标签本身，只保留文本内容
+    const contentToParse = text
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/<\/?plan>/gi, ''); // 移除 plan 标签，防止干扰
+
     const lines = contentToParse.split('\n');
     const steps: { title: string; instruction: string }[] = [];
     
+    // 正则策略：
+    // 1. 匹配 "1. 标题: 说明" 
+    // 2. 匹配 "章节一：标题" (不带点)
+    // 3. 匹配 "**标题**" (Markdown 加粗)
     lines.forEach(line => {
-        // 匹配 "1. 标题: 说明" 或 "1. 标题 - 说明" 或 "1. 标题"
-        const match = line.match(/^\s*(\d+)\.\s+(.*)/);
+        const cleanLine = line.trim();
+        if (!cleanLine) return;
+
+        // 尝试匹配 "数字. 标题" 或 "数字 标题"
+        let match = cleanLine.match(/^(\d+)[\.\、\s]\s*(.*)/);
+        
+        // 如果没匹配到数字，尝试匹配 "章节X："
+        if (!match) {
+            match = cleanLine.match(/^(?:章节|Chapter)\s*[\d一二三四五六七八九十]+[：:](.*)/);
+        }
+
         if (match) {
-            const fullContent = match[2].trim();
-            // 尝试分割 标题 和 指令
-            const splitIdx = fullContent.search(/[:：-]/);
+            const fullContent = (match[2] || match[1]).trim();
+            // 尝试分割 标题 和 指令 (支持冒号、破折号、空格后跟"研究重点"等)
+            // 例子: "背景分析 - 研究重点：xxx"
+            const splitRegex = /[:：\-\—]|\s(?=研究重点|写作指令)/;
+            const splitIdx = fullContent.search(splitRegex);
             
             if (splitIdx > -1 && splitIdx < fullContent.length - 1) {
                 steps.push({
-                    title: fullContent.substring(0, splitIdx).trim(),
+                    title: fullContent.substring(0, splitIdx).trim().replace(/\*\*/g, ''), // 去除 markdown 加粗
                     instruction: fullContent.substring(splitIdx + 1).trim()
                 });
             } else {
                 steps.push({
-                    title: fullContent,
-                    instruction: "综合分析该部分内容并撰写详细报告"
+                    title: fullContent.replace(/\*\*/g, ''),
+                    instruction: "综合分析该部分内容，包含现状、趋势与数据支持。"
                 });
             }
         }
     });
     
-    // 如果解析失败，返回默认兜底
+    // 3. 最终兜底
     if (steps.length === 0) {
-        // 仅在完全无法解析时才返回兜底，避免用户看到错误的默认值
         if (!text.trim()) return []; 
-        
         return [
             { title: "市场背景分析", instruction: "分析行业宏观背景" },
             { title: "核心技术趋势", instruction: "分析技术发展路线" },
@@ -79,6 +110,35 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [sections, setSections] = useState<ReportSection[]>([]);
     const [currentSectionIdx, setCurrentSectionIdx] = useState<number>(-1);
     
+    // Abort Controller for stopping generation
+    const abortRef = useRef<AbortController | null>(null);
+
+    // --- Actions ---
+
+    const handleStop = () => {
+        if (abortRef.current) {
+            abortRef.current.abort();
+            abortRef.current = null;
+        }
+        setIsGenerating(false);
+        if (status === 'executing') {
+            setSections(prev => {
+                if (currentSectionIdx >= 0 && currentSectionIdx < prev.length) {
+                    const n = [...prev];
+                    n[currentSectionIdx] = { 
+                        ...n[currentSectionIdx], 
+                        status: 'error', 
+                        logs: [...(n[currentSectionIdx].logs || []), '用户手动停止生成。'] 
+                    };
+                    return n;
+                }
+                return prev;
+            });
+            setStatus('planning'); 
+            setChatMessages(prev => [...prev, { role: 'system', content: '任务已手动终止。您可以修改主题后重新开始。' }]);
+        }
+    };
+    
     // --- Phase 1: Planning Interaction ---
     
     const handleUserSend = async (input: string) => {
@@ -88,30 +148,38 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setChatMessages(newMessages);
         setIsGenerating(true);
 
+        // Init AbortController
+        abortRef.current = new AbortController();
+
         if (!topic) setTopic(input); // 第一次输入作为主题
 
-        // 构建 Prompt
+        // 构建 Prompt (核心优化点)
         const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-        const systemPrompt = `你是一个专业的深度研究规划专家。
-当前时间：${today}。
+        const systemPrompt = `你是一个专业的深度研究规划专家。当前时间：${today}。
 你的目标是帮助用户制定一份详尽的研究报告大纲。
 
 用户输入主题后，请按以下步骤执行：
-1. 分析用户的意图和研究深度。
-2. 在 <think> 标签中输出你的思考过程（分析用户需求、拆解关键维度）。
-3. **重要：** 生成一份建议的研究方案清单，并**必须**将其包裹在 <plan> 标签中。
-   <plan> 标签内部只允许包含 markdown 有序列表，格式如下：
-   <plan>
-   1. 第一章标题：本章的具体写作指令和研究重点
-   2. 第二章标题：本章的具体写作指令
-   ...
-   </plan>
-4. 在 <plan> 标签外部，你可以用自然的语言询问用户是否满意或需要调整。
+1. **思考阶段**：在 <think> 标签中分析用户意图、关键研究维度和逻辑结构。
+2. **交互阶段**：用自然的语言向用户简要介绍你的思路，询问是否满意。
+3. **结构化输出**：**必须**生成一份标准 JSON 格式的大纲，并包裹在 <plan> 标签中。
+
+**<plan> 标签内部格式要求：**
+- 必须是纯 JSON 数组 (Array)。
+- 每个对象包含 "title" (章节标题) 和 "instruction" (具体的写作指令/研究重点)。
+- 不要包含 Markdown 代码块标记 (\`\`\`json)，直接输出 JSON 字符串。
+
+**JSON 示例：**
+<plan>
+[
+  {"title": "第一章：行业背景", "instruction": "分析宏观经济政策与市场规模，引用近三年数据。"},
+  {"title": "第二章：核心技术路线", "instruction": "对比 A 技术与 B 技术的优劣，分析技术成熟度。"}
+]
+</plan>
 
 注意：
-- 保持对话风格专业且乐于助人。
-- **必须** 包含 <think> 标签的思考过程。
-- **必须** 使用 <plan> 标签包裹最终大纲，以便系统识别。`;
+- JSON 必须合法，不要有多余逗号。
+- instruction 要具体，用于指导后续的 AI 研究员进行搜索和写作。
+`;
 
         let fullContent = "";
         const assistantMsgId = crypto.randomUUID();
@@ -134,11 +202,14 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     fullContent += chunk.content;
                     setChatMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: fullContent } : m));
                 }
-            }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
-        } catch (e) {
-            setChatMessages(prev => [...prev, { role: 'assistant', content: '抱歉，规划服务暂时繁忙，请重试。', id: crypto.randomUUID() }]);
+            }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN, abortRef.current?.signal);
+        } catch (e: any) {
+            if (e.name !== 'AbortError') {
+                 setChatMessages(prev => [...prev, { role: 'assistant', content: '抱歉，规划服务暂时繁忙，请重试。', id: crypto.randomUUID() }]);
+            }
         } finally {
             setIsGenerating(false);
+            abortRef.current = null;
         }
     };
 
@@ -151,7 +222,7 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const outline = parsePlanFromMessage(lastAiMsg.content);
         
         if (outline.length === 0) {
-            alert("未能识别到有效的大纲，请让 AI 重新生成或明确大纲结构。");
+            alert("未能识别到有效的大纲。请尝试对 AI 说：“请重新生成符合 JSON 格式的大纲”");
             return;
         }
         
@@ -180,12 +251,22 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             return;
         }
         executeSectionResearch(currentSectionIdx);
+        
+        return () => {
+            if (abortRef.current) {
+                abortRef.current.abort();
+                abortRef.current = null;
+            }
+        };
     }, [currentSectionIdx, status]);
 
     const executeSectionResearch = async (idx: number) => {
         const section = sections[idx];
         const today = new Date().toLocaleDateString('zh-CN');
         
+        abortRef.current = new AbortController();
+        const signal = abortRef.current.signal;
+
         const updateSec = (up: Partial<ReportSection>) => {
             setSections(prev => {
                 const n = [...prev];
@@ -203,7 +284,6 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const appendReferences = (newRefs: any[]) => {
             setSections(prev => {
                 const n = [...prev];
-                // Merge and deduplicate references by URL
                 const existingUrls = new Set(n[idx].references.map(r => r.url));
                 const uniqueNewRefs = newRefs.filter(r => !existingUrls.has(r.url));
                 n[idx] = { ...n[idx], references: [...n[idx].references, ...uniqueNewRefs] };
@@ -214,42 +294,38 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         try {
             updateSec({ status: 'planning' });
             
-            // ReAct Loop Variables
             let loopCount = 0;
             let collectedContext = "";
             let finished = false;
             
-            // 系统提示词：定义工具和行为规范
             const systemPrompt = `你是一个拥有向量检索工具的资深行业研究员。当前时间：${today}。
 任务：撰写报告章节【${section.title}】。
 要求：${section.instruction}
 
-你可以使用以下工具来获取信息：
+工具：
 - search_knowledge_base: 搜索内部知识库和全网数据。
 
 **工作流程 (ReAct)**：
 1. 分析当前章节需要什么数据。
 2. 决定是【搜索】还是【开始撰写】。
-   - 如果需要数据，输出工具调用指令：\`call:search["关键词1", "关键词2"]\`。**关键词必须使用简体中文**，具体且精准。
-   - 如果数据已足够或无法获取更多数据，直接开始撰写正文。
+   - 需要数据 -> 输出: \`call:search["关键词1", "关键词2"]\` (JSON数组格式的关键词)。
+   - 数据足够 -> 直接开始撰写正文 (Markdown格式)。
 
 注意：
-- 每次搜索最多生成 3 个关键词。
-- 只有当你确信有足够信息时才开始写正文。
-- 正文必须使用 Markdown 格式。
-- 正文中必须引用你获取到的数据，增强可信度。
-- **严禁**在正文输出 call:search 指令。
+- 关键词使用简体中文。
+- 严禁在正文中输出 call:search 指令。
+- 必须引用数据来源。
 `;
 
-            // 对话历史：维护本章节的推理链
             let conversationHistory: { role: string; content: string }[] = [
                 { role: 'user', content: `请开始为章节【${section.title}】收集资料并撰写内容。` }
             ];
 
             while (loopCount < MAX_SEARCH_ROUNDS && !finished) {
+                if (signal.aborted) break;
+
                 updateSec({ status: 'planning' }); 
                 
-                // 1. Call LLM to decide next step
                 let llmResponse = "";
                 await streamChatCompletions({
                     model: MODEL_ID,
@@ -258,14 +334,14 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         ...conversationHistory
                     ],
                     stream: true,
-                    temperature: 0.1, // Low temperature for precise tool calling
+                    temperature: 0.1, 
                     enable_billing: true
                 }, (chunk) => {
                     if (chunk.content) llmResponse += chunk.content;
-                }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
+                }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN, signal);
 
-                // 2. Parse Response for Tool Call
-                // 格式如：call:search["小米汽车 销量", "SU7 交付量"]
+                if (signal.aborted) break;
+
                 const toolCallMatch = llmResponse.match(/call:search(\[.*?\])/);
 
                 if (toolCallMatch) {
@@ -276,24 +352,22 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     try {
                         queries = JSON.parse(toolCallMatch[1]);
                     } catch (e) {
-                        // Fallback parsing if JSON is malformed
                         queries = [toolCallMatch[1].replace(/[\[\]"]/g, '')];
                     }
 
                     addLog(`[Round ${loopCount+1}] 思考中...决定检索: ${queries.join(', ')}`);
                     
-                    // Call Vector Search API
                     const searchRes = await searchSemanticBatchGrouped({ 
                         query_texts: queries, 
                         max_segments_per_query: 4,
                         similarity_threshold: 0.35
                     });
                     
-                    // Process Results
+                    if (signal.aborted) break;
+
                     const allItems = (searchRes.results || []).flatMap((r: any) => r.items || []);
                     const uniqueItems = Array.from(new Map(allItems.map((item:any) => [item.id || item.article_id, item])).values());
                     
-                    // Update References in UI
                     const mappedRefs = uniqueItems.map((i:any)=>({ 
                         title: i.title || "未命名文档", 
                         url: i.original_url || i.url || '#', 
@@ -302,7 +376,6 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     }));
                     appendReferences(mappedRefs);
 
-                    // Add observation to history
                     const observation = uniqueItems.length > 0 
                         ? uniqueItems.map((it:any, i:number) => `[资料${i+1}] ${it.title}: ${(it.segments||[]).map((s:any)=>s.content).join('... ')}`).join('\n\n')
                         : "本次检索未找到高相关性结果。";
@@ -316,13 +389,9 @@ const UniversalReportGen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     loopCount++;
                 } else {
                     // --- CASE B: Writing (Finish) ---
-                    // If no tool call is detected, assume the model is writing the final content
                     finished = true;
                     updateSec({ status: 'writing' });
                     addLog("信息充足，开始合成最终报告...");
-                    
-                    // We can reuse the llmResponse as the start of the content if it's not just "I will write now"
-                    // But usually, it's better to force a clean write pass with full context.
                     
                     const wPrompt = `资料收集阶段结束。
 请基于以下所有累积的参考资料，撰写章节【${section.title}】。
@@ -348,12 +417,11 @@ ${collectedContext || "（无直接资料，请基于通识撰写）"}
                             contentBuffer += chunk.content;
                             updateSec({ content: contentBuffer });
                         }
-                    }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
+                    }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN, signal);
                 }
             }
             
-            // If loop ended without writing (e.g. max rounds reached), force write
-            if (!finished) {
+            if (!finished && !signal.aborted) {
                  updateSec({ status: 'writing' });
                  addLog("检索轮次耗尽，强制生成报告...");
                  const wPrompt = `请基于目前已有的信息撰写章节【${section.title}】。${collectedContext ? '参考资料如下：\n' + collectedContext : ''}`;
@@ -369,20 +437,23 @@ ${collectedContext || "（无直接资料，请基于通识撰写）"}
                         contentBuffer += chunk.content;
                         updateSec({ content: contentBuffer });
                     }
-                }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN);
+                }, undefined, undefined, undefined, AGENTS.UNIVERSAL_REPORT_GEN, signal);
             }
 
-            updateSec({ status: 'completed' });
-            setCurrentSectionIdx(idx + 1);
+            if (!signal.aborted) {
+                updateSec({ status: 'completed' });
+                setCurrentSectionIdx(idx + 1);
+            }
 
         } catch (e: any) {
-            updateSec({ status: 'error', logs: [...(sections[idx].logs||[]), `错误: ${e.message}`] });
+             if (e.name !== 'AbortError') {
+                 updateSec({ status: 'error', logs: [...(sections[idx].logs||[]), `错误: ${e.message}`] });
+             }
         }
     };
 
     return (
         <div className="flex h-full w-full bg-[#f1f5f9] relative overflow-hidden">
-            {/* Left: Canvas Area (Fluid) */}
             <div className="flex-1 relative bg-slate-50 transition-all duration-500 overflow-hidden border-r border-slate-200">
                 <ReportCanvas 
                     mainStatus={status}
@@ -395,13 +466,13 @@ ${collectedContext || "（无直接资料，请基于通识撰写）"}
                 />
             </div>
 
-            {/* Right: Chat & Control Area (Fixed Width) */}
             <div className="w-[450px] flex-shrink-0 bg-white h-full z-20 shadow-xl flex flex-col">
                 <PlanChatArea 
                     messages={chatMessages}
                     isGenerating={isGenerating}
                     onSendMessage={handleUserSend}
                     onStartResearch={handleStartResearch}
+                    onStop={handleStop}
                     status={status}
                 />
             </div>

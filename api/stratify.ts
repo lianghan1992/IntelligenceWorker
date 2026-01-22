@@ -38,6 +38,7 @@ export interface ChatCompletionRequest {
  * 1. URL 修正为 StratifyAI 标准网关路径 /v1/chat/completions
  * 2. 强制传递 X-Session-ID 以确保计费准确
  * 3. 支持 X-App-ID 用于应用级计费追踪
+ * 4. 新增 signal 参数支持请求中断
  */
 export const streamChatCompletions = async (
     params: ChatCompletionRequest,
@@ -45,7 +46,8 @@ export const streamChatCompletions = async (
     onDone?: () => void,
     onError?: (err: any) => void,
     sessionId?: string, // Added sessionId support
-    appId?: string      // Added appId support for X-App-ID
+    appId?: string,      // Added appId support for X-App-ID
+    signal?: AbortSignal // Added AbortSignal
 ) => {
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -74,6 +76,7 @@ export const streamChatCompletions = async (
             method: 'POST',
             headers,
             body: JSON.stringify({ ...params, stream: true }),
+            signal // Pass the signal to fetch
         });
 
         // Specific handling for 402 Payment Required (Standard HTTP Code)
@@ -133,7 +136,12 @@ export const streamChatCompletions = async (
             }
         }
         if (onDone) onDone();
-    } catch (error) {
+    } catch (error: any) {
+        // Ignore AbortError as it is intentional
+        if (error.name === 'AbortError') {
+            console.log('Stream aborted by user');
+            return;
+        }
         console.error("Stream chat failed:", error);
         if (onError) onError(error);
     }
