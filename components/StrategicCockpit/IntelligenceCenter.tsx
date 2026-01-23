@@ -1,9 +1,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { InfoItem } from '../../types';
-import { RssIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, SearchIcon, CloseIcon, SparklesIcon } from '../icons';
+import { RssIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, SearchIcon, CloseIcon, SparklesIcon, ShieldCheckIcon } from '../icons';
 import { StrategicCompass } from './StrategicCompass';
 import { Category } from './data';
+import { DMCAComplaintModal } from './DMCAComplaintModal';
 
 const ArticleCard: React.FC<{
     article: InfoItem;
@@ -122,6 +123,7 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
+    const [showDmcaModal, setShowDmcaModal] = useState(false);
 
     useEffect(() => {
         if (isSearchOpen && inputRef.current) {
@@ -172,7 +174,7 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                              {/* Mobile Back */}
                              <button onClick={onBackToNav} className="md:hidden p-1.5 -ml-1 hover:bg-slate-50 rounded-full text-slate-500">
                                 <ChevronLeftIcon className="w-5 h-5"/>
-                            </button>
+                             </button>
 
                             <div className="flex flex-col min-w-0">
                                 <div className="flex items-center gap-2">
@@ -259,9 +261,9 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                 )}
             </div>
 
-            {/* Footer / Pagination */}
-            {totalItems > 0 && (
-                <div className="flex-shrink-0 px-4 py-2 border-t border-slate-100 bg-white flex justify-between items-center h-[48px] z-10">
+            {/* Footer / Pagination & DMCA */}
+            <div className="flex-shrink-0 border-t border-slate-100 bg-white z-10">
+                <div className="px-4 py-2 flex justify-between items-center h-[48px]">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Page {currentPage} / {totalPages}</span>
                     <div className="flex items-center gap-1.5">
                         <button 
@@ -280,7 +282,20 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                         </button>
                     </div>
                 </div>
-            )}
+                
+                {/* DMCA Trigger */}
+                <div className="px-4 py-2 bg-slate-50/50 flex justify-center border-t border-slate-50">
+                    <button 
+                        onClick={() => setShowDmcaModal(true)}
+                        className="text-[9px] font-bold text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1 uppercase tracking-tighter"
+                    >
+                        <ShieldCheckIcon className="w-3 h-3" />
+                        侵权投诉与版权保护 (DMCA)
+                    </button>
+                </div>
+            </div>
+
+            {showDmcaModal && <DMCAComplaintModal onClose={() => setShowDmcaModal(false)} />}
         </div>
     );
 };
