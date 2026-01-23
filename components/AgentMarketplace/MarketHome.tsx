@@ -8,7 +8,7 @@ interface MarketHomeProps {
     onSelectAgent: (agentId: string) => void;
 }
 
-const CATEGORIES = ['全部', '数据分析', '内容创作', '办公提效', '开发工具', '其他'];
+const CATEGORIES = ['全部', '战略研究', '技术研发', '市场营销', '数字化办公', '其他'];
 
 export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -30,7 +30,7 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                 <div className="text-center space-y-4 py-8">
                     <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">效率集市</h1>
                     <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-                        探索 AI 智能体应用。即插即用，扩展您的无限可能。
+                        探索专为汽车人打造的 AI 智能体。按岗位选工具，决策快人一步。
                     </p>
                     
                     {/* Search Bar */}
@@ -42,7 +42,7 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                             </div>
                             <input 
                                 type="text" 
-                                placeholder="搜索智能体 (如：会议助手, 代码生成...)"
+                                placeholder="搜索岗位助手 (如：技术评估, 市场调研...)"
                                 className="flex-1 bg-transparent border-none outline-none text-slate-700 placeholder:text-slate-400 h-10"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -133,7 +133,7 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                             <CubeIcon className="w-10 h-10 text-slate-400" />
                         </div>
                         <h3 className="text-xl font-bold text-slate-600">暂无相关智能体</h3>
-                        <p className="text-slate-400 mt-2">敬请期待更多应用接入...</p>
+                        <p className="text-slate-400 mt-2">敬请期待更多行业应用接入...</p>
                     </div>
                 )}
             </div>
