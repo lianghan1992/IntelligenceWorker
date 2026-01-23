@@ -1,14 +1,23 @@
 
 import React from 'react';
 
+export type AgentCategory = 
+    | '全部' 
+    | '战略与产品' 
+    | '智能研发' 
+    | '品牌与营销' 
+    | '供应链与制造' 
+    | '综合效能';
+
 export interface AgentConfig {
     id: string;
     name: string;
     description: string;
-    category: '全部' | '战略研究' | '技术研发' | '市场营销' | '数字化办公' | '其他';
+    category: AgentCategory;
     icon: React.FC<React.SVGProps<SVGSVGElement>>;
     component: React.LazyExoticComponent<React.ComponentType<any>>;
-    tags?: string[];
+    tags?: string[]; // e.g. ["产品经理", "GTM"]
     isBeta?: boolean;
     disabled?: boolean;
+    comingSoon?: boolean; // New flag for mock agents
 }
