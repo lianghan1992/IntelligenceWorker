@@ -1,8 +1,12 @@
+
 import React, { useState, useMemo } from 'react';
 import { AgentConfig } from './types';
 import { AGENT_REGISTRY } from './registry';
-// Added ArrowRightIcon to imports
-import { SearchIcon, CubeIcon, SparklesIcon, LockClosedIcon, ChevronRightIcon, ArrowRightIcon } from '../icons';
+import { 
+    SearchIcon, CubeIcon, SparklesIcon, LockClosedIcon, 
+    ArrowRightIcon, FilterIcon, ServerIcon, CheckCircleIcon,
+    ChevronRightIcon
+} from '../icons';
 
 interface MarketHomeProps {
     onSelectAgent: (agentId: string) => void;
@@ -24,168 +28,147 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
     }, [searchQuery, activeCategory]);
 
     return (
-        <div className="h-full overflow-y-auto bg-white custom-scrollbar selection:bg-indigo-100 selection:text-indigo-900">
-            {/* 1. Hero Section with Mesh Gradient Background */}
-            <div className="relative pt-20 pb-16 px-6 overflow-hidden border-b border-slate-100">
-                {/* Visual Decor: Diffused Lights */}
-                <div className="absolute top-[-10%] left-[-5%] w-[40rem] h-[40rem] bg-indigo-50 rounded-full filter blur-[100px] opacity-60 animate-pulse"></div>
-                <div className="absolute bottom-[-10%] right-[-5%] w-[35rem] h-[35rem] bg-purple-50 rounded-full filter blur-[80px] opacity-60"></div>
-                
-                <div className="max-w-4xl mx-auto text-center relative z-10 space-y-6">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 animate-in fade-in zoom-in duration-700">
-                        <SparklesIcon className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">Agent Intelligence Marketplace</span>
+        <div className="h-full flex bg-[#f8fafc] overflow-hidden">
+            {/* 1. Left Sidebar: Navigation & Filters */}
+            <aside className="w-64 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">
+                <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md">
+                        <CubeIcon className="w-5 h-5" />
                     </div>
-                    
-                    <h1 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tight leading-tight">
-                        按<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">岗位</span>武装大脑
-                    </h1>
-                    <p className="text-lg text-slate-500 font-medium max-w-2xl mx-auto">
-                        探索专为汽车行业设计的 AI 智能体集群。每一个 Agent，都是一位数字领域的行业专家。
-                    </p>
-                    
-                    {/* Floating Search Island */}
-                    <div className="max-w-2xl mx-auto relative mt-10">
-                        <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition-opacity"></div>
-                        <div className="relative bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-200/60 flex items-center p-1.5 focus-within:ring-4 focus-within:ring-indigo-500/10 transition-all">
-                            <div className="pl-4 pr-2 text-slate-400">
-                                <SearchIcon className="w-5 h-5" />
-                            </div>
-                            <input 
-                                type="text" 
-                                placeholder="搜索岗位助手或功能关键词..."
-                                className="flex-1 bg-transparent border-none outline-none text-slate-700 placeholder:text-slate-400 h-12 font-medium"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                            {searchQuery && (
-                                <button onClick={() => setSearchQuery('')} className="p-2 text-slate-300 hover:text-slate-500">
-                                    <CloseIcon className="w-4 h-4" />
-                                </button>
-                            )}
+                    <span className="font-black text-slate-800 tracking-tight">效率集市</span>
+                </div>
+                
+                <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
+                    <div className="px-3 mb-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">岗位分类筛选</div>
+                    {CATEGORIES.map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setActiveCategory(cat)}
+                            className={`
+                                w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-bold transition-all
+                                ${activeCategory === cat 
+                                    ? 'bg-indigo-50 text-indigo-700 shadow-sm' 
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}
+                            `}
+                        >
+                            <span>{cat}</span>
+                            {activeCategory === cat && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-sm"></div>}
+                        </button>
+                    ))}
+
+                    <div className="pt-8 px-3 mb-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">资源统计</div>
+                    <div className="px-3 py-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                        <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500 font-medium">可用智能体</span>
+                            <span className="text-slate-900 font-black">{AGENT_REGISTRY.length}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500 font-medium">覆盖岗位</span>
+                            <span className="text-slate-900 font-black">{CATEGORIES.length - 1}</span>
                         </div>
                     </div>
+                </nav>
+
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                        Seres AI 效率集市持续收录行业垂直 Agent，助力数字化转型。
+                    </p>
                 </div>
-            </div>
+            </aside>
 
-            {/* 2. Main Content Area */}
-            <div className="max-w-7xl mx-auto px-6 py-12 space-y-12">
-                
-                {/* Category Pills Navigation */}
-                <div className="flex justify-center">
-                    <nav className="flex flex-wrap items-center justify-center gap-2 p-1.5 bg-slate-100/50 rounded-2xl border border-slate-100">
-                        {CATEGORIES.map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => setActiveCategory(cat)}
-                                className={`
-                                    px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300
-                                    ${activeCategory === cat 
-                                        ? 'bg-white text-indigo-600 shadow-md shadow-indigo-500/5 ring-1 ring-slate-200 transform scale-105' 
-                                        : 'text-slate-500 hover:bg-white/50 hover:text-slate-800'}
-                                `}
-                            >
-                                {cat}
-                            </button>
-                        ))}
-                    </nav>
-                </div>
+            {/* 2. Main Area */}
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
+                {/* Search Header */}
+                <header className="h-16 px-8 border-b border-slate-100 flex items-center justify-between bg-white z-10 shrink-0">
+                    <div className="flex items-center gap-2 text-sm font-bold text-slate-400">
+                        <span>集市首页</span>
+                        <ChevronRightIcon className="w-3 h-3" />
+                        <span className="text-slate-900">{activeCategory}</span>
+                    </div>
 
-                {/* Agent Grid */}
-                {filteredAgents.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                        {filteredAgents.map((agent, idx) => (
-                            <div 
-                                key={agent.id}
-                                onClick={() => !agent.disabled && onSelectAgent(agent.id)}
-                                className={`
-                                    group relative bg-white rounded-[32px] border p-8 flex flex-col h-full transition-all duration-500 animate-in fade-in slide-in-from-bottom-4
-                                    ${agent.disabled 
-                                        ? 'border-slate-100 grayscale opacity-60 cursor-not-allowed bg-slate-50' 
-                                        : 'border-slate-200 cursor-pointer hover:border-indigo-400 hover:shadow-[0_32px_64px_-16px_rgba(79,70,229,0.12)] hover:-translate-y-2'
-                                    }
-                                `}
-                                style={{ animationDelay: `${idx * 50}ms` }}
-                            >
-                                {/* Glow Effect on Hover */}
-                                {!agent.disabled && (
-                                    <div className="absolute -inset-px bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-[32px] opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                )}
-                                
-                                <div className="relative z-10 flex-1 flex flex-col">
-                                    {/* Icon Container with Gradient Background */}
-                                    <div className={`
-                                        w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg transition-transform duration-500 group-hover:scale-110
-                                        ${agent.disabled 
-                                            ? 'bg-slate-300 shadow-none' 
-                                            : 'bg-gradient-to-br from-indigo-600 to-purple-600 shadow-indigo-200'}
-                                    }`}>
-                                        <agent.icon className="w-7 h-7" />
-                                    </div>
+                    <div className="relative w-full max-w-md group">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <SearchIcon className="w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                        </div>
+                        <input 
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="搜索岗位智能体名称、功能或标签..."
+                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:border-transparent transition-all outline-none"
+                        />
+                    </div>
+                </header>
 
-                                    <div className="flex justify-between items-start gap-2 mb-3">
-                                        <h3 className={`text-xl font-black transition-colors ${agent.disabled ? 'text-slate-400' : 'text-slate-900 group-hover:text-indigo-700'}`}>
+                {/* Grid Content */}
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-[#fcfdfe]">
+                    <div className="max-w-7xl mx-auto">
+                        {filteredAgents.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                                {filteredAgents.map((agent, idx) => (
+                                    <div 
+                                        key={agent.id}
+                                        onClick={() => !agent.disabled && onSelectAgent(agent.id)}
+                                        className={`
+                                            group bg-white rounded-2xl border p-5 flex flex-col h-full transition-all duration-300 relative
+                                            ${agent.disabled 
+                                                ? 'opacity-60 grayscale border-slate-100 cursor-not-allowed' 
+                                                : 'border-slate-200 cursor-pointer hover:border-indigo-400 hover:shadow-xl hover:shadow-indigo-900/5 hover:-translate-y-1'
+                                            }
+                                        `}
+                                        style={{ animationDelay: `${idx * 40}ms` }}
+                                    >
+                                        {/* Compact Card Header */}
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className={`
+                                                w-11 h-11 rounded-xl flex items-center justify-center text-white shadow-md
+                                                ${agent.disabled ? 'bg-slate-300' : 'bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-indigo-100'}
+                                            }`}>
+                                                <agent.icon className="w-5 h-5" />
+                                            </div>
+                                            {!agent.disabled && agent.isBeta && (
+                                                <span className="px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black uppercase tracking-wider border border-purple-100">BETA</span>
+                                            )}
+                                            {agent.disabled && (
+                                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[9px] font-black border border-slate-200">维修中</span>
+                                            )}
+                                        </div>
+
+                                        <h3 className="text-base font-black text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors truncate">
                                             {agent.name}
                                         </h3>
-                                        {!agent.disabled && agent.isBeta && (
-                                            <span className="shrink-0 px-2 py-0.5 rounded-md bg-purple-50 text-purple-600 text-[9px] font-black uppercase tracking-wider border border-purple-100 flex items-center gap-1">
-                                                <SparklesIcon className="w-2.5 h-2.5" /> Beta
-                                            </span>
-                                        )}
+                                        <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 flex-1 font-medium">
+                                            {agent.description}
+                                        </p>
+
+                                        {/* Footer tags */}
+                                        <div className="mt-5 pt-4 border-t border-slate-50 flex items-center justify-between">
+                                            <div className="flex gap-1.5 overflow-hidden">
+                                                {agent.tags?.slice(0, 2).map(tag => (
+                                                    <span key={tag} className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded truncate">
+                                                        {tag}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <div className="text-indigo-600 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                                                <ArrowRightIcon className="w-4 h-4" />
+                                            </div>
+                                        </div>
                                     </div>
-
-                                    <p className="text-sm text-slate-500 leading-relaxed font-medium line-clamp-3 mb-6">
-                                        {agent.description}
-                                    </p>
-                                </div>
-
-                                {/* Footer info */}
-                                <div className="relative z-10 mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md">
-                                        {agent.category}
-                                    </span>
-                                    {agent.disabled ? (
-                                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
-                                            <LockClosedIcon className="w-3.5 h-3.5" /> 内部维护中
-                                        </div>
-                                    ) : (
-                                        <div className="text-indigo-600 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                                            {/* Error fixed: ArrowRightIcon now imported */}
-                                            <ArrowRightIcon className="w-5 h-5" />
-                                        </div>
-                                    )}
-                                </div>
+                                ))}
                             </div>
-                        ))}
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-32 text-center opacity-40">
+                                <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                                    <SearchIcon className="w-8 h-8 text-slate-300" />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-600">未找到相关智能体</h3>
+                                <p className="text-sm text-slate-400 mt-2">请尝试搜索其他关键词或分类</p>
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center py-32 text-center">
-                        <div className="relative mb-8">
-                             <div className="absolute inset-0 bg-slate-100 rounded-full blur-2xl opacity-50"></div>
-                             <div className="relative w-32 h-32 bg-white rounded-3xl border border-slate-100 shadow-xl flex items-center justify-center">
-                                <CubeIcon className="w-16 h-16 text-slate-200" />
-                             </div>
-                        </div>
-                        <h3 className="text-2xl font-black text-slate-800">未检索到相关智能体</h3>
-                        <p className="text-slate-400 mt-2 font-medium max-w-sm mx-auto">请尝试更换搜索词，或切换分类筛选。我们正在持续研发更多垂直岗位 Agent...</p>
-                        <button 
-                            onClick={() => { setActiveCategory('全部'); setSearchQuery(''); }}
-                            className="mt-8 px-6 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 transition-all active:scale-95"
-                        >
-                            重置筛选条件
-                        </button>
-                    </div>
-                )}
-            </div>
-            
-            {/* Bottom Footer Decor */}
-            <div className="h-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-10"></div>
+                </div>
+            </main>
         </div>
     );
 };
-
-const CloseIcon = (props: any) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-);
