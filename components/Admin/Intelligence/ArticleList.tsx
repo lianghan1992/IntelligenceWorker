@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle, SpiderSource, SpiderPoint } from '../../../types';
 import { 
@@ -7,18 +6,15 @@ import {
     generateArticleHtml, 
     getArticleHtml, 
     downloadArticlePdf,
-    checkIntelGeminiStatus,
-    updateIntelGeminiCookies,
-    toggleIntelHtmlGeneration,
-    toggleRetrospectiveHtmlGeneration,
     triggerAnalysis,
     getSpiderSources, 
     getSpiderPoints,
     exportArticles,
     batchDeleteArticles,
-    startBackgroundBatchHtmlGeneration // New import
+    startBackgroundBatchHtmlGeneration
 } from '../../../api/intelligence';
-import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon, FilterIcon, DownloadIcon, CalendarIcon, ServerIcon, CheckCircleIcon } from '../../icons';
+// Added missing ShieldExclamationIcon to the import list below
+import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, PlayIcon, LightningBoltIcon, FilterIcon, DownloadIcon, CalendarIcon, ServerIcon, ShieldExclamationIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { BatchSearchExportModal } from './BatchSearchExportModal';
@@ -69,7 +65,7 @@ const HtmlViewerModal: React.FC<{ articleId: string; onClose: () => void }> = ({
             <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
                 <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                     <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        <DocumentTextIcon className="w-5 h-5 text-indigo-600"/> HTML 预览
+                        <DocumentTextIcon className="w-5 h-5 text-indigo-600"/> HTML  预览
                     </h3>
                     <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500"><CloseIcon className="w-5 h-5"/></button>
                 </div>
@@ -167,21 +163,18 @@ const GenerationConfigModal: React.FC<{
     isOpen: boolean;
     mode: 'single' | 'batch_selected' | 'background_fill';
     onClose: () => void;
-    onConfirm: (config: { provider: string; force?: boolean; limit?: number }) => void;
+    onConfirm: (config: { provider: string }) => void;
     selectedCount?: number;
 }> = ({ isOpen, mode, onClose, onConfirm, selectedCount }) => {
-    const [provider, setProvider] = useState('gemini');
-    const [force, setForce] = useState(false);
-    const [limit, setLimit] = useState(50);
+    const [provider, setProvider] = useState('zhipuai');
     const [isLoading, setIsLoading] = useState(false);
 
     if (!isOpen) return null;
 
     const handleConfirm = () => {
         setIsLoading(true);
-        // Small delay to show spinner then call parent
         setTimeout(() => {
-            onConfirm({ provider, force, limit });
+            onConfirm({ provider });
             setIsLoading(false);
         }, 100);
     };
@@ -191,56 +184,27 @@ const GenerationConfigModal: React.FC<{
             <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl p-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                    {mode === 'single' ? '单篇生成 HTML' : mode === 'batch_selected' ? `批量生成 (${selectedCount} 篇)` : '后台补全 HTML'}
+                    {mode === 'single' ? '单篇强制重生成 HTML' : mode === 'batch_selected' ? `批量强制重生成 (${selectedCount} 篇)` : '强制重生成所有 HTML'}
                 </h3>
                 
                 <div className="space-y-4 mb-6">
-                    {mode !== 'background_fill' && (
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">模型提供商 (Provider)</label>
-                            <select 
-                                value={provider}
-                                onChange={e => setProvider(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                            >
-                                <option value="gemini">Google Gemini (Default)</option>
-                                <option value="zhipuai">ZhipuAI (ChatGLM)</option>
-                                <option value="deepseek">DeepSeek</option>
-                            </select>
-                        </div>
-                    )}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">模型提供商 (Provider)</label>
+                        <select 
+                            value={provider}
+                            onChange={e => setProvider(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        >
+                            <option value="zhipuai">智谱 AI (推荐)</option>
+                            <option value="siliconflow">SiliconFlow (硅基流动)</option>
+                            <option value="openrouter">OpenRouter (海外聚合)</option>
+                        </select>
+                    </div>
                     
-                    {mode === 'background_fill' && (
-                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">批量处理上限 (Limit)</label>
-                            <input 
-                                type="number"
-                                value={limit}
-                                onChange={e => setLimit(parseInt(e.target.value))}
-                                min={1}
-                                max={500}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                        </div>
-                    )}
-
-                    {(mode === 'background_fill' || mode === 'batch_selected') && (
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input 
-                                type="checkbox" 
-                                checked={force} 
-                                onChange={e => setForce(e.target.checked)}
-                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-slate-300"
-                            />
-                            <span className="text-sm text-slate-700">强制重新生成 (覆盖现有)</span>
-                        </label>
-                    )}
-                    
-                    {mode === 'background_fill' && (
-                        <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
-                            后台任务将自动扫描未生成 HTML 的文章进行处理。
-                        </div>
-                    )}
+                    <div className="text-xs text-orange-600 bg-orange-50 p-3 rounded-lg border border-orange-100 flex items-start gap-2 leading-relaxed">
+                        <ShieldExclamationIcon className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span><strong>注意：</strong>此操作将强制重新生成选定内容的 HTML 排版，即使之前已经生成过。这会消耗对应模型的 Token 额度。</span>
+                    </div>
                 </div>
 
                 <div className="flex justify-end gap-3">
@@ -251,7 +215,7 @@ const GenerationConfigModal: React.FC<{
                         className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition-colors shadow-md flex items-center gap-2"
                     >
                         {isLoading ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
-                        {mode === 'background_fill' ? '启动后台任务' : '开始生成'}
+                        确认启动
                     </button>
                 </div>
             </div>
@@ -300,17 +264,6 @@ export const ArticleList: React.FC = () => {
     const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null);
     const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
-    // --- Gemini Engine State ---
-    const [geminiStatus, setGeminiStatus] = useState<{ valid: boolean; message: string } | null>(null);
-    const [isCheckingGemini, setIsCheckingGemini] = useState(false);
-    const [isCookieModalOpen, setIsCookieModalOpen] = useState(false);
-    const [cookieForm, setCookieForm] = useState({ secure_1psid: '', secure_1psidts: '' });
-    const [isUpdatingCookie, setIsUpdatingCookie] = useState(false);
-    const [isHtmlSettingsOpen, setIsHtmlSettingsOpen] = useState(false);
-    const [isTogglingHtml, setIsTogglingHtml] = useState(false);
-    const [isRetroSettingsOpen, setIsRetroSettingsOpen] = useState(false);
-    const [isTogglingRetro, setIsTogglingRetro] = useState(false);
-
     // Load Metadata
     useEffect(() => {
         getSpiderSources().then(res => setSources(res.items)).catch(console.error);
@@ -325,71 +278,6 @@ export const ArticleList: React.FC = () => {
         // Reset point filter if source changes
         setFilterPoint('');
     }, [filterSource]);
-
-    // --- Gemini Actions ---
-    const fetchGeminiStatus = async () => {
-        setIsCheckingGemini(true);
-        try {
-            const res = await checkIntelGeminiStatus();
-            setGeminiStatus(res);
-        } catch (e) {
-            setGeminiStatus({ valid: false, message: 'Check failed' });
-        } finally {
-            setIsCheckingGemini(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchGeminiStatus();
-    }, []);
-
-    const handleUpdateCookie = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!cookieForm.secure_1psid || !cookieForm.secure_1psidts) {
-            alert('请填写所有必填项');
-            return;
-        }
-        setIsUpdatingCookie(true);
-        try {
-            await updateIntelGeminiCookies(cookieForm);
-            setIsCookieModalOpen(false);
-            setCookieForm({ secure_1psid: '', secure_1psidts: '' });
-            fetchGeminiStatus();
-        } catch (e: any) {
-            const msg = e.message || String(e);
-            alert('更新失败: ' + msg);
-        } finally {
-            setIsUpdatingCookie(false);
-        }
-    };
-
-    const handleHtmlToggle = async (enabled: boolean) => {
-        setIsTogglingHtml(true);
-        try {
-            const res = await toggleIntelHtmlGeneration(enabled);
-            alert(`操作成功: ${res.message}`);
-            setIsHtmlSettingsOpen(false);
-        } catch (e: any) {
-            const errMsg = e.message || String(e);
-            alert(`操作失败: ${errMsg}`);
-        } finally {
-            setIsTogglingHtml(false);
-        }
-    };
-
-    const handleRetroToggle = async (enabled: boolean) => {
-        setIsTogglingRetro(true);
-        try {
-            const res = await toggleRetrospectiveHtmlGeneration(enabled);
-            alert(`操作成功: ${res.message}`);
-            setIsRetroSettingsOpen(false);
-        } catch (e: any) {
-            const errMsg = e.message || String(e);
-            alert(`操作失败: ${errMsg}`);
-        } finally {
-            setIsTogglingRetro(false);
-        }
-    };
 
     // --- Articles Actions ---
     const fetchArticles = useCallback(async () => {
@@ -462,7 +350,7 @@ export const ArticleList: React.FC = () => {
         setGenModalState({ isOpen: true, mode, article });
     };
 
-    const confirmGeneration = async (config: { provider: string; force?: boolean; limit?: number }) => {
+    const confirmGeneration = async (config: { provider: string }) => {
         setGenModalState({ ...genModalState, isOpen: false });
 
         if (genModalState.mode === 'single' && genModalState.article?.id) {
@@ -471,6 +359,7 @@ export const ArticleList: React.FC = () => {
             try {
                 await generateArticleHtml(genModalState.article.id, config.provider);
                 setArticles(prev => prev.map(a => a.id === genModalState.article!.id ? { ...a, is_atomized: true } : a));
+                alert('原子化任务已启动，请稍后刷新查看结果');
             } catch (e: any) {
                 alert(`生成失败: ${e.message}`);
             } finally {
@@ -483,13 +372,11 @@ export const ArticleList: React.FC = () => {
             setIsBatchGenerating(true);
             try {
                 const ids = Array.from(selectedIds) as string[];
-                // Use Promise.all to run concurrently (or sequential if preferred for rate limiting)
-                // Here we run parallel, assuming backend handles queue/concurrency
                 const promises = ids.map(id => generateArticleHtml(id, config.provider));
                 await Promise.all(promises);
                 
                 setArticles(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, is_atomized: true } : a));
-                alert(`已触发 ${ids.length} 篇文章的原子化任务`);
+                alert(`已成功为 ${ids.length} 篇文章触发强制重生成任务`);
                 setSelectedIds(new Set());
             } catch (e: any) {
                 alert('批量触发失败，部分任务可能未启动');
@@ -498,14 +385,12 @@ export const ArticleList: React.FC = () => {
             }
         }
         else if (genModalState.mode === 'background_fill') {
-            // Background Batch API
+            // Background Batch API (Now forces regenerate for ALL)
             try {
                 await startBackgroundBatchHtmlGeneration({
-                    limit: config.limit || 50,
-                    force_regenerate: config.force || false,
-                    point_id: filterPoint || undefined // Optional context
+                    provider: config.provider
                 });
-                alert('后台补全任务已启动');
+                alert('全量后台重生成任务已启动');
             } catch (e: any) {
                 alert(`启动失败: ${e.message}`);
             }
@@ -645,7 +530,7 @@ export const ArticleList: React.FC = () => {
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-bold hover:bg-green-100 transition-all shadow-sm"
                         >
                             <ServerIcon className="w-3.5 h-3.5" />
-                            后台补全 HTML
+                            后台全量生成 HTML
                         </button>
 
                         <button 
@@ -968,11 +853,6 @@ export const ArticleList: React.FC = () => {
                     onCancel={() => setIsBatchDeleteConfirmOpen(false)}
                 />
             )}
-            
-            {/* ... Modal rendering ... */}
-            {isCookieModalOpen && (/* ... */ null)}
-            {isHtmlSettingsOpen && (/* ... */ null)}
-            {isRetroSettingsOpen && (/* ... */ null)}
         </div>
     );
 };

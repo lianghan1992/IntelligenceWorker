@@ -1,19 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies, toggleIntelHtmlGeneration, toggleRetrospectiveHtmlGeneration } from '../../../api/intelligence';
+import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy } from '../../../api/intelligence';
 import { SpiderProxy } from '../../../types';
-import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon, StopIcon, DocumentTextIcon, QuestionMarkCircleIcon, ShieldCheckIcon, ClockIcon } from '../../icons';
+import { RefreshIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon, StopIcon, ShieldCheckIcon } from '../../icons';
 import { TaskList } from './TaskList';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-);
-
-const WhiteSpinner: React.FC = () => (
-    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
@@ -29,19 +22,6 @@ export const ServiceStatus: React.FC = () => {
     const [newProxy, setNewProxy] = useState({ url: '', enabled: true });
     const [isSavingProxy, setIsSavingProxy] = useState(false);
     const [testingUrl, setTestingUrl] = useState<string | null>(null);
-
-    // Gemini State
-    const [isCookieModalOpen, setIsCookieModalOpen] = useState(false);
-    const [cookieForm, setCookieForm] = useState({ secure_1psid: '', secure_1psidts: '' });
-    const [isUpdatingCookie, setIsUpdatingCookie] = useState(false);
-
-    // HTML Gen State
-    const [isHtmlSettingsOpen, setIsHtmlSettingsOpen] = useState(false);
-    const [isTogglingHtml, setIsTogglingHtml] = useState(false);
-    
-    // Retrospective Gen State
-    const [isRetroSettingsOpen, setIsRetroSettingsOpen] = useState(false);
-    const [isTogglingRetro, setIsTogglingRetro] = useState(false);
 
     const fetchProxies = async () => {
         setIsLoadingProxies(true);
@@ -101,73 +81,8 @@ export const ServiceStatus: React.FC = () => {
         }
     };
 
-    const handleUpdateCookie = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!cookieForm.secure_1psid || !cookieForm.secure_1psidts) {
-            alert('请填写所有必填项');
-            return;
-        }
-        setIsUpdatingCookie(true);
-        try {
-            await updateIntelGeminiCookies(cookieForm);
-            setIsCookieModalOpen(false);
-            setCookieForm({ secure_1psid: '', secure_1psidts: '' });
-        } catch (e: any) {
-            alert('更新失败: ' + (e.message || '未知错误'));
-        } finally {
-            setIsUpdatingCookie(false);
-        }
-    };
-
-    const handleHtmlToggle = async (enabled: boolean) => {
-        setIsTogglingHtml(true);
-        try {
-            const res = await toggleIntelHtmlGeneration(enabled);
-            alert(`操作成功: ${res.message}`);
-            setIsHtmlSettingsOpen(false);
-        } catch (e: any) {
-            alert(`操作失败: ${e.message}`);
-        } finally {
-            setIsTogglingHtml(false);
-        }
-    };
-
-    const handleRetroToggle = async (enabled: boolean) => {
-        setIsTogglingRetro(true);
-        try {
-            const res = await toggleRetrospectiveHtmlGeneration(enabled);
-            alert(`操作成功: ${res.message}`);
-            setIsRetroSettingsOpen(false);
-        } catch (e: any) {
-            alert(`操作失败: ${e.message}`);
-        } finally {
-            setIsTogglingRetro(false);
-        }
-    };
-
     return (
         <div className="space-y-6">
-            <div className="flex justify-end gap-3 px-4">
-                <button 
-                    onClick={() => setIsHtmlSettingsOpen(true)}
-                    className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-200 flex items-center gap-1"
-                >
-                    <DocumentTextIcon className="w-3 h-3" /> HTML 生成
-                </button>
-                <button 
-                    onClick={() => setIsRetroSettingsOpen(true)}
-                    className="text-xs px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors font-bold shadow-sm border border-orange-200 flex items-center gap-1"
-                >
-                    <ClockIcon className="w-3 h-3" /> HTML 追溯
-                </button>
-                <button 
-                    onClick={() => setIsCookieModalOpen(true)}
-                    className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold shadow-sm"
-                >
-                    更新 Gemini Cookie
-                </button>
-            </div>
-
             {/* Proxy Management Card (Collapsible) */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden transition-all duration-300">
                 <div 
@@ -289,129 +204,6 @@ export const ServiceStatus: React.FC = () => {
             <div className="h-[600px]">
                 <TaskList />
             </div>
-
-            {/* Cookie Update Modal */}
-            {isCookieModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
-                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                                <SparklesIcon className="w-5 h-5 text-purple-600" /> 更新 Gemini Cookie
-                            </h3>
-                            <button onClick={() => setIsCookieModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
-                                <CloseIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <form onSubmit={handleUpdateCookie} className="p-6 space-y-5">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">__Secure-1PSID</label>
-                                <input 
-                                    type="password"
-                                    value={cookieForm.secure_1psid}
-                                    onChange={e => setCookieForm({...cookieForm, secure_1psid: e.target.value})}
-                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="输入 __Secure-1PSID 值..."
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">__Secure-1PSIDTS</label>
-                                <input 
-                                    type="password"
-                                    value={cookieForm.secure_1psidts}
-                                    onChange={e => setCookieForm({...cookieForm, secure_1psidts: e.target.value})}
-                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="输入 __Secure-1PSIDTS 值..."
-                                />
-                            </div>
-                            <div className="flex justify-end pt-2">
-                                <button 
-                                    type="submit" 
-                                    disabled={isUpdatingCookie}
-                                    className="px-6 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {isUpdatingCookie ? <WhiteSpinner /> : '保存更新'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {isHtmlSettingsOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
-                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
-                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                                <DocumentTextIcon className="w-5 h-5 text-blue-600" /> HTML 生成管理
-                            </h3>
-                            <button onClick={() => setIsHtmlSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
-                                <CloseIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-6">
-                            <p className="text-sm text-gray-600 mb-6 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                                开启后，系统将在爬取文章时自动调用 LLM 将 Markdown 内容转换为美化的 HTML 格式。这可能会增加 Token 消耗。
-                            </p>
-                            <div className="flex gap-3 justify-center">
-                                <button 
-                                    onClick={() => handleHtmlToggle(true)}
-                                    disabled={isTogglingHtml}
-                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {isTogglingHtml ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
-                                    开启生成
-                                </button>
-                                <button 
-                                    onClick={() => handleHtmlToggle(false)}
-                                    disabled={isTogglingHtml}
-                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {isTogglingHtml ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
-                                    停止生成
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {isRetroSettingsOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
-                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
-                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                                <ClockIcon className="w-5 h-5 text-orange-600" /> HTML 历史追溯
-                            </h3>
-                            <button onClick={() => setIsRetroSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
-                                <CloseIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-6">
-                            <p className="text-sm text-gray-600 mb-6 bg-orange-50 p-3 rounded-lg border border-orange-100">
-                                开启后，系统将在后台对历史已采集但未生成HTML的文章进行追溯生成。这会消耗额外的 Token 额度。
-                            </p>
-                            <div className="flex gap-3 justify-center">
-                                <button
-                                    onClick={() => handleRetroToggle(true)}
-                                    disabled={isTogglingRetro}
-                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {isTogglingRetro ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
-                                    开启追溯
-                                </button>
-                                <button
-                                    onClick={() => handleRetroToggle(false)}
-                                    disabled={isTogglingRetro}
-                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {isTogglingRetro ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
-                                    停止追溯
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

@@ -370,10 +370,10 @@ export const getArticleHtml = async (id: string): Promise<{ html_content: string
     }
 };
 
-export const generateArticleHtml = (id: string, provider: string = 'gemini'): Promise<void> => 
+export const generateArticleHtml = (id: string, provider: string = 'zhipuai'): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/articles/${id}/generate_html?provider=${provider}`, { method: 'POST' });
 
-export const startBackgroundBatchHtmlGeneration = (data: { point_id?: string; force_regenerate?: boolean; limit?: number }): Promise<{ message: string }> =>
+export const startBackgroundBatchHtmlGeneration = (data: { provider: string }): Promise<{ message: string }> =>
     apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/html/batch/generate`, {
         method: 'POST',
         body: JSON.stringify(data)
