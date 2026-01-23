@@ -4,14 +4,16 @@ import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
 import { IntelligenceDashboard } from './IntelligenceDashboard';
 import { UserManagement } from './User/index'; 
-import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, PuzzleIcon } from '../icons';
+import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, PuzzleIcon, ServerIcon } from '../icons';
 import { CompetitivenessManager } from './CompetitivenessManager';
 import { DeepInsightManager } from './DeepInsight/index';
 import { StratifyAiManager } from './StratifyAI/index';
 import { ComponentPreviewManager } from './ComponentPreview/index';
+import { ModelManagement } from './ModelManagement/index';
 
 const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'users', label: '用户', icon: UsersIcon },
+    { view: 'model_management', label: '模型', icon: ServerIcon },
     { view: 'events', label: '发布会', icon: VideoCameraIcon },
     { view: 'intelligence', label: '情报', icon: RssIcon },
     { view: 'competitiveness', label: '竞争力', icon: BrainIcon },
@@ -27,6 +29,8 @@ export const AdminPage: React.FC = () => {
         switch (view) {
             case 'users':
                 return <UserManagement />; 
+            case 'model_management':
+                return <ModelManagement />;
             case 'events':
                 return <LivestreamTaskManager />;
             case 'intelligence':

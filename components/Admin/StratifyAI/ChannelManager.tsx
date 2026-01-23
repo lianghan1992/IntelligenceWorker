@@ -1,11 +1,84 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LLMChannel } from '../../../types';
 import { getChannels, createChannel, updateChannel, deleteChannel } from '../../../api/stratify';
-import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, ServerIcon, KeyIcon } from '../../icons';
+import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, ServerIcon, KeyIcon, ChipIcon } from '../../icons';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
+
+// --- Helper: Tag Input Component ---
+interface TagInputProps {
+    values: string[];
+    onChange: (newValues: string[]) => void;
+    placeholder?: string;
+    icon?: React.ReactNode;
+}
+
+const TagInput: React.FC<TagInputProps> = ({ values, onChange, placeholder, icon }) => {
+    const [inputValue, setInputValue] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const trimmed = inputValue.trim();
+            if (trimmed && !values.includes(trimmed)) {
+                onChange([...values, trimmed]);
+                setInputValue('');
+            }
+        }
+        if (e.key === 'Backspace' && !inputValue && values.length > 0) {
+            onChange(values.slice(0, -1));
+        }
+    };
+
+    const handleDelete = (index: number) => {
+        onChange(values.filter((_, i) => i !== index));
+    };
+
+    // Color cycle for tags
+    const colors = [
+        'bg-blue-50 text-blue-700 border-blue-200',
+        'bg-indigo-50 text-indigo-700 border-indigo-200',
+        'bg-purple-50 text-purple-700 border-purple-200',
+        'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'bg-orange-50 text-orange-700 border-orange-200',
+    ];
+
+    return (
+        <div 
+            className="w-full bg-white border border-slate-200 rounded-xl px-2 py-2 text-sm focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all flex flex-wrap gap-2 min-h-[44px] items-center"
+            onClick={() => inputRef.current?.focus()}
+        >
+            {values.map((tag, idx) => (
+                <span 
+                    key={idx} 
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold border ${colors[idx % colors.length]} animate-in zoom-in duration-200`}
+                >
+                    {tag}
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleDelete(idx); }}
+                        className="hover:bg-black/10 rounded-full p-0.5 transition-colors"
+                    >
+                        <CloseIcon className="w-3 h-3" />
+                    </button>
+                </span>
+            ))}
+            <div className="flex items-center gap-2 flex-1 min-w-[120px]">
+                {icon && <span className="text-slate-400 pl-1">{icon}</span>}
+                <input
+                    ref={inputRef}
+                    value={inputValue}
+                    onChange={e => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="flex-1 bg-transparent outline-none text-slate-700 placeholder:text-slate-400 h-full"
+                    placeholder={values.length === 0 ? placeholder : ''}
+                />
+            </div>
+        </div>
+    );
+};
 
 interface ChannelEditorModalProps {
     isOpen: boolean;
@@ -19,35 +92,55 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
     const [form, setForm] = useState<Partial<LLMChannel>>({
         channel_code: '',
         name: '',
-        base_url: '',
+        base_url: '', // Will be hidden but kept in state if needed or default
         api_key: '',
         models: '',
         is_active: true
     });
+    
+    // Local state for tags
+    const [apiKeys, setApiKeys] = useState<string[]>([]);
+    const [models, setModels] = useState<string[]>([]);
+    
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
-            // Fix: Use channel data directly, do not clear api_key as backend now returns it (possibly masked or full depending on permissions)
-            setForm(channel ? { ...channel } : { 
-                channel_code: '',
-                name: '',
-                base_url: 'https://api.openai.com/v1',
-                api_key: '',
-                models: '',
-                is_active: true
-            });
+            if (channel) {
+                setForm({ ...channel });
+                setApiKeys(channel.api_key ? channel.api_key.split(',').map(k => k.trim()).filter(Boolean) : []);
+                setModels(channel.models ? channel.models.split(',').map(m => m.trim()).filter(Boolean) : []);
+            } else {
+                setForm({ 
+                    channel_code: '',
+                    name: '',
+                    base_url: '', // Default empty or handled by backend if not sent
+                    api_key: '',
+                    models: '',
+                    is_active: true
+                });
+                setApiKeys([]);
+                setModels([]);
+            }
         }
     }, [isOpen, channel]);
 
     const handleSubmit = async () => {
         if (!form.channel_code || !form.name) return;
         setIsSaving(true);
+        
+        // Join tags back to comma-separated strings
+        const finalForm = {
+            ...form,
+            api_key: apiKeys.join(','),
+            models: models.join(',')
+        };
+
         try {
             if (isEditing && channel) {
-                await updateChannel(channel.id, form);
+                await updateChannel(channel.id, finalForm);
             } else {
-                await createChannel(form);
+                await createChannel(finalForm);
             }
             onSave();
             onClose();
@@ -96,41 +189,30 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Base URL</label>
-                        <input 
-                            value={form.base_url} 
-                            onChange={e => setForm({...form, base_url: e.target.value})}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="https://api.openai.com/v1"
-                        />
-                    </div>
-
+                    {/* Base URL Input Removed as requested */}
+                    
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
                             API Key (支持多Key轮询)
                         </label>
-                        <div className="relative">
-                            <KeyIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                            <textarea 
-                                value={form.api_key} 
-                                onChange={e => setForm({...form, api_key: e.target.value})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none min-h-[80px] resize-y placeholder:text-slate-400 leading-relaxed"
-                                placeholder="sk-key1,\nsk-key2"
-                            />
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed bg-blue-50 text-blue-600 p-2 rounded-lg border border-blue-100">
-                            <strong>提示：</strong> 支持配置多个 API Key 以实现负载均衡。请使用英文逗号分隔，系统将自动轮询使用。
+                        <TagInput 
+                            values={apiKeys}
+                            onChange={setApiKeys}
+                            placeholder="输入 Key 并按回车添加..."
+                            icon={<KeyIcon className="w-4 h-4" />}
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1.5 ml-1">
+                            支持配置多个 Key 实现负载均衡，系统将自动轮询。
                         </p>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">支持模型 (逗号分隔)</label>
-                        <textarea 
-                            value={form.models} 
-                            onChange={e => setForm({...form, models: e.target.value})}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none h-20 resize-y"
-                            placeholder="gpt-4o, claude-3-5-sonnet, gemini-pro..."
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">支持模型 (Models)</label>
+                        <TagInput 
+                            values={models}
+                            onChange={setModels}
+                            placeholder="输入模型 ID 并按回车添加 (如 gpt-4o)..."
+                            icon={<ChipIcon className="w-4 h-4" />}
                         />
                     </div>
 
@@ -254,13 +336,22 @@ export const ChannelManager: React.FC = () => {
                             </div>
                             
                             <div className="space-y-2">
-                                <div className="text-xs bg-slate-50 p-2 rounded border border-slate-100 font-mono text-slate-500 truncate" title={channel.base_url}>
-                                    {channel.base_url}
-                                </div>
+                                {/* Base URL hidden if not relevant to new design, or show if backend returns it */}
+                                {channel.base_url && (
+                                    <div className="text-xs bg-slate-50 p-2 rounded border border-slate-100 font-mono text-slate-500 truncate" title={channel.base_url}>
+                                        {channel.base_url}
+                                    </div>
+                                )}
                                 <div className="text-[10px] text-slate-400">
                                     <span className="font-bold text-slate-500">Models: </span>
-                                    {channel.models.split(',').slice(0, 3).join(', ')}
-                                    {channel.models.split(',').length > 3 && '...'}
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {channel.models.split(',').slice(0, 5).map((m, i) => (
+                                            <span key={i} className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 border border-slate-200 truncate max-w-[120px]">
+                                                {m.trim()}
+                                            </span>
+                                        ))}
+                                        {channel.models.split(',').length > 5 && <span className="text-slate-300">...</span>}
+                                    </div>
                                 </div>
                             </div>
                         </div>
