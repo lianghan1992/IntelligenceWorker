@@ -39,7 +39,11 @@ const RETRIEVAL_CONFIG = {
 };
 
 // 全局系统设定：赋予 Agent 专家人设与行为规范
+// [UPDATED]: 增加了 {{ tech_brief }} 占位符，用于注入“初心”
 const GLOBAL_SYSTEM_INSTRUCTION = `你是一位拥有15年以上经验的汽车/硬科技行业技术专家。你的核心能力是基于行业情报，对技术方案进行深度的竞品分析、技术路线评估和工程风险排查。文风务实、犀利、逻辑严密，严禁营销辞藻，仅进行客观分析。
+
+**【当前评估任务书 (Technical Brief)】 - 请时刻基于此基准进行分析，防止偏题**:
+{{ tech_brief }}
 
 核心限制 (Constraints):
 1. **中文优先**：除专业术语外，**严禁中英混合！** 严禁在中文句子中夹杂不必要的英文单词。
@@ -373,13 +377,17 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             const activeSid = await ensureSession(input.slice(0, 15));
             const filledPrompt = config.contentTemplate.replace('{{ user_input }}', input);
 
+            // [UPDATED] Inject Tech Brief (Empty initially for Init step, or simple description)
+            const techBrief = "任务初始化阶段，尚未生成完整任务书。";
+            const systemPrompt = GLOBAL_SYSTEM_INSTRUCTION.replace('{{ tech_brief }}', techBrief);
+
             let jsonBuffer = "";
             let reasoningBuffer = "";
 
             await streamChatCompletions({
                 model: config.model,
                 messages: [
-                    { role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION },
+                    { role: 'system', content: systemPrompt },
                     { role: 'user', content: filledPrompt }
                 ],
                 stream: true,
@@ -473,6 +481,15 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
                                 stepId === 'solution' ? data.sections['risk'].markdown.slice(0, 1000) :
                                 stepId === 'compare' ? (data.sections['route'].markdown + data.sections['risk'].markdown + data.sections['solution'].markdown).slice(0, 2000) : '';
 
+            // [UPDATED] Construct the Tech Brief for the System Prompt
+            const techBrief = `
+**评估对象**: ${data.techName}
+**核心定义**: ${data.techDefinition || '暂无'}
+            `.trim();
+
+            // Inject the Brief into the Global System Instruction
+            const systemPromptWithBrief = GLOBAL_SYSTEM_INSTRUCTION.replace('{{ tech_brief }}', techBrief);
+
             let filledPrompt = config.contentTemplate
                 .replace(/{{ tech_name }}/g, techName)
                 .replace(/{{ retrieved_info }}/g, ragContext || '暂无外部补充资料。')
@@ -486,7 +503,7 @@ const TechDecisionAssistant: React.FC<TechDecisionAssistantProps> = ({ onBack })
             await streamChatCompletions({
                 model: config.model,
                 messages: [
-                    { role: 'system', content: GLOBAL_SYSTEM_INSTRUCTION },
+                    { role: 'system', content: systemPromptWithBrief },
                     { role: 'user', content: filledPrompt }
                 ],
                 stream: true,
