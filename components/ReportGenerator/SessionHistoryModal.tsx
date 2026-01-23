@@ -181,7 +181,8 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
                                                 )}
                                                 <div className="flex items-center gap-1" title="预估消耗">
                                                     <ChartIcon className="w-3.5 h-3.5 text-slate-400" />
-                                                    <span className="font-mono">¥{session.total_cost?.toFixed(3) || '0.000'}</span>
+                                                    {/* FIX: Ensure total_cost is cast to Number before calling toFixed */}
+                                                    <span className="font-mono">¥{Number(session.total_cost || 0).toFixed(3)}</span>
                                                 </div>
                                             </div>
                                             
