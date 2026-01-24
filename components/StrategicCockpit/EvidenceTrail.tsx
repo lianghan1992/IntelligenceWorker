@@ -1,21 +1,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { InfoItem } from '../../types';
-import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, ExternalLinkIcon, ClockIcon, ChevronLeftIcon, ShieldCheckIcon } from '../icons';
-import { getArticleHtml, generateArticleHtml, downloadArticlePdf, getSpiderArticleDetail } from '../../api/intelligence';
+import { DocumentTextIcon, ExternalLinkIcon, ClockIcon, ChevronLeftIcon, ShieldCheckIcon } from '../icons';
+import { getSpiderArticleDetail } from '../../api/intelligence';
 import { marked } from 'marked';
 
 interface EvidenceTrailProps {
     selectedArticle: InfoItem | null;
     onBack?: () => void;
 }
-
-const Spinner: React.FC = () => (
-    <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-);
 
 // Helper to unescape unicode characters in content (e.g., \u25cf -> ●)
 const unescapeUnicode = (str: string) => {
@@ -25,25 +18,17 @@ const unescapeUnicode = (str: string) => {
 }
 
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, onBack }) => {
-    const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [fullContent, setFullContent] = useState<string>('');
     const [articleUrl, setArticleUrl] = useState<string>('');
     const [displayTitle, setDisplayTitle] = useState<string>('');
     const [isRefined, setIsRefined] = useState<boolean>(false);
-    
-    const [isHtmlLoading, setIsHtmlLoading] = useState(false);
     const [isContentLoading, setIsContentLoading] = useState(false);
-    const [isDownloading, setIsDownloading] = useState(false);
-    
-    // Blob URL for iframe
-    const [iframeSrc, setIframeSrc] = useState<string | null>(null);
 
     // Fetch Content logic
     useEffect(() => {
         if (!selectedArticle) return;
         
         let active = true;
-        setHtmlContent(null);
         
         // Initial set from list object
         setArticleUrl(selectedArticle.original_url || ''); 
@@ -60,7 +45,6 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
         
         const loadData = async () => {
             // Check if we need to fetch details (content missing/short or need to check for refined content on server)
-            // Even if we have content, we might want to check for refined content if it wasn't in the list
             const needsDetail = !selectedArticle.original_url || 
                                 (!selectedArticle.refined_content && (!selectedArticle.content || selectedArticle.content.length < 100));
 
@@ -78,28 +62,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                         setDisplayTitle(titleToUse);
                         setFullContent(contentToUse);
                         setIsRefined(!!detail.refined_content);
-
-                        // If detail also reports it's atomized, we should respect that
-                        if (detail.is_atomized) selectedArticle.is_atomized = true;
                     }
                 } catch(e) {
                     console.error("Failed to fetch article detail", e);
                 } finally {
                     if (active) setIsContentLoading(false);
-                }
-            }
-
-            if (selectedArticle.is_atomized) {
-                setIsHtmlLoading(true);
-                try {
-                    const htmlRes = await getArticleHtml(selectedArticle.id);
-                    if (active && htmlRes && htmlRes.html_content) {
-                        setHtmlContent(htmlRes.html_content);
-                    }
-                } catch (error) {
-                    console.error("Failed to load HTML", error);
-                } finally {
-                    if (active) setIsHtmlLoading(false);
                 }
             }
         };
@@ -108,127 +75,6 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
 
         return () => { active = false; };
     }, [selectedArticle]);
-    
-    // Manage Blob URL for HTML content to support complex scripts (charts) better than srcDoc
-    useEffect(() => {
-        if (htmlContent) {
-            let finalHtml = htmlContent;
-
-            // --- 智能修复 1: 自动提取图表容器 ID 并强制设置高度 ---
-            // 很多时候 Tailwind 加载慢导致 height:0，导致图表不显示。我们强制给容器加 min-height。
-            let chartIdStyle = '';
-            // 正则匹配 new ApexCharts(document.querySelector("#chartId"), ...)
-            const apexMatch = finalHtml.match(/new\s+ApexCharts\s*\(\s*document\.querySelector\s*\(\s*["']#([\w-]+)["']\s*\)/i);
-            if (apexMatch && apexMatch[1]) {
-                const chartId = apexMatch[1];
-                chartIdStyle = `#${chartId} { min-height: 350px !important; width: 100% !important; display: block; }`;
-            }
-            
-            // 尝试匹配 ECharts 容器 (document.getElementById('main'))
-            const echartsMatch = finalHtml.match(/document\.getElementById\s*\(\s*["']([\w-]+)["']\s*\)/i);
-            if (echartsMatch && echartsMatch[1]) {
-                 const eId = echartsMatch[1];
-                 chartIdStyle += ` #${eId} { min-height: 350px !important; width: 100% !important; display: block; }`;
-            }
-
-            const stylePatch = `
-                <style>
-                    /* 基础重置 */
-                    html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
-                    /* 针对提取到的图表 ID 强制样式 */
-                    ${chartIdStyle}
-                    /* 通用兜底 */
-                    .apexcharts-canvas { margin: 0 auto; }
-                </style>
-            `;
-
-            // --- 智能修复 2: 注入脚本加载拦截器 (关键修复) ---
-            // 查找包含 new ApexCharts 的脚本块，并将其包裹在重试逻辑中
-            const chartScriptRegex = /<script>([\s\S]*?new ApexCharts[\s\S]*?)<\/script>/gi;
-            
-            finalHtml = finalHtml.replace(chartScriptRegex, (match, content) => {
-                // 移除原有的 <script> 标签，替换为带有等待逻辑的新脚本
-                return `<script>
-                    (function() {
-                        var attempts = 0;
-                        var maxAttempts = 100; // 20 seconds timeout
-                        
-                        var initChart = function() {
-                            // 检查库是否已加载
-                            if (typeof ApexCharts !== 'undefined') {
-                                try {
-                                    console.log("AutoInsight: ApexCharts loaded. Initializing...");
-                                    ${content}
-                                    // 强制触发一次 resize 确保图表适配容器
-                                    setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
-                                } catch (e) {
-                                    console.error("AutoInsight Chart Render Error:", e);
-                                    // 在页面显示错误，方便调试
-                                    var errDiv = document.createElement('div');
-                                    errDiv.style.color = 'red';
-                                    errDiv.style.padding = '20px';
-                                    errDiv.innerText = '图表渲染错误: ' + e.message;
-                                    document.body.prepend(errDiv);
-                                }
-                            } else {
-                                attempts++;
-                                if (attempts < maxAttempts) {
-                                    // 库未就绪，200ms 后重试
-                                    setTimeout(initChart, 200);
-                                } else {
-                                    console.error("AutoInsight: ApexCharts library failed to load.");
-                                    var errDiv = document.createElement('div');
-                                    errDiv.style.color = 'red';
-                                    errDiv.style.padding = '20px';
-                                    errDiv.innerText = '图表组件加载超时，请检查网络。';
-                                    document.body.prepend(errDiv);
-                                }
-                            }
-                        };
-                        
-                        // 启动初始化检查
-                        initChart();
-                    })();
-                </script>`;
-            });
-
-            // 3. 组装最终 HTML
-            if (finalHtml.includes('</head>')) {
-                finalHtml = finalHtml.replace('</head>', stylePatch + '</head>');
-            } else if (finalHtml.includes('<body')) {
-                finalHtml = finalHtml.replace('<body', '<head>' + stylePatch + '</head><body');
-            } else {
-                finalHtml = `<!DOCTYPE html><html><head>${stylePatch}</head><body>${finalHtml}</body></html>`;
-            }
-
-            const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            setIframeSrc(url);
-            return () => URL.revokeObjectURL(url);
-        } else {
-            setIframeSrc(null);
-        }
-    }, [htmlContent]);
-
-    const handleDownloadPdf = async () => {
-        if (!selectedArticle) return;
-        setIsDownloading(true);
-        try {
-            const blob = await downloadArticlePdf(selectedArticle.id);
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${selectedArticle.title}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (e: any) {
-            alert('下载失败: ' + (e.message || '系统繁忙，请稍后再试'));
-        } finally {
-            setIsDownloading(false);
-        }
-    };
     
     const fallbackArticleHtml = useMemo(() => {
         if (!fullContent) return '';
@@ -289,13 +135,6 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                                 <ClockIcon className="w-3.5 h-3.5" />
                                 {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric'})}
                             </span>
-                            
-                            {selectedArticle.is_atomized && (
-                                <div className="flex items-center gap-1 text-purple-600 font-bold ml-auto">
-                                    <SparklesIcon className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] uppercase tracking-wider">AI Atomized</span>
-                                </div>
-                            )}
 
                             {isRefined && (
                                 <div className="flex items-center gap-1 text-green-600 font-bold ml-auto" title="内容已由AI重构，规避版权风险">
@@ -312,19 +151,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                 </div>
 
                 {/* Toolbar */}
-                <div className="px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex gap-2">
-                        {htmlContent && (
-                            <button 
-                                onClick={handleDownloadPdf}
-                                disabled={isDownloading}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50"
-                            >
-                                {isDownloading ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
-                                导出 PDF
-                            </button>
-                        )}
-                    </div>
+                <div className="px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
                     {articleUrl ? (
                         <a 
                             href={articleUrl} 
@@ -342,19 +169,10 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
 
             {/* Content Area */}
             <div className="flex-1 bg-white overflow-hidden relative">
-                {(isHtmlLoading || isContentLoading) ? (
+                {isContentLoading ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                         <p className="text-sm font-medium animate-pulse">正在加载深度内容...</p>
-                    </div>
-                ) : iframeSrc ? (
-                    <div className="h-full w-full bg-slate-50">
-                        <iframe 
-                            src={iframeSrc}
-                            className="w-full h-full border-none" 
-                            title="Article Content"
-                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                        />
                     </div>
                 ) : (
                     <div className="h-full overflow-y-auto p-6 md:px-10 md:py-8 custom-scrollbar bg-white scroll-smooth">
