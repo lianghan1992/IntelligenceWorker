@@ -1,132 +1,37 @@
 
+// api/user.ts
 import { USER_SERVICE_PATH } from '../config';
-import { 
-    PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
-    PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
-    PaymentStatusResponse, QuotaConfig, ModelPricing,
-    AdminTransaction, PaymentOrder, RefundApplyResponse, RefundOrder
-} from '../types';
 import { apiFetch, createApiQuery } from './helper';
+import { 
+    PaymentStatusResponse, 
+    RefundableBalanceResponse, 
+    RefundOrder, 
+    RefundApplyResponse, 
+    PaginatedResponse,
+    User,
+    WalletBalance,
+    QuotaItem,
+    RechargeResponse,
+    WalletTransaction,
+    UserListItem,
+    UserForAdminUpdate,
+    UserProfileDetails,
+    QuotaConfig,
+    PaymentOrder,
+    AdminTransaction
+} from '../types';
 
-// --- User Management API (Admin) ---
-export const getUsers = async (params: any): Promise<PaginatedResponse<UserListItem>> => {
-    const apiParams = { ...params };
-    if (apiParams.limit) {
-        apiParams.size = apiParams.limit;
-        delete apiParams.limit;
-    }
-    const query = createApiQuery(apiParams);
-    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/users${query}`);
-    return {
-        items: response.items || [],
-        total: response.total || 0,
-        page: response.page || 1,
-        // 兼容 limit (API Doc) 和 size (Old Code)
-        limit: response.limit || response.size || 20,
-        // 兼容 totalPages (API Doc) 和 total_pages (Old Code)
-        totalPages: response.totalPages || response.total_pages || 1
-    };
+export interface PaymentStatusCheck { 
+    status: 'paid' | 'pending' | 'failed' | 'expired';
 }
 
-export const getUserById = (userId: string): Promise<UserListItem> =>
-    apiFetch<UserListItem>(`${USER_SERVICE_PATH}/users/${userId}`);
-
-export const updateUser = (userId: string, data: UserForAdminUpdate): Promise<UserListItem> => 
-    apiFetch<UserListItem>(`${USER_SERVICE_PATH}/users/${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-
-export const deleteUser = (userId: string): Promise<void> =>
-    apiFetch<void>(`${USER_SERVICE_PATH}/users/${userId}`, {
-        method: 'DELETE',
-    });
-
-export const getUserProfileDetails = (userId: string): Promise<UserProfileDetails> =>
-    apiFetch<UserProfileDetails>(`${USER_SERVICE_PATH}/users/${userId}/profile/details`);
-
-// --- Plans API ---
-export const getPlans = (): Promise<PlanDetails> => apiFetch<PlanDetails>(`${USER_SERVICE_PATH}/plans`);
-
-// --- User POIs (Focus Points) ---
-export const getUserPois = (): Promise<ApiPoi[]> => apiFetch<ApiPoi[]>(`${USER_SERVICE_PATH}/me/pois`);
-
-export const addUserPoi = (data: { content: string; keywords: string }): Promise<ApiPoi> =>
-    apiFetch<ApiPoi>(`${USER_SERVICE_PATH}/me/pois`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
-
-export const deleteUserPoi = (poiId: string): Promise<void> => apiFetch<void>(`${USER_SERVICE_PATH}/me/pois/${poiId}`, { method: 'DELETE' });
-
-// --- User Source Subscriptions ---
-export const getUserSubscribedSources = (): Promise<SystemSource[]> => apiFetch<SystemSource[]>(`${USER_SERVICE_PATH}/me/sources`);
-
-export const addUserSourceSubscription = (sourceId: string): Promise<void> => 
-    apiFetch<void>(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
-        method: 'POST',
-    });
-
-export const deleteUserSourceSubscription = (sourceId: string): Promise<void> => 
-    apiFetch<void>(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, { method: 'DELETE' });
-
-// --- Quota & Wallet ---
-
-/**
- * 获取我的个人权益额度 (Used/Limit)
- */
-export const getMyQuotaUsage = async (): Promise<QuotaItem[]> => {
-    try {
-        const res = await apiFetch<any>(`${USER_SERVICE_PATH}/usage/quota`);
-        if (Array.isArray(res)) return res;
-        if (res && res.quotas && Array.isArray(res.quotas)) return res.quotas;
-        return [];
-    } catch (e) {
-        return [];
-    }
-};
-
-export const getPersonalUsageHistory = (params: any = {}): Promise<any[]> => {
-    const query = createApiQuery(params);
-    return apiFetch<any[]>(`${USER_SERVICE_PATH}/usage/my${query}`);
-};
-
-/**
- * 获取钱包流水 (个人)
- */
-export const getWalletTransactions = (params: any = {}): Promise<{
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-    items: AdminTransaction[]; // Reuse AdminTransaction structure for simplicity as they are similar
-}> => {
-    const query = createApiQuery(params);
-    return apiFetch<any>(`${USER_SERVICE_PATH}/wallet/transactions${query}`);
-};
-
-/**
- * 获取钱包余额
- */
-export const getWalletBalance = (): Promise<WalletBalance> => 
-    apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/usage/quota`);
-
-/**
- * 获取我的总消费统计
- */
-export const getUserUsageStats = (): Promise<any> => 
-    apiFetch(`${USER_SERVICE_PATH}/usage/stats`);
-
-export const rechargeWallet = (amount: number, gateway: string = 'manual'): Promise<RechargeResponse> => 
-    apiFetch(`${USER_SERVICE_PATH}/wallet/recharge`, {
-        method: 'POST',
-        body: JSON.stringify({ amount, gateway })
-    });
-
-export const checkPaymentStatus = (orderNo: string): Promise<PaymentStatusResponse> =>
-    apiFetch(`${USER_SERVICE_PATH}/payment/status/${orderNo}`);
+export const checkPaymentStatus = (orderNo: string): Promise<PaymentStatusCheck> =>
+    apiFetch<PaymentStatusCheck>(`${USER_SERVICE_PATH}/payment/status/${orderNo}`);
 
 // --- Refund APIs ---
+
+export const getRefundableBalance = (): Promise<RefundableBalanceResponse> =>
+    apiFetch<RefundableBalanceResponse>(`${USER_SERVICE_PATH}/wallet/refund/refundable`);
 
 export const applyRefund = (amount?: number, reason?: string): Promise<RefundApplyResponse> =>
     apiFetch<RefundApplyResponse>(`${USER_SERVICE_PATH}/wallet/refund/apply`, {
@@ -136,127 +41,154 @@ export const applyRefund = (amount?: number, reason?: string): Promise<RefundApp
 
 export const getMyRefunds = async (params: any = {}): Promise<PaginatedResponse<RefundOrder>> => {
     const query = createApiQuery(params);
-    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/wallet/refunds${query}`);
+    const res = await apiFetch<any>(`${USER_SERVICE_PATH}/wallet/refund/list${query}`);
     return {
-        items: response.items || [],
-        total: response.total || 0,
-        page: response.page || 1,
-        limit: response.limit || response.size || 20,
-        totalPages: response.totalPages || response.total_pages || 1
+        items: res.items,
+        total: res.total,
+        page: res.page,
+        limit: res.limit,
+        totalPages: res.pages // Assuming backend returns 'pages'
     };
 };
 
-export const getAdminRefunds = async (params: any = {}): Promise<PaginatedResponse<RefundOrder>> => {
-    const apiParams = { ...params };
-    if (apiParams.limit) {
-        apiParams.size = apiParams.limit;
-        delete apiParams.limit;
-    }
-    const query = createApiQuery(apiParams);
-    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/refunds${query}`);
-    return {
-        items: response.items || [],
-        total: response.total || 0,
-        page: response.page || 1,
-        limit: response.limit || response.size || 20,
-        totalPages: response.totalPages || response.total_pages || 1
-    };
-};
+export const getMyQuotaUsage = (): Promise<QuotaItem[]> => 
+    apiFetch<QuotaItem[]>(`${USER_SERVICE_PATH}/quota/usage`);
 
-export const adminCreateRefund = (data: { user_id: string; amount: number; reason: string }): Promise<RefundApplyResponse> =>
-    apiFetch<RefundApplyResponse>(`${USER_SERVICE_PATH}/admin/refund/create`, {
+export const getWalletBalance = (): Promise<WalletBalance> => 
+    apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/wallet/balance`);
+
+export const rechargeWallet = (amount: number, gateway: string = 'manual'): Promise<RechargeResponse> => 
+    apiFetch<RechargeResponse>(`${USER_SERVICE_PATH}/wallet/recharge`, {
         method: 'POST',
+        body: JSON.stringify({ amount, gateway })
+    });
+
+export const getWalletTransactions = (params: any): Promise<PaginatedResponse<WalletTransaction>> => {
+    const query = createApiQuery(params);
+    return apiFetch<any>(`${USER_SERVICE_PATH}/wallet/transactions${query}`).then(res => ({
+        items: res.items,
+        total: res.total,
+        page: res.page,
+        limit: res.size,
+        totalPages: res.total_pages
+    }));
+}
+
+export const getUserUsageStats = (): Promise<any> => 
+    apiFetch<any>(`${USER_SERVICE_PATH}/usage/stats`); // New endpoint, return type any for now
+
+// Admin APIs
+
+export const getUsers = (params: any): Promise<PaginatedResponse<UserListItem>> => {
+    const query = createApiQuery(params);
+    return apiFetch<any>(`${USER_SERVICE_PATH}/list${query}`).then(res => ({
+        items: res.items,
+        total: res.total,
+        page: res.page,
+        limit: res.size,
+        totalPages: res.total_pages
+    }));
+}
+
+export const getUserById = (id: string): Promise<UserListItem> => 
+    apiFetch<UserListItem>(`${USER_SERVICE_PATH}/${id}`);
+
+export const updateUser = (id: string, data: UserForAdminUpdate): Promise<User> => 
+    apiFetch<User>(`${USER_SERVICE_PATH}/${id}`, {
+        method: 'PUT',
         body: JSON.stringify(data)
     });
 
-export const adminReviewRefund = (refundNo: string, action: 'approve' | 'reject', reason?: string): Promise<void> =>
-    apiFetch<void>(`${USER_SERVICE_PATH}/admin/refund/${refundNo}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ action, reason })
+export const deleteUser = (id: string): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/${id}`, {
+        method: 'DELETE'
     });
 
+export const getUserPois = (): Promise<any[]> => 
+    apiFetch<any[]>(`${USER_SERVICE_PATH}/pois`);
 
-// --- Quota Management (Admin) ---
+export const addUserPoi = (data: { content: string; keywords: string }): Promise<any> => 
+    apiFetch<any>(`${USER_SERVICE_PATH}/pois`, { method: 'POST', body: JSON.stringify(data) });
+
+export const deleteUserPoi = (id: string): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/pois/${id}`, { method: 'DELETE' });
+
+export const getUserSubscribedSources = (): Promise<any[]> => 
+    apiFetch<any[]>(`${USER_SERVICE_PATH}/subscriptions/sources`);
+
+export const addUserSourceSubscription = (sourceId: string): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/subscriptions/sources/${sourceId}`, { method: 'POST' });
+
+export const deleteUserSourceSubscription = (sourceId: string): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/subscriptions/sources/${sourceId}`, { method: 'DELETE' });
+
+export const giftBalanceBatch = (data: { user_ids: string[]; amount: number; reason: string }): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/wallet/gift/batch`, { method: 'POST', body: JSON.stringify(data) });
+
 export const getQuotaConfigs = (): Promise<QuotaConfig[]> => 
-    apiFetch<QuotaConfig[]>(`${USER_SERVICE_PATH}/quotas`);
+    apiFetch<QuotaConfig[]>(`${USER_SERVICE_PATH}/admin/quota/configs`);
 
-export const createQuotaConfig = (data: Partial<QuotaConfig>): Promise<void> => 
-    apiFetch(`${USER_SERVICE_PATH}/quotas`, {
-        method: 'POST',
-        body: JSON.stringify(data)
-    });
+export const createQuotaConfig = (data: any): Promise<QuotaConfig> => 
+    apiFetch<QuotaConfig>(`${USER_SERVICE_PATH}/admin/quota/configs`, { method: 'POST', body: JSON.stringify(data) });
 
 export const deleteQuotaConfig = (id: string): Promise<void> => 
-    apiFetch<void>(`${USER_SERVICE_PATH}/quotas/${id}`, { method: 'DELETE' });
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/quota/configs/${id}`, { method: 'DELETE' });
 
-// --- Admin Billing & Finance ---
-
-/**
- * Admin Get All Transactions (Detailed)
- * /api/user/admin/transactions
- */
-export const getAdminTransactions = async (params: any): Promise<PaginatedResponse<AdminTransaction>> => {
-    const apiParams = { ...params };
-    if (apiParams.limit) {
-        apiParams.size = apiParams.limit;
-        delete apiParams.limit;
-    }
-    const query = createApiQuery(apiParams);
-    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/transactions${query}`);
-    return {
-        items: response.items || [],
-        total: response.total || 0,
-        page: response.page || 1,
-        limit: response.limit || response.size || 20,
-        totalPages: response.totalPages || response.total_pages || 1
-    };
+export const getAdminTransactions = (params: any): Promise<PaginatedResponse<AdminTransaction>> => {
+    const query = createApiQuery(params);
+    return apiFetch<any>(`${USER_SERVICE_PATH}/admin/wallet/transactions${query}`).then(res => ({
+        items: res.items,
+        total: res.total,
+        page: res.page,
+        limit: res.size,
+        totalPages: res.total_pages
+    }));
 };
 
-/**
- * Admin Get All Orders
- * /api/user/admin/orders
- */
-export const getAdminOrders = async (params: any): Promise<PaginatedResponse<PaymentOrder>> => {
-    const apiParams = { ...params };
-    if (apiParams.limit) {
-        apiParams.size = apiParams.limit;
-        delete apiParams.limit;
-    }
-    const query = createApiQuery(apiParams);
-    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/orders${query}`);
-    return {
-        items: response.items || [],
-        total: response.total || 0,
-        page: response.page || 1,
-        limit: response.limit || response.size || 20,
-        totalPages: response.totalPages || response.total_pages || 1
-    };
+export const getAdminOrders = (params: any): Promise<PaginatedResponse<PaymentOrder>> => {
+    const query = createApiQuery(params);
+    return apiFetch<any>(`${USER_SERVICE_PATH}/admin/wallet/orders${query}`).then(res => ({
+        items: res.items,
+        total: res.total,
+        page: res.page,
+        limit: res.size,
+        totalPages: res.total_pages
+    }));
 };
 
-export const getModelPricings = (): Promise<ModelPricing[]> => 
-    apiFetch<ModelPricing[]>(`${USER_SERVICE_PATH}/admin/model-pricing`);
+export const getInitialBalanceConfig = (): Promise<{ value: string; description: string }> => 
+    apiFetch<{ value: string; description: string }>(`${USER_SERVICE_PATH}/admin/config/initial_balance`);
 
-export const createModelPricing = (data: Partial<ModelPricing>): Promise<ModelPricing> => 
-    apiFetch<ModelPricing>(`${USER_SERVICE_PATH}/admin/model-pricing`, {
-        method: 'POST',
-        body: JSON.stringify(data)
-    });
+export const updateInitialBalanceConfig = (data: { value: string; description: string }): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/config/initial_balance`, { method: 'POST', body: JSON.stringify(data) });
 
-export const deleteModelPricing = (id: string | number): Promise<void> => 
-    apiFetch<void>(`${USER_SERVICE_PATH}/admin/model-pricing/${id}`, { method: 'DELETE' });
+export const getAdminRefunds = (params: any): Promise<PaginatedResponse<RefundOrder>> => {
+    const query = createApiQuery(params);
+    return apiFetch<any>(`${USER_SERVICE_PATH}/admin/refunds${query}`).then(res => ({
+        items: res.items,
+        total: res.total,
+        page: res.page,
+        limit: res.size,
+        totalPages: res.total_pages
+    }));
+};
 
-// --- System Config & Gifting (Admin) ---
-export const getInitialBalanceConfig = (): Promise<{ value: string; description?: string }> =>
-    apiFetch<{ value: string; description?: string }>(`${USER_SERVICE_PATH}/admin/config/initial-balance`);
+export const adminReviewRefund = (refundNo: string, action: 'approve' | 'reject', reason?: string): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/refunds/${refundNo}/review`, { method: 'POST', body: JSON.stringify({ action, reason }) });
 
-export const updateInitialBalanceConfig = (data: { value: string; description?: string }): Promise<void> =>
-    apiFetch<void>(`${USER_SERVICE_PATH}/admin/config/initial-balance`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
+export const adminCreateRefund = (data: { user_id: string; amount: number; reason: string }): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/refunds/create`, { method: 'POST', body: JSON.stringify(data) });
 
-export const giftBalanceBatch = (data: { user_ids: string[]; amount: number; reason?: string }): Promise<{ message: string; count: number }> =>
-    apiFetch<{ message: string; count: number }>(`${USER_SERVICE_PATH}/admin/gift`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
+export const getUserProfileDetails = (userId: string): Promise<UserProfileDetails> => 
+    apiFetch<UserProfileDetails>(`${USER_SERVICE_PATH}/admin/users/${userId}/details`);
+
+// Pricing (Moved from User to Stratify in some places, but kept here for user facing pricing if needed, or aliases)
+// Actually PricingManager uses api/stratify.ts for getPricings etc. But Admin/User/PricingManager uses api/user.ts
+export const getModelPricings = (): Promise<any[]> => 
+    apiFetch<any[]>(`${USER_SERVICE_PATH}/admin/pricing/models`); // Assuming endpoint exists in user service or proxies to stratify
+
+export const createModelPricing = (data: any): Promise<any> => 
+    apiFetch<any>(`${USER_SERVICE_PATH}/admin/pricing/models`, { method: 'POST', body: JSON.stringify(data) });
+
+export const deleteModelPricing = (id: string): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/pricing/models/${id}`, { method: 'DELETE' });

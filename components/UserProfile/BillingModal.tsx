@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions, getUserUsageStats, applyRefund, getMyRefunds } from '../../api/user';
-import { User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction, RefundOrder } from '../../types';
-import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon, ShieldExclamationIcon } from '../icons';
+import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions, getUserUsageStats, applyRefund, getMyRefunds, getRefundableBalance } from '../../api/user';
+import { User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction, RefundOrder, RefundableBalanceResponse } from '../../types';
+import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon, ShieldExclamationIcon, CreditCardIcon } from '../icons';
 import { AGENT_NAMES } from '../../agentConfig';
 
 interface BillingModalProps {
@@ -59,17 +59,32 @@ const getRefundStatusBadge = (status: string) => {
 };
 
 // --- Refund Application Modal ---
-const RefundApplicationModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void; maxAmount: number }> = ({ isOpen, onClose, onSuccess, maxAmount }) => {
+const RefundApplicationModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void }> = ({ isOpen, onClose, onSuccess }) => {
     const [amount, setAmount] = useState('');
     const [reason, setReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+    const [refundData, setRefundData] = useState<RefundableBalanceResponse | null>(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            setIsLoading(true);
+            setError('');
+            getRefundableBalance()
+                .then(data => setRefundData(data))
+                .catch(err => setError('无法获取可退款金额: ' + (err.message || '网络错误')))
+                .finally(() => setIsLoading(false));
+        }
+    }, [isOpen]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         
         let applyAmount = amount ? parseFloat(amount) : undefined;
+        const maxAmount = refundData?.refundable_amount || 0;
+
         if (applyAmount && (isNaN(applyAmount) || applyAmount <= 0)) {
             setError('请输入有效的退款金额');
             return;
@@ -86,7 +101,7 @@ const RefundApplicationModal: React.FC<{ isOpen: boolean; onClose: () => void; o
         setIsSubmitting(true);
         try {
             await applyRefund(applyAmount, reason);
-            alert('退款申请已提交，请等待管理员审核。');
+            alert('退款申请已提交，请等待管理员审核。资金将原路返回至您的支付账户。');
             onSuccess();
             onClose();
         } catch (err: any) {
@@ -99,56 +114,87 @@ const RefundApplicationModal: React.FC<{ isOpen: boolean; onClose: () => void; o
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
                 <div className="p-5 border-b border-slate-100 bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800">申请退款</h3>
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <ShieldExclamationIcon className="w-5 h-5 text-indigo-600" />
+                        申请退款
+                    </h3>
                     <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full text-slate-400"><CloseIcon className="w-5 h-5"/></button>
                 </div>
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                     <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 text-xs text-indigo-700 leading-relaxed">
-                        当前账户可退款最大金额为：<b>¥{maxAmount.toFixed(2)}</b>。<br/>
-                        如果不填写金额，系统将默认申请全额退款。
-                    </div>
+                
+                <div className="p-6">
+                    {isLoading ? (
+                        <div className="py-8 text-center"><Spinner /></div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="space-y-5">
+                             {/* Balance Info Card */}
+                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                                <div className="flex justify-between items-center text-xs text-slate-500">
+                                    <span>当前账户余额</span>
+                                    <span className="font-mono">¥{refundData?.current_balance.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-slate-500">
+                                    <span className="flex items-center gap-1">充值记录上限 <div className="w-3 h-3 rounded-full bg-slate-200 text-[8px] flex items-center justify-center text-slate-500 cursor-help" title="仅支持原路退回您实际支付充值的金额，系统赠送金额不可提现。">?</div></span>
+                                    <span className="font-mono">¥{refundData?.history_recharge_limit.toFixed(2)}</span>
+                                </div>
+                                <div className="h-px bg-slate-200"></div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-indigo-900">本次可退金额</span>
+                                    <span className="text-xl font-black text-indigo-600 font-mono">¥{refundData?.refundable_amount.toFixed(2)}</span>
+                                </div>
+                            </div>
+                            
+                            {(refundData?.refundable_amount || 0) <= 0 && (
+                                <div className="text-xs text-red-500 bg-red-50 p-3 rounded-lg border border-red-100">
+                                    当前无可退金额。可能原因：余额不足或余额主要由系统赠送构成。
+                                </div>
+                            )}
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款金额 (可选)</label>
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
-                            <input 
-                                type="number" 
-                                step="0.01" 
-                                max={maxAmount}
-                                value={amount} 
-                                onChange={e => setAmount(e.target.value)} 
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-6 pr-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder={`最多 ${maxAmount.toFixed(2)}`}
-                            />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款原因 <span className="text-red-500">*</span></label>
-                        <textarea 
-                            value={reason} 
-                            onChange={e => setReason(e.target.value)} 
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-24 resize-none"
-                            placeholder="请说明退款原因..."
-                            required
-                        />
-                    </div>
-                    
-                    {error && <div className="text-xs text-red-500">{error}</div>}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款金额 (可选)</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                                    <input 
+                                        type="number" 
+                                        step="0.01" 
+                                        max={refundData?.refundable_amount}
+                                        value={amount} 
+                                        onChange={e => setAmount(e.target.value)} 
+                                        className="w-full bg-white border border-slate-300 rounded-xl pl-6 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow"
+                                        placeholder={`如果不填，默认退全额 ¥${refundData?.refundable_amount.toFixed(2)}`}
+                                        disabled={(refundData?.refundable_amount || 0) <= 0}
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款原因 <span className="text-red-500">*</span></label>
+                                <textarea 
+                                    value={reason} 
+                                    onChange={e => setReason(e.target.value)} 
+                                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-24 resize-none transition-shadow"
+                                    placeholder="请说明退款原因，以便我们改进服务..."
+                                    required
+                                    disabled={(refundData?.refundable_amount || 0) <= 0}
+                                />
+                            </div>
+                            
+                            {error && <div className="text-xs text-red-500 font-medium flex items-center gap-1"><ShieldExclamationIcon className="w-3 h-3"/> {error}</div>}
 
-                    <div className="flex justify-end pt-2">
-                        <button 
-                            type="submit" 
-                            disabled={isSubmitting} 
-                            className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-md active:scale-95"
-                        >
-                            {isSubmitting ? <Spinner /> : '提交申请'}
-                        </button>
-                    </div>
-                </form>
+                            <div className="flex justify-end pt-2">
+                                <button 
+                                    type="submit" 
+                                    disabled={isSubmitting || (refundData?.refundable_amount || 0) <= 0} 
+                                    className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-400 shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {isSubmitting ? <Spinner /> : '提交申请'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -301,11 +347,6 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
         if (pollingRef.current) clearInterval(pollingRef.current);
     }
     
-    // Calculate refundable amount: Total Recharge - Total Refunded - Total Consumed (roughly, backend logic is stricter)
-    // For simplicity, we assume wallet.balance is roughly the refundable limit if all sources were recharges. 
-    // Backend handles the real limit. We pass current balance as an estimate for UI guidance.
-    const maxRefundable = wallet ? wallet.balance : 0;
-
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/50 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-5xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
@@ -386,9 +427,10 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                             
                             <button 
                                 onClick={() => setShowRefundModal(true)}
-                                className="w-full py-2 bg-transparent text-slate-400 font-medium text-xs hover:text-red-500 transition-colors flex items-center justify-center gap-1"
+                                className="w-full py-3 bg-white border border-slate-200 rounded-xl flex items-center justify-center gap-2 text-slate-600 font-bold text-sm shadow-sm hover:border-red-400 hover:text-red-500 transition-all active:scale-95 group"
                             >
-                                申请退款
+                                <CreditCardIcon className="w-4 h-4 text-slate-400 group-hover:text-red-500" />
+                                申请余额退款
                             </button>
                         </div>
 
@@ -725,7 +767,6 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                     isOpen={showRefundModal} 
                     onClose={() => setShowRefundModal(false)}
                     onSuccess={() => { setActiveList('refunds'); fetchListData(); }}
-                    maxAmount={maxRefundable}
                 />
             </div>
         </div>
