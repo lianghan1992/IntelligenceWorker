@@ -179,7 +179,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 font-sans">
+    <div className="flex flex-col h-screen bg-[#f8f9fa] font-serif">
         {/* Desktop Header */}
         <Header 
             user={user}

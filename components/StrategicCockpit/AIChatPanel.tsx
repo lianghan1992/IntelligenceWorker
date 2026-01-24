@@ -33,20 +33,20 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     if (!content) return null;
 
     return (
-        <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/50 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-1 max-w-full">
+        <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/30 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-1 max-w-full">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-indigo-600 hover:bg-indigo-100/50 transition-colors select-none"
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100/50 transition-colors select-none bg-indigo-50/50"
             >
-                <BrainIcon className={`w-3.5 h-3.5 ${isStreaming ? 'animate-pulse text-indigo-500' : ''}`} />
+                <BrainIcon className={`w-3.5 h-3.5 ${isStreaming ? 'animate-pulse text-indigo-600' : ''}`} />
                 <span>深度思考 {isStreaming ? '...' : ''}</span>
                 <ChevronDownIcon className={`w-3 h-3 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
-                <div className="px-3 pb-3">
+                <div className="px-4 pb-3">
                     <div 
                         ref={scrollRef}
-                        className="text-[11px] font-mono text-slate-600 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto custom-slim-scrollbar italic break-words border-l-2 border-indigo-200 pl-2"
+                        className="text-[12px] font-serif text-slate-600 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto custom-slim-scrollbar italic break-words border-l-2 border-indigo-200 pl-3 pt-1"
                     >
                         {content}
                         {isStreaming && <span className="inline-block w-1.5 h-3 ml-1 align-middle bg-indigo-400 animate-pulse"></span>}
@@ -63,12 +63,12 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
     const itemCount = items ? items.length : 0;
 
     return (
-        <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/30 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm max-w-full">
+        <div className="mb-4 rounded-xl border border-blue-100 bg-white overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm max-w-full">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100/50 transition-colors select-none"
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-blue-700 bg-blue-50/50 hover:bg-blue-50 transition-colors select-none"
             >
-                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-500 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />}
                 <span className="flex-1 text-left truncate min-w-0">
                     {isSearching ? `检索中: "${query}"` : `已检索到 ${itemCount} 条情报`}
                 </span>
@@ -78,31 +78,31 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                 <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform flex-shrink-0 text-blue-400 ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
-                <div className="p-2 border-t border-blue-100/50">
+                <div className="p-2 border-t border-blue-100/50 bg-slate-50/30">
                     {isSearching ? (
-                        <div className="py-2 flex flex-col items-center justify-center text-blue-400 gap-1">
-                             <span className="text-[10px] font-medium opacity-80 animate-pulse">正在扫描知识库向量索引...</span>
+                        <div className="py-3 flex flex-col items-center justify-center text-blue-500 gap-1">
+                             <span className="text-[10px] font-bold opacity-80 animate-pulse">正在扫描知识库...</span>
                         </div>
                     ) : (
-                        <div className="space-y-2 max-h-56 overflow-y-auto custom-slim-scrollbar pr-1">
+                        <div className="space-y-2 max-h-60 overflow-y-auto custom-slim-scrollbar pr-1">
                             {items.length > 0 ? items.map((item, idx) => (
                                 <div 
                                     key={item.id || idx} 
                                     onClick={() => onClick(item)}
-                                    className="p-2.5 bg-white border border-slate-100 rounded-lg cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all group"
+                                    className="p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group"
                                 >
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="flex-shrink-0 w-3.5 h-3.5 rounded bg-blue-100 text-blue-600 text-[9px] font-bold flex items-center justify-center font-mono">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <span className="flex-shrink-0 w-4 h-4 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center justify-center font-mono border border-blue-100">
                                             {idx + 1}
                                         </span>
-                                        <span className="text-[11px] font-bold text-slate-700 truncate flex-1 group-hover:text-blue-600 min-w-0">{item.title}</span>
+                                        <span className="text-[11px] font-bold text-slate-800 truncate flex-1 group-hover:text-blue-700 min-w-0 font-serif">{item.title}</span>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-5.5 opacity-80 group-hover:opacity-100">
+                                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-6 opacity-90 group-hover:opacity-100 font-serif">
                                         {item.content}
                                     </p>
                                 </div>
                             )) : (
-                                <div className="py-2 text-center text-xs text-slate-400 italic">知识库中未找到相关内容</div>
+                                <div className="py-3 text-center text-xs text-slate-400 italic">知识库中未找到相关内容</div>
                             )}
                         </div>
                     )}
@@ -134,11 +134,6 @@ export const AIChatPanel: React.FC<{
             timestamp: Date.now() 
         }];
     });
-
-    const displayModelName = React.useMemo(() => {
-        const parts = MODEL_ID.split('@');
-        return parts.length > 1 ? parts[1].toUpperCase() : MODEL_ID.toUpperCase();
-    }, []);
 
     const scrollToBottom = () => {
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -218,12 +213,12 @@ export const AIChatPanel: React.FC<{
     const renderMessageContent = (content: string, isUser: boolean) => {
         if (!content) return null;
         const proseClass = isUser 
-            ? "prose prose-sm max-w-none text-white prose-p:text-white prose-strong:text-white" 
-            : "prose prose-sm max-w-none text-slate-700 prose-strong:text-indigo-700";
+            ? "prose prose-sm max-w-none text-white prose-p:text-white prose-strong:text-white font-serif" 
+            : "prose prose-sm max-w-none text-slate-700 prose-strong:text-indigo-800 prose-headings:font-bold prose-headings:text-slate-900 font-serif leading-relaxed";
         try {
             return <div className={proseClass} dangerouslySetInnerHTML={{ __html: marked.parse(content) as string }} />;
         } catch (e) {
-             return <div className={`whitespace-pre-wrap text-sm ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
+             return <div className={`whitespace-pre-wrap text-sm font-serif ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
         }
     };
 
@@ -232,13 +227,13 @@ export const AIChatPanel: React.FC<{
             <div className={`flex flex-col items-center h-full py-4 bg-white border-l border-slate-200 ${className}`}>
                 <button 
                     onClick={onToggle}
-                    className="p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+                    className="p-3 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
                     title="展开 AI Copilot"
                 >
                     <SparklesIcon className="w-5 h-5" />
                 </button>
                 <div className="flex-1 flex flex-col items-center justify-center gap-10 py-10 overflow-hidden">
-                    <span className="[writing-mode:vertical-lr] text-xs font-black text-slate-300 uppercase tracking-[0.4em] select-none">
+                    <span className="[writing-mode:vertical-lr] text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] select-none">
                         AI COPILOT ASSISTANT
                     </span>
                 </div>
@@ -257,17 +252,17 @@ export const AIChatPanel: React.FC<{
             <style>{`
                 .custom-slim-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-slim-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-slim-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+                .custom-slim-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
             `}</style>
             
-            <div className="flex items-center justify-between px-4 py-3 md:px-5 md:py-4 border-b border-slate-200 bg-white/90 backdrop-blur z-20 shadow-sm flex-shrink-0">
-                <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg text-white shadow-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white/95 backdrop-blur z-20 shadow-[0_4px_12px_-6px_rgba(0,0,0,0.02)] flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg text-white shadow-md shadow-indigo-100">
                         <SparklesIcon className="w-4 h-4" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-extrabold text-slate-800 tracking-tight">AI Copilot</h3>
-                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{displayModelName}</p>
+                        <h3 className="text-base font-black text-slate-800 tracking-tight">AI Copilot</h3>
+                        {/* Hidden Model Name as requested */}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -279,7 +274,7 @@ export const AIChatPanel: React.FC<{
                     {!hideToggle && (
                          <button 
                             onClick={onToggle}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                             title="收起"
                         >
                             <ChevronRightIcon className="w-5 h-5" />
@@ -288,7 +283,7 @@ export const AIChatPanel: React.FC<{
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-6 custom-slim-scrollbar bg-slate-50/50 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-4 space-y-8 custom-slim-scrollbar bg-[#f8fafc] scroll-smooth">
                 {messages.map((msg, idx) => {
                     const isUser = msg.role === 'user';
                     const isLastAssistant = !isUser && idx === messages.length - 1;
@@ -297,13 +292,13 @@ export const AIChatPanel: React.FC<{
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border ${isUser ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-slate-200'}`}>
                                 {isUser ? <UserIcon className="w-4 h-4"/> : <SparklesIcon className="w-4 h-4"/>}
                             </div>
-                            <div className={`flex flex-col max-w-[88%] md:max-w-[85%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
-                                <div className={`px-4 py-3 md:px-5 md:py-4 rounded-2xl shadow-sm border transition-all duration-200 w-full ${isUser ? 'bg-gradient-to-br from-indigo-600 to-violet-600 border-transparent text-white rounded-tr-sm' : 'bg-white border-slate-200 text-slate-800 rounded-tl-sm'}`}>
+                            <div className={`flex flex-col max-w-[88%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
+                                <div className={`px-5 py-4 rounded-2xl shadow-sm border transition-all duration-200 w-full ${isUser ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 border-transparent text-white rounded-tr-sm shadow-indigo-100' : 'bg-white border-slate-100 text-slate-800 rounded-tl-sm'}`}>
                                     {msg.reasoning && <ThinkingBlock content={msg.reasoning} isStreaming={isStreaming && isLastAssistant} />}
                                     {!isUser && msg.searchQuery && <RetrievedIntelligence query={msg.searchQuery} items={msg.retrievedItems || []} isSearching={isLastAssistant && isSearching} onClick={(item) => onReferenceClick && onReferenceClick(item)} />}
                                     <div className="relative break-words overflow-hidden">{renderMessageContent(msg.content, isUser)}</div>
                                 </div>
-                                <span className="mt-1 text-[9px] text-slate-300 px-1">{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}</span>
+                                <span className="mt-1.5 text-[10px] text-slate-300 font-medium px-1">{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}</span>
                             </div>
                         </div>
                     );
@@ -311,20 +306,20 @@ export const AIChatPanel: React.FC<{
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-3 md:p-5 bg-white border-t border-slate-200 relative z-30 flex-shrink-0">
-                <div className="relative bg-slate-50 border border-slate-200 rounded-[20px] shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 focus-within:bg-white transition-all duration-200">
+            <div className="p-4 bg-white border-t border-slate-100 relative z-30 flex-shrink-0">
+                <div className="relative bg-slate-50 border border-slate-200/60 rounded-[20px] shadow-inner focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 focus-within:bg-white transition-all duration-200">
                     <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                         placeholder="询问关于汽车行业的问题..."
-                        className="w-full bg-transparent px-4 py-3 text-sm focus:outline-none resize-none h-12 md:h-14 max-h-32 custom-slim-scrollbar placeholder:text-slate-400 font-medium text-slate-700"
+                        className="w-full bg-transparent px-4 py-3 text-sm focus:outline-none resize-none h-14 md:h-16 max-h-32 custom-slim-scrollbar placeholder:text-slate-400 font-medium text-slate-700 font-serif"
                         disabled={isStreaming || isSearching}
                     />
                     <div className="flex justify-between items-center px-2 pb-2">
-                        <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-full border border-slate-200 opacity-60">
-                           <CheckCircleIcon className="w-3 h-3 text-emerald-500" />
-                           <span className="text-[9px] text-slate-500 font-bold">RAG Mode</span>
+                        <div className="flex items-center gap-1 px-2 py-0.5">
+                           <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500" />
+                           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">RAG Mode Active</span>
                         </div>
                         <button 
                             onClick={handleSend}
