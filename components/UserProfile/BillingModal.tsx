@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions, getUserUsageStats } from '../../api/user';
-import { User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction } from '../../types';
-import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon } from '../icons';
+import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions, getUserUsageStats, getUserRefunds, applyRefund } from '../../api/user';
+import { User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction, RefundOrder } from '../../types';
+import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon, ShieldExclamationIcon, CreditCardIcon } from '../icons';
 import { AGENT_NAMES } from '../../agentConfig';
 
 interface BillingModalProps {
@@ -47,8 +47,111 @@ const getTransactionTypeLabel = (type: string) => {
     }
 };
 
+const getRefundStatusBadge = (status: string) => {
+    switch (status) {
+        case 'success': return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit"><CheckCircleIcon className="w-3 h-3"/> 成功</span>;
+        case 'pending': 
+        case 'processing':
+            return <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit">{status === 'processing' && <RefreshIcon className="w-3 h-3 animate-spin"/>} 处理中</span>;
+        case 'failed': return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit"><ShieldExclamationIcon className="w-3 h-3"/> 失败</span>;
+        case 'rejected': return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold w-fit">已拒绝</span>;
+        default: return <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs w-fit">{status}</span>;
+    }
+};
+
+// --- ApplyRefundModal ---
+const ApplyRefundModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void; }> = ({ isOpen, onClose, onSuccess }) => {
+    const [orderNo, setOrderNo] = useState('');
+    const [amount, setAmount] = useState('');
+    const [reason, setReason] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!orderNo || !amount || !reason) {
+            setError('请填写所有必填项');
+            return;
+        }
+        
+        setIsSubmitting(true);
+        setError('');
+        try {
+            await applyRefund({ order_no: orderNo, amount: parseFloat(amount), reason });
+            alert('申请已提交，请等待管理员审核。');
+            onSuccess();
+            onClose();
+        } catch (e: any) {
+            setError(e.message || '申请提交失败');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+             <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden border border-slate-200">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gray-50">
+                    <h3 className="font-bold text-slate-800">申请退款</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-full"><CloseIcon className="w-5 h-5"/></button>
+                </div>
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div className="text-xs text-slate-500 bg-blue-50 p-3 rounded-lg border border-blue-100 mb-2">
+                        请输入您需要退款的原支付订单号（可在支付凭证中查看）。系统将冻结对应金额直至审核完成。
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">订单号 <span className="text-red-500">*</span></label>
+                        <input 
+                            type="text" 
+                            value={orderNo} 
+                            onChange={e => setOrderNo(e.target.value)} 
+                            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="例如: ORD2024..."
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款金额 (CNY) <span className="text-red-500">*</span></label>
+                        <input 
+                            type="number" 
+                            step="0.01"
+                            value={amount} 
+                            onChange={e => setAmount(e.target.value)} 
+                            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="0.00"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款原因 <span className="text-red-500">*</span></label>
+                        <textarea 
+                            value={reason} 
+                            onChange={e => setReason(e.target.value)} 
+                            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20"
+                            placeholder="请说明退款原因..."
+                        />
+                    </div>
+                    {error && <p className="text-xs text-red-500">{error}</p>}
+                    <div className="flex justify-end pt-2">
+                        <button 
+                            type="submit" 
+                            disabled={isSubmitting} 
+                            className="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
+                        >
+                            {isSubmitting ? <Spinner /> : '提交申请'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => {
+    const [activeTab, setActiveTab] = useState<'transactions' | 'refunds'>('transactions');
+
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+    const [refunds, setRefunds] = useState<RefundOrder[]>([]);
     const [stats, setStats] = useState<any>(null); // New Stats structure
     const [wallet, setWallet] = useState<WalletBalance | null>(null);
     const [quotas, setQuotas] = useState<QuotaItem[]>([]);
@@ -73,6 +176,9 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | null>(null);
     const pollingRef = useRef<any>(null);
 
+    // Refund Modal State
+    const [isApplyRefundOpen, setIsApplyRefundOpen] = useState(false);
+
     const fetchWalletAndQuota = async () => {
         setIsRefreshingWallet(true);
         try {
@@ -92,42 +198,55 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
         }
     };
 
-    const fetchUsageData = useCallback(async (isLoadMore = false) => {
+    const fetchListData = useCallback(async (isLoadMore = false) => {
         if (!user || !user.id) return;
         
         const currentPage = isLoadMore ? page + 1 : 1;
         if (!isLoadMore) setIsLoading(true);
         
         try {
-            const params = {
-                page: currentPage,
-                limit: limit,
-                start_date: startDate || undefined,
-                end_date: endDate || undefined
-            };
+            if (activeTab === 'transactions') {
+                const params = {
+                    page: currentPage,
+                    limit: limit,
+                    start_date: startDate || undefined,
+                    end_date: endDate || undefined
+                };
 
-            const response = await getWalletTransactions(params);
-            const listData = response.items || [];
-            
-            if (isLoadMore) {
-                setTransactions(prev => [...prev, ...listData]);
-                setPage(currentPage);
-            } else {
-                setTransactions(listData);
-                setPage(1);
+                const response = await getWalletTransactions(params);
+                const listData = response.items || [];
+                
+                if (isLoadMore) {
+                    setTransactions(prev => [...prev, ...listData]);
+                    setPage(currentPage);
+                } else {
+                    setTransactions(listData);
+                    setPage(1);
+                }
+                setHasMore(currentPage < response.totalPages);
+            } else if (activeTab === 'refunds') {
+                const response = await getUserRefunds({ page: currentPage, limit });
+                const listData = response.items || [];
+                 if (isLoadMore) {
+                    setRefunds(prev => [...prev, ...listData]);
+                    setPage(currentPage);
+                } else {
+                    setRefunds(listData);
+                    setPage(1);
+                }
+                setHasMore(currentPage < response.totalPages);
             }
-            setHasMore(currentPage < response.totalPages);
         } catch (e) {
-            console.error("Failed to fetch wallet transactions", e);
+            console.error("Failed to fetch data", e);
         } finally {
             setIsLoading(false);
         }
-    }, [user, startDate, endDate, page]);
+    }, [user, startDate, endDate, page, activeTab]);
 
     useEffect(() => {
-        fetchUsageData();
+        fetchListData();
         fetchWalletAndQuota();
-    }, [startDate, endDate]); 
+    }, [startDate, endDate, activeTab]); 
 
     useEffect(() => {
         if (rechargeResult && rechargeResult.order_no && paymentStatus !== 'success') {
@@ -294,35 +413,54 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         </div>
 
                         {/* List Header */}
-                        <div className="px-8 py-4 flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <h3 className="font-black text-slate-800 text-sm flex items-center gap-2">
-                                    <RefreshIcon className="w-4 h-4 text-indigo-500" />
-                                    交易明细流水
-                                </h3>
-                                <div className="h-4 w-px bg-slate-200 mx-2"></div>
+                        <div className="px-8 py-4 flex justify-between items-center flex-wrap gap-4">
+                            <div className="flex bg-slate-100 p-1 rounded-lg">
+                                <button 
+                                    onClick={() => { setActiveTab('transactions'); setPage(1); }}
+                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'transactions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    交易流水
+                                </button>
+                                <button 
+                                    onClick={() => { setActiveTab('refunds'); setPage(1); }}
+                                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'refunds' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    退款记录
+                                </button>
+                            </div>
+
+                            {activeTab === 'transactions' && (
                                 <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
                                     <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
                                     <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-20" />
                                     <span className="text-slate-300">-</span>
                                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-20" />
                                 </div>
-                            </div>
+                            )}
+
+                            {activeTab === 'refunds' && (
+                                <button 
+                                    onClick={() => setIsApplyRefundOpen(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-all"
+                                >
+                                    <CreditCardIcon className="w-3.5 h-3.5" /> 申请退款
+                                </button>
+                            )}
                         </div>
 
                         {/* Records List - Card Style */}
                         <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
-                            <div className="space-y-4"> {/* Increased vertical spacing */}
-                                {isLoading && transactions.length === 0 ? (
+                            <div className="space-y-4"> 
+                                {isLoading && transactions.length === 0 && refunds.length === 0 ? (
                                     <div className="py-20 text-center"><Spinner /></div>
-                                ) : transactions.length === 0 ? (
+                                ) : (activeTab === 'transactions' && transactions.length === 0) || (activeTab === 'refunds' && refunds.length === 0) ? (
                                     <div className="py-20 text-center flex flex-col items-center gap-3">
                                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
                                             <DocumentTextIcon className="w-8 h-8 text-slate-200" />
                                         </div>
-                                        <span className="text-sm font-bold text-slate-400">暂无任何消费记录</span>
+                                        <span className="text-sm font-bold text-slate-400">暂无记录</span>
                                     </div>
-                                ) : (
+                                ) : activeTab === 'transactions' ? (
                                     transactions.map((record, idx) => {
                                         const meta = parseMeta(record.meta_data);
                                         const isRecharge = record.transaction_type === 'recharge' || record.transaction_type === 'gift';
@@ -370,9 +508,40 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                             </div>
                                         );
                                     })
+                                ) : (
+                                    refunds.map(refund => (
+                                        <div key={refund.refund_no} className="group bg-white p-5 rounded-xl border border-slate-200 hover:border-red-300 hover:shadow-sm transition-all flex items-center justify-between">
+                                            <div className="flex items-start gap-4 flex-1 min-w-0">
+                                                <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 mt-1">
+                                                    <ShieldExclamationIcon className="w-5 h-5" />
+                                                </div>
+                                                <div className="min-w-0 flex-1 space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-slate-800 text-sm">退款申请: {refund.refund_no}</span>
+                                                        {getRefundStatusBadge(refund.status)}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500">
+                                                        原订单: <span className="font-mono">{refund.original_order_no}</span>
+                                                        <span className="mx-2">|</span>
+                                                        原因: {refund.reason}
+                                                    </div>
+                                                    <div className="flex items-center gap-1 text-xs text-slate-400">
+                                                        <ClockIcon className="w-3.5 h-3.5" /> 申请时间: {new Date(refund.created_at).toLocaleString()}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-end shrink-0 pl-6">
+                                                 <div className="text-lg font-black font-mono text-slate-800">
+                                                    ¥{refund.amount.toFixed(2)}
+                                                </div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">CNY</span>
+                                            </div>
+                                        </div>
+                                    ))
                                 )}
-                                {hasMore && !isLoading && transactions.length > 0 && (
-                                    <button onClick={() => fetchUsageData(true)} className="w-full py-4 text-xs font-black text-slate-400 hover:text-indigo-600 transition-colors uppercase tracking-widest">
+                                
+                                {hasMore && !isLoading && ((activeTab === 'transactions' && transactions.length > 0) || (activeTab === 'refunds' && refunds.length > 0)) && (
+                                    <button onClick={() => fetchListData(true)} className="w-full py-4 text-xs font-black text-slate-400 hover:text-indigo-600 transition-colors uppercase tracking-widest">
                                         Load More History ↓
                                     </button>
                                 )}
@@ -525,6 +694,12 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                     </div>
                 )}
             </div>
+
+            <ApplyRefundModal 
+                isOpen={isApplyRefundOpen}
+                onClose={() => setIsApplyRefundOpen(false)}
+                onSuccess={() => { fetchListData(); }}
+            />
         </div>
     );
 };

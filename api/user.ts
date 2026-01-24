@@ -4,7 +4,7 @@ import {
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
     PaymentStatusResponse, QuotaConfig, ModelPricing,
-    AdminTransaction, PaymentOrder 
+    AdminTransaction, PaymentOrder, RefundOrder
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -125,6 +125,24 @@ export const rechargeWallet = (amount: number, gateway: string = 'manual'): Prom
 
 export const checkPaymentStatus = (orderNo: string): Promise<PaymentStatusResponse> =>
     apiFetch(`${USER_SERVICE_PATH}/payment/status/${orderNo}`);
+
+// --- Refund APIs ---
+
+export const getUserRefunds = (params: any): Promise<PaginatedResponse<RefundOrder>> => {
+    const query = createApiQuery(params);
+    return apiFetch(`${USER_SERVICE_PATH}/wallet/refunds${query}`);
+}
+
+export const applyRefund = (data: { order_no: string; amount: number; reason: string }): Promise<RefundOrder> =>
+    apiFetch(`${USER_SERVICE_PATH}/wallet/refund/apply`, { method: 'POST', body: JSON.stringify(data) });
+
+export const getAdminRefunds = (params: any): Promise<PaginatedResponse<RefundOrder>> => {
+    const query = createApiQuery(params);
+    return apiFetch(`${USER_SERVICE_PATH}/admin/refunds${query}`);
+}
+
+export const reviewRefund = (refund_no: string, data: { action: 'approve' | 'reject'; reason?: string }): Promise<void> =>
+    apiFetch(`${USER_SERVICE_PATH}/admin/refund/${refund_no}/review`, { method: 'POST', body: JSON.stringify(data) });
 
 // --- Quota Management (Admin) ---
 export const getQuotaConfigs = (): Promise<QuotaConfig[]> => 
