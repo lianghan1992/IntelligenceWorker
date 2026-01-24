@@ -61,18 +61,14 @@ const NavItem: React.FC<{
 
 export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, onLogout, onShowBilling, onShowProfile, user }) => {
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const finalNavItems = [...navItems];
     if (user.email === '326575140@qq.com') {
         finalNavItems.push({ view: 'admin', label: '后台管理', icon: GearIcon });
     }
     
-    // 移动端优化：在 'cockpit' 视图下隐藏顶部导航栏，改用底部导航内的菜单
-    const mobileVisibilityClass = currentView === 'cockpit' ? 'hidden md:block' : '';
-    
     return (
-        <header className={`${mobileVisibilityClass} bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] sticky top-0 z-50`}>
+        <header className={`hidden md:block bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] sticky top-0 z-50`}>
             <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16 sm:h-18">
                     {/* Logo and Desktop Nav */}
@@ -100,7 +96,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                         </nav>
                     </div>
 
-                    {/* Right side: User Menu, and Mobile Menu Button */}
+                    {/* Right side: User Menu */}
                     <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
                         {/* Upgrade button removed */}
 
@@ -158,47 +154,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                                 </>
                             )}
                         </div>
-                        
-                        <div className="md:hidden flex items-center">
-                            <button
-                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                                className="inline-flex items-center justify-center p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none transition-colors"
-                            >
-                                {isMobileMenuOpen ? (
-                                    <CloseIcon className="block h-6 w-6" />
-                                ) : (
-                                    <MenuIcon className="block h-6 w-6" />
-                                )}
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
-
-            {/* Mobile Menu */}
-            {isMobileMenuOpen && (
-                <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-xl border-b border-slate-200 shadow-xl z-40 animate-in slide-in-from-top-5">
-                    <nav className="px-4 pt-4 pb-6 space-y-1">
-                         {finalNavItems.map(item => (
-                            <button
-                                key={item.view}
-                                onClick={() => {
-                                    onNavigate(item.view);
-                                    setIsMobileMenuOpen(false);
-                                }}
-                                className={`flex items-center w-full space-x-4 px-4 py-3.5 rounded-xl text-base font-bold transition-all ${
-                                    currentView === item.view
-                                        ? 'bg-indigo-50 text-indigo-600 shadow-sm'
-                                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                                }`}
-                            >
-                                <item.icon className={`w-6 h-6 ${currentView === item.view ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                <span>{item.label}</span>
-                            </button>
-                        ))}
-                    </nav>
-                </div>
-            )}
         </header>
     );
 };

@@ -7,9 +7,7 @@ import { EvidenceTrail } from './EvidenceTrail';
 import { AIChatPanel } from './AIChatPanel';
 import { searchArticlesFiltered, getArticlesByTags } from '../../api';
 import { 
-    ViewListIcon, DocumentTextIcon, SparklesIcon, MenuIcon, 
-    LogoIcon, CloseIcon, EyeIcon, ChartIcon, DiveIcon, 
-    VideoCameraIcon, CubeIcon, UserIcon, ArrowRightIcon, GearIcon
+    ViewListIcon, DocumentTextIcon, SparklesIcon, MenuIcon
 } from '../icons';
 
 interface StrategicCockpitProps {
@@ -18,9 +16,10 @@ interface StrategicCockpitProps {
     onNavigate?: (view: View) => void;
     onLogout?: () => void;
     onShowProfile?: () => void;
+    onOpenMobileMenu?: () => void; // New prop to trigger global menu
 }
 
-export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user, onNavigate, onLogout, onShowProfile }) => {
+export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user, onNavigate, onLogout, onShowProfile, onOpenMobileMenu }) => {
     // --- State Management ---
     
     // Navigation & Query
@@ -44,7 +43,6 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
 
     // Layout State for Mobile
     const [mobileTab, setMobileTab] = useState<string>('list');
-    const [isGlobalMenuOpen, setIsGlobalMenuOpen] = useState(false);
 
     // Initialize Default View
     useEffect(() => {
@@ -141,13 +139,6 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         // setIsCopilotExpanded(false);
     };
 
-    const handleGlobalNavigate = (view: View) => {
-        if (onNavigate) {
-            onNavigate(view);
-            setIsGlobalMenuOpen(false);
-        }
-    };
-
     return (
         <div className="h-full flex flex-col bg-slate-100 font-sans overflow-hidden">
             
@@ -223,7 +214,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                 </div>
             </div>
 
-            {/* Mobile Bottom Navigation */}
+            {/* Mobile Bottom Navigation - Specific to Cockpit */}
             <div className="md:hidden flex-shrink-0 h-16 bg-white border-t border-slate-200 flex justify-around items-center z-40 relative shadow-[0_-4px_12px_rgba(0,0,0,0.05)] pb-1">
                 <button onClick={() => setMobileTab('list')} className={`flex flex-col items-center justify-center w-full h-full ${mobileTab === 'list' ? 'text-indigo-600' : 'text-slate-400'}`}>
                     <ViewListIcon className="w-6 h-6 mb-1" />
@@ -237,82 +228,14 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     <SparklesIcon className="w-6 h-6 mb-1" />
                     <span className="text-[10px] font-bold">AI助手</span>
                 </button>
-                <button onClick={() => setIsGlobalMenuOpen(true)} className="flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-indigo-600">
+                <button 
+                    onClick={onOpenMobileMenu}
+                    className="flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-indigo-600"
+                >
                     <MenuIcon className="w-6 h-6 mb-1" />
                     <span className="text-[10px] font-bold">更多</span>
                 </button>
             </div>
-
-            {/* Mobile Global Navigation Drawer (Replacing Header) */}
-            {isGlobalMenuOpen && (
-                <div className="fixed inset-0 z-50 md:hidden flex flex-col">
-                    {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsGlobalMenuOpen(false)}></div>
-                    
-                    {/* Drawer Content */}
-                    <div className="absolute bottom-0 left-0 w-full bg-white rounded-t-[32px] shadow-2xl animate-in slide-in-from-bottom-full duration-300 flex flex-col max-h-[85vh]">
-                        <div className="p-2 flex justify-center">
-                            <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
-                        </div>
-
-                        <div className="p-6 pb-2 flex items-center justify-between border-b border-slate-100">
-                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-700 font-bold border-2 border-white shadow-sm">
-                                    {user?.username.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-lg text-slate-800">{user?.username}</h3>
-                                    <p className="text-xs text-slate-400">{user?.email}</p>
-                                </div>
-                             </div>
-                             <button onClick={() => setIsGlobalMenuOpen(false)} className="p-2 bg-slate-50 rounded-full text-slate-400">
-                                <CloseIcon className="w-5 h-5"/>
-                             </button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 gap-3 custom-scrollbar">
-                            <button onClick={() => handleGlobalNavigate('cockpit')} className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex flex-col items-center justify-center gap-2 text-indigo-700">
-                                <EyeIcon className="w-8 h-8"/>
-                                <span className="font-bold text-sm">情报洞察</span>
-                            </button>
-                            <button onClick={() => handleGlobalNavigate('techboard')} className="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-600 hover:bg-slate-50">
-                                <ChartIcon className="w-8 h-8"/>
-                                <span className="font-bold text-sm">竞争力看板</span>
-                            </button>
-                            <button onClick={() => handleGlobalNavigate('dives')} className="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-600 hover:bg-slate-50">
-                                <DiveIcon className="w-8 h-8"/>
-                                <span className="font-bold text-sm">深度洞察</span>
-                            </button>
-                            <button onClick={() => handleGlobalNavigate('events')} className="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-600 hover:bg-slate-50">
-                                <VideoCameraIcon className="w-8 h-8"/>
-                                <span className="font-bold text-sm">发布会</span>
-                            </button>
-                            <button onClick={() => handleGlobalNavigate('ai')} className="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-600 hover:bg-slate-50">
-                                <SparklesIcon className="w-8 h-8"/>
-                                <span className="font-bold text-sm">AI报告</span>
-                            </button>
-                            <button onClick={() => handleGlobalNavigate('marketplace')} className="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-600 hover:bg-slate-50">
-                                <CubeIcon className="w-8 h-8"/>
-                                <span className="font-bold text-sm">效率集市</span>
-                            </button>
-                            {user?.email === '326575140@qq.com' && (
-                                <button onClick={() => handleGlobalNavigate('admin')} className="col-span-2 p-3 bg-slate-800 text-white rounded-2xl flex items-center justify-center gap-2 font-bold text-sm">
-                                    <GearIcon className="w-5 h-5"/> 后台管理
-                                </button>
-                            )}
-                        </div>
-
-                        <div className="p-4 border-t border-slate-100 bg-slate-50 space-y-2">
-                             <button onClick={() => { if(onShowProfile) onShowProfile(); setIsGlobalMenuOpen(false); }} className="w-full py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 flex items-center justify-center gap-2">
-                                <UserIcon className="w-4 h-4"/> 个人资料
-                             </button>
-                             <button onClick={onLogout} className="w-full py-3 bg-red-50 border border-red-100 rounded-xl text-sm font-bold text-red-600 flex items-center justify-center gap-2">
-                                <ArrowRightIcon className="w-4 h-4"/> 退出登录
-                             </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

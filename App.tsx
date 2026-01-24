@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Header } from './components/Header';
+import { MobileMenu } from './components/MobileMenu'; // Import the new shared component
 import { AuthModal } from './components/HomePage/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage/index';
@@ -8,6 +9,7 @@ import { BillingModal } from './components/UserProfile/BillingModal';
 import { UserProfileModal } from './components/UserProfile/UserProfileModal';
 import { User, View, SystemSource } from './types';
 import { getUserSubscribedSources, getMe } from './api';
+import { LogoIcon, MenuIcon } from './components/icons'; // Import icons for Mobile Top Bar
 
 // Lazy load components with named export adaptation
 const StrategicCockpit = React.lazy(() => import('./components/StrategicCockpit/index').then(module => ({ default: module.StrategicCockpit })));
@@ -53,6 +55,7 @@ const App: React.FC = () => {
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Global Mobile Menu State
   
   const [subscriptions, setSubscriptions] = useState<SystemSource[]>([]);
 
@@ -86,6 +89,7 @@ const App: React.FC = () => {
     localStorage.removeItem('user_cache'); // Clear cache
     setUser(null);
     setView('cockpit');
+    setIsMobileMenuOpen(false);
   }, []);
 
   const loadInitialData = useCallback(async () => {
@@ -135,6 +139,7 @@ const App: React.FC = () => {
   
   const handleNavigate = (newView: View) => {
       setView(newView);
+      setIsMobileMenuOpen(false);
   };
   
   if (isLoading) {
@@ -154,7 +159,8 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (view) {
       case 'cockpit':
-        return <StrategicCockpit subscriptions={subscriptions} user={user} onNavigate={handleNavigate} onLogout={handleLogout} onShowProfile={() => setShowProfileModal(true)} />;
+        // Pass openMobileMenu handler to Cockpit
+        return <StrategicCockpit subscriptions={subscriptions} user={user} onNavigate={handleNavigate} onLogout={handleLogout} onShowProfile={() => setShowProfileModal(true)} onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />;
       case 'techboard':
         return <CompetitivenessDashboard />;
       case 'dives':
@@ -168,12 +174,13 @@ const App: React.FC = () => {
       case 'admin':
         return <AdminPage />;
       default:
-        return <StrategicCockpit subscriptions={subscriptions} user={user} onNavigate={handleNavigate} onLogout={handleLogout} onShowProfile={() => setShowProfileModal(true)} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={user} onNavigate={handleNavigate} onLogout={handleLogout} onShowProfile={() => setShowProfileModal(true)} onOpenMobileMenu={() => setIsMobileMenuOpen(true)} />;
     }
   };
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 font-sans">
+        {/* Desktop Header */}
         <Header 
             user={user}
             currentView={view}
@@ -183,11 +190,39 @@ const App: React.FC = () => {
             onShowBilling={() => setShowBillingModal(true)}
             onShowProfile={() => setShowProfileModal(true)}
         />
+
+        {/* Unified Mobile Global Header (Visible on non-cockpit pages) */}
+        {view !== 'cockpit' && (
+            <div className="md:hidden h-14 bg-white/90 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 sticky top-0 z-40 shadow-sm flex-shrink-0">
+                <div className="flex items-center gap-2">
+                     <LogoIcon className="w-7 h-7" />
+                     <span className="font-extrabold text-slate-800 text-lg tracking-tight">Auto Insight</span>
+                </div>
+                <button 
+                    onClick={() => setIsMobileMenuOpen(true)}
+                    className="p-2 text-slate-500 hover:text-indigo-600 transition-colors"
+                >
+                    <MenuIcon className="w-6 h-6" />
+                </button>
+            </div>
+        )}
+
         <main className="flex-1 min-h-0">
           <Suspense fallback={<PageLoader />}>
             {renderView()}
           </Suspense>
         </main>
+        
+        {/* Global Mobile Menu Drawer */}
+        <MobileMenu 
+            isOpen={isMobileMenuOpen}
+            onClose={() => setIsMobileMenuOpen(false)}
+            user={user}
+            onNavigate={handleNavigate}
+            onLogout={handleLogout}
+            onShowProfile={() => setShowProfileModal(true)}
+        />
+
         {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
         {showBillingModal && user && <BillingModal user={user} onClose={() => setShowBillingModal(false)} />}
         {showProfileModal && user && <UserProfileModal user={user} onClose={() => setShowProfileModal(false)} />}
