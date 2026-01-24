@@ -147,6 +147,35 @@ export const streamChatCompletions = async (
     }
 };
 
+// --- Web Search Tool API ---
+
+export interface WebSearchResult {
+    title: string;
+    link: string;
+    content: string;
+    icon?: string;
+    media?: string;
+    publish_date?: string;
+}
+
+export interface WebSearchResponse {
+    results: WebSearchResult[];
+    usage: {
+        total_tokens: number;
+        cost: number;
+        original_cost: number;
+        currency: string;
+    };
+}
+
+export const webSearch = async (query: string, count: number = 10): Promise<WebSearchResponse> => {
+    return apiFetch<WebSearchResponse>(`${STRATIFY_SERVICE_PATH}/v1/search`, {
+        method: 'POST',
+        body: JSON.stringify({ query, count })
+    });
+};
+
+
 // --- Gemini Cookie API Support ---
 
 export const checkGeminiCookieStatus = (): Promise<{ valid: boolean; message: string }> =>
@@ -252,24 +281,6 @@ export function parseLlmJson<T>(jsonStr: string): T | null {
         return null;
     }
 }
-
-// --- Tools ---
-
-export interface WebSearchResult {
-    title: string;
-    link: string;
-    content: string;
-    icon?: string;
-    media?: string;
-    publish_date?: string;
-}
-
-export const performWebSearch = async (query: string, count: number = 10) => {
-    return apiFetch<{ results: WebSearchResult[], usage: any }>(`${STRATIFY_SERVICE_PATH}/v1/search`, {
-        method: 'POST',
-        body: JSON.stringify({ query, count })
-    });
-};
 
 // --- 2. Scenario Management ---
 

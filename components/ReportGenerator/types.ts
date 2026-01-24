@@ -4,16 +4,27 @@ import { StratifyOutline, InfoItem } from '../../types';
 export type PPTStage = 'collect' | 'outline' | 'compose' | 'finalize';
 
 export interface ChatMessage {
-    role: 'system' | 'user' | 'assistant';
+    id: string; // Added id
+    role: 'system' | 'user' | 'assistant' | 'tool'; // Added tool
     content: string;
     hidden?: boolean;
     reasoning?: string;
     model?: string; // Model used for generation
+    timestamp?: number;
     
     // RAG Metadata
     isRetrieving?: boolean; // Is currently searching?
     searchQuery?: string;   // What was searched
     retrievedItems?: InfoItem[]; // Results found
+    webResults?: any[]; // Added webResults
+    toolType?: string; // Added toolType ('kb' | 'web')
+
+    // Tool calling support
+    tool_calls?: any[]; // Added
+    tool_call_id?: string; // Added
+    
+    // UI Metadata
+    uiState?: any; // For flexible UI states
 }
 
 export interface PPTPageData {
