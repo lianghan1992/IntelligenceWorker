@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AgentConfig, AgentCategory } from './types';
 import { AGENT_REGISTRY } from './registry';
 import { 
@@ -106,6 +106,10 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
     // Carousel State
     const [currentSlide, setCurrentSlide] = useState(0);
 
+    // Scroll State for Morphing Header
+    const [isScrolled, setIsScrolled] = useState(false);
+    const mainRef = useRef<HTMLDivElement>(null);
+
     // Auto-play Logic
     useEffect(() => {
         const timer = setInterval(() => {
@@ -113,6 +117,16 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
         }, 5000); 
         return () => clearInterval(timer);
     }, []);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const scrollTop = e.currentTarget.scrollTop;
+        const threshold = 50; // Pixel threshold to trigger compaction
+        if (scrollTop > threshold && !isScrolled) {
+            setIsScrolled(true);
+        } else if (scrollTop <= threshold && isScrolled) {
+            setIsScrolled(false);
+        }
+    };
 
     const filteredAgents = useMemo(() => {
         return AGENT_REGISTRY.filter(agent => {
@@ -127,128 +141,158 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
     return (
         <div className="h-full flex flex-col bg-[#F8FAFC] font-sans overflow-hidden">
             
-            {/* 1. New Split Header Section */}
-            <section className="bg-white border-b border-slate-200 pt-8 pb-0 flex-shrink-0 relative overflow-hidden">
+            {/* --- Dynamic Header Section --- */}
+            <header className={`bg-white border-b border-slate-200 flex-shrink-0 relative z-30 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-sm`}>
                 <div className="max-w-[1920px] mx-auto w-full px-6 md:px-10 lg:px-12">
-                    <div className="flex flex-col lg:flex-row gap-12 lg:items-center mb-8">
-                        
-                        {/* Left: Branding & Search */}
-                        <div className="flex-1 max-w-2xl z-10">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-xl shadow-indigo-200">
-                                    <BrainIcon className="w-7 h-7" />
-                                </div>
-                                <div>
-                                    <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none">
-                                        Efficiency Market
-                                    </h1>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">
-                                        Digital Workforce Platform
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 leading-[1.1] mb-6 tracking-tight">
-                                Build Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">AI Team</span>
-                            </h2>
-                            <p className="text-slate-500 text-lg mb-8 max-w-lg leading-relaxed">
-                                在 AI 时代重构汽车行业生产力。从战略规划到工程落地，为您匹配最专业的数字员工。
-                            </p>
-
-                            {/* Large Search Bar */}
-                            <div className="relative group w-full shadow-lg shadow-slate-200/50 rounded-2xl">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <SearchIcon className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
-                                </div>
-                                <input 
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="搜索数字员工、技能或岗位 (如: 竞品分析)..."
-                                    className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl text-base font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400"
-                                />
-                                {searchQuery && (
-                                    <button 
-                                        onClick={() => setSearchQuery('')}
-                                        className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600"
-                                    >
-                                        <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded-full">ESC</span>
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Right: Concept Carousel (Visual Anchor) */}
-                        <div className="flex-1 w-full lg:h-[320px] relative hidden lg:block group rounded-[32px] overflow-hidden shadow-2xl shadow-indigo-100/50 transform translate-x-4">
-                            {HERO_SLIDES.map((slide, index) => (
-                                <div 
-                                    key={slide.id}
-                                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                                >
-                                    <img 
-                                        src={slide.image} 
-                                        alt={slide.title} 
-                                        className="w-full h-full object-cover transition-transform duration-[8s] ease-linear scale-105 group-hover:scale-110" 
-                                    />
-                                    {/* Gradient Overlay for Text Readability */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent"></div>
-                                    
-                                    <div className="absolute bottom-0 left-0 p-8 w-full">
-                                        <span className="inline-block px-2 py-1 mb-3 text-[10px] font-black tracking-widest text-white bg-white/20 backdrop-blur-md rounded border border-white/20">
-                                            {slide.tag}
-                                        </span>
-                                        <h3 className="text-2xl font-bold text-white mb-2 leading-tight">{slide.title}</h3>
-                                        <p className="text-sm text-slate-300 line-clamp-2">{slide.desc}</p>
+                    
+                    {/* Part 1: Collapsible Hero (Title & Carousel) */}
+                    <div 
+                        className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden ${
+                            isScrolled ? 'max-h-0 opacity-0 mb-0' : 'max-h-[500px] opacity-100 py-8 mb-2'
+                        }`}
+                    >
+                        <div className="flex flex-col lg:flex-row gap-12 lg:items-center">
+                            {/* Left: Branding */}
+                            <div className="flex-1 max-w-2xl">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-xl shadow-indigo-200">
+                                        <BrainIcon className="w-7 h-7" />
+                                    </div>
+                                    <div>
+                                        <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none">
+                                            Efficiency Market
+                                        </h1>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">
+                                            Digital Workforce Platform
+                                        </p>
                                     </div>
                                 </div>
-                            ))}
-                            {/* Slide Indicators */}
-                            <div className="absolute top-6 right-6 flex gap-1.5 z-20">
-                                {HERO_SLIDES.map((_, idx) => (
+                                <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 leading-[1.1] mb-6 tracking-tight">
+                                    Build Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">AI Team</span>
+                                </h2>
+                                <p className="text-slate-500 text-lg max-w-lg leading-relaxed">
+                                    在 AI 时代重构汽车行业生产力。从战略规划到工程落地，为您匹配最专业的数字员工。
+                                </p>
+                            </div>
+
+                            {/* Right: Carousel */}
+                            <div className="flex-1 w-full lg:h-[320px] relative hidden lg:block group rounded-[32px] overflow-hidden shadow-2xl shadow-indigo-100/50 transform translate-x-4">
+                                {HERO_SLIDES.map((slide, index) => (
                                     <div 
-                                        key={idx}
-                                        className={`h-1 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-6 bg-white' : 'w-2 bg-white/30'}`}
-                                    />
+                                        key={slide.id}
+                                        className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                                    >
+                                        <img 
+                                            src={slide.image} 
+                                            alt={slide.title} 
+                                            className="w-full h-full object-cover transition-transform duration-[8s] ease-linear scale-105 group-hover:scale-110" 
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent"></div>
+                                        <div className="absolute bottom-0 left-0 p-8 w-full">
+                                            <span className="inline-block px-2 py-1 mb-3 text-[10px] font-black tracking-widest text-white bg-white/20 backdrop-blur-md rounded border border-white/20">
+                                                {slide.tag}
+                                            </span>
+                                            <h3 className="text-2xl font-bold text-white mb-2 leading-tight">{slide.title}</h3>
+                                            <p className="text-sm text-slate-300 line-clamp-2">{slide.desc}</p>
+                                        </div>
+                                    </div>
                                 ))}
+                                <div className="absolute top-6 right-6 flex gap-1.5 z-20">
+                                    {HERO_SLIDES.map((_, idx) => (
+                                        <div key={idx} className={`h-1 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-6 bg-white' : 'w-2 bg-white/30'}`} />
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Navigation Pills (Sticky anchor) */}
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                        {CATEGORIES.map(cat => {
-                            const isActive = activeCategory === cat;
-                            const config = BATTLEFIELD_CONFIG[cat];
-                            const Icon = config.icon;
-                            return (
-                                <button
-                                    key={cat}
-                                    onClick={() => { setActiveCategory(cat); setSearchQuery(''); }}
-                                    className={`
-                                        relative flex items-center gap-2 px-5 py-3 text-sm font-bold transition-all whitespace-nowrap rounded-t-2xl border-t border-x
-                                        ${isActive 
-                                            ? 'bg-[#F8FAFC] border-slate-200 text-indigo-600 z-10 translate-y-[1px]' 
-                                            : 'bg-white border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 border-b border-b-slate-200'
-                                        }
-                                    `}
+                    {/* Part 2: Sticky Control Bar (Morphing Layout) */}
+                    <div className={`transition-all duration-500 ease-in-out flex items-center ${isScrolled ? 'pb-3 pt-3 gap-6' : 'flex-col items-start gap-6 pb-0'}`}>
+                        
+                        {/* Compact Logo (Visible only when scrolled) */}
+                        <div 
+                            className={`flex items-center gap-2 transition-all duration-500 overflow-hidden ${
+                                isScrolled ? 'w-auto opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-4'
+                            }`}
+                        >
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-md flex-shrink-0">
+                                <BrainIcon className="w-5 h-5" />
+                            </div>
+                            <h1 className="text-lg font-black text-slate-900 hidden xl:block whitespace-nowrap">Efficiency Market</h1>
+                        </div>
+
+                        {/* Search Bar (Morphs width) */}
+                        <div 
+                            className={`relative group transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                                isScrolled ? 'w-[320px] flex-shrink-0' : 'w-full max-w-2xl'
+                            }`}
+                        >
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <SearchIcon className={`text-slate-400 group-focus-within:text-indigo-600 transition-colors ${isScrolled ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                            </div>
+                            <input 
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder={isScrolled ? "搜索..." : "搜索数字员工、技能或岗位 (如: 竞品分析)..."}
+                                className={`w-full bg-white border border-slate-200 text-base font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400 ${
+                                    isScrolled 
+                                        ? 'pl-10 pr-8 py-2 rounded-xl text-sm shadow-sm' 
+                                        : 'pl-12 pr-4 py-4 rounded-2xl shadow-lg shadow-slate-200/50'
+                                }`}
+                            />
+                            {searchQuery && (
+                                <button 
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600"
                                 >
-                                    <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                    <span>{cat}</span>
+                                    <span className={`font-bold bg-slate-100 rounded-full flex items-center justify-center ${isScrolled ? 'w-4 h-4 text-[10px]' : 'text-xs px-2 py-1'}`}>
+                                        {isScrolled ? '✕' : 'ESC'}
+                                    </span>
                                 </button>
-                            );
-                        })}
-                        {/* Filler line */}
-                        <div className="flex-1 border-b border-slate-200"></div>
+                            )}
+                        </div>
+
+                        {/* Navigation Pills (Morphs from full row to inline) */}
+                        <div className={`flex-1 overflow-x-auto no-scrollbar flex items-center ${isScrolled ? 'justify-end' : 'w-full border-b border-slate-200'}`}>
+                            <div className="flex gap-2 pb-1">
+                                {CATEGORIES.map(cat => {
+                                    const isActive = activeCategory === cat;
+                                    const config = BATTLEFIELD_CONFIG[cat];
+                                    const Icon = config.icon;
+                                    return (
+                                        <button
+                                            key={cat}
+                                            onClick={() => { setActiveCategory(cat); setSearchQuery(''); }}
+                                            className={`
+                                                relative flex items-center gap-2 font-bold transition-all whitespace-nowrap
+                                                ${isScrolled
+                                                    ? `px-3 py-1.5 rounded-lg text-xs ${isActive ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`
+                                                    : `px-5 py-3 text-sm rounded-t-2xl border-t border-x ${isActive ? 'bg-[#F8FAFC] border-slate-200 text-indigo-600 z-10 translate-y-[1px]' : 'bg-white border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 border-b border-b-slate-200'}`
+                                                }
+                                            `}
+                                        >
+                                            <Icon className={`${isActive ? 'text-indigo-600' : 'text-slate-400'} ${isScrolled ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
+                                            <span>{cat}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </section>
+            </header>
 
             {/* 2. Scrollable Grid Content */}
-            <main className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-10 bg-[#F8FAFC]">
-                <div className="max-w-[1920px] mx-auto">
+            <main 
+                ref={mainRef}
+                className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-10 bg-[#F8FAFC] scroll-smooth"
+                onScroll={handleScroll}
+            >
+                <div className="max-w-[1920px] mx-auto min-h-[101%]"> {/* Ensure min-height > 100% to allow scroll even if empty */}
                     
-                    {/* Active Category Header */}
-                    <div className="mb-8 flex items-center justify-between">
+                    {/* Active Category Header (Only show if not 'All' or if scrolled to give context) */}
+                    <div className={`mb-8 flex items-center justify-between transition-opacity duration-300 ${isScrolled || activeCategory !== '全部' ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
                          <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md bg-gradient-to-br ${BATTLEFIELD_CONFIG[activeCategory].gradient}`}>
                                 {React.createElement(BATTLEFIELD_CONFIG[activeCategory].icon, { className: "w-5 h-5" })}
@@ -351,6 +395,9 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                             </button>
                         </div>
                     )}
+                    
+                    {/* Bottom Padding to ensure scrolling past hero is easy */}
+                    <div className="h-20"></div>
                 </div>
             </main>
         </div>
