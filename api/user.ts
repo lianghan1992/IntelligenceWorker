@@ -4,7 +4,7 @@ import {
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
     PaymentStatusResponse, QuotaConfig, ModelPricing,
-    AdminTransaction, PaymentOrder, RefundOrder
+    AdminTransaction, PaymentOrder, RefundOrder, RefundBatchResponse
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -133,7 +133,7 @@ export const getUserRefunds = (params: any): Promise<PaginatedResponse<RefundOrd
     return apiFetch(`${USER_SERVICE_PATH}/wallet/refunds${query}`);
 }
 
-export const applyRefund = (data: { order_no: string; amount: number; reason: string }): Promise<RefundOrder> =>
+export const applyRefund = (data: { amount?: number; reason: string }): Promise<RefundBatchResponse> =>
     apiFetch(`${USER_SERVICE_PATH}/wallet/refund/apply`, { method: 'POST', body: JSON.stringify(data) });
 
 export const getAdminRefunds = (params: any): Promise<PaginatedResponse<RefundOrder>> => {

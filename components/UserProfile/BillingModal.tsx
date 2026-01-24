@@ -61,7 +61,6 @@ const getRefundStatusBadge = (status: string) => {
 
 // --- ApplyRefundModal ---
 const ApplyRefundModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void; }> = ({ isOpen, onClose, onSuccess }) => {
-    const [orderNo, setOrderNo] = useState('');
     const [amount, setAmount] = useState('');
     const [reason, setReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,16 +68,22 @@ const ApplyRefundModal: React.FC<{ isOpen: boolean; onClose: () => void; onSucce
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!orderNo || !amount || !reason) {
-            setError('请填写所有必填项');
+        // Validation: Reason required. Amount can be empty (defaults to max), but if present must be number.
+        if (!reason.trim()) {
+            setError('请填写退款原因');
             return;
         }
         
         setIsSubmitting(true);
         setError('');
         try {
-            await applyRefund({ order_no: orderNo, amount: parseFloat(amount), reason });
-            alert('申请已提交，请等待管理员审核。');
+            const amountVal = amount ? parseFloat(amount) : undefined;
+            if (amountVal !== undefined && (isNaN(amountVal) || amountVal <= 0)) {
+                 throw new Error("无效的退款金额");
+            }
+
+            await applyRefund({ amount: amountVal, reason });
+            alert('申请已提交，系统将自动匹配订单进行审核。');
             onSuccess();
             onClose();
         } catch (e: any) {
@@ -98,28 +103,18 @@ const ApplyRefundModal: React.FC<{ isOpen: boolean; onClose: () => void; onSucce
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-full"><CloseIcon className="w-5 h-5"/></button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    <div className="text-xs text-slate-500 bg-blue-50 p-3 rounded-lg border border-blue-100 mb-2">
-                        请输入您需要退款的原支付订单号（可在支付凭证中查看）。系统将冻结对应金额直至审核完成。
+                    <div className="text-xs text-slate-500 bg-blue-50 p-3 rounded-lg border border-blue-100 mb-2 leading-relaxed">
+                        系统将根据您的申请金额，<strong>自动按支付时间倒序匹配</strong>您的可退款订单，并冻结相应余额直至审核完成。
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">订单号 <span className="text-red-500">*</span></label>
-                        <input 
-                            type="text" 
-                            value={orderNo} 
-                            onChange={e => setOrderNo(e.target.value)} 
-                            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="例如: ORD2024..."
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款金额 (CNY) <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款金额 (CNY)</label>
                         <input 
                             type="number" 
                             step="0.01"
                             value={amount} 
                             onChange={e => setAmount(e.target.value)} 
                             className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="0.00"
+                            placeholder="留空则退回全部可退余额"
                         />
                     </div>
                     <div>
@@ -129,6 +124,7 @@ const ApplyRefundModal: React.FC<{ isOpen: boolean; onClose: () => void; onSucce
                             onChange={e => setReason(e.target.value)} 
                             className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20"
                             placeholder="请说明退款原因..."
+                            required
                         />
                     </div>
                     {error && <p className="text-xs text-red-500">{error}</p>}
