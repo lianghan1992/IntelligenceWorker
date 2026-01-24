@@ -142,41 +142,18 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
         <div className="h-full flex flex-col bg-[#F8FAFC] font-sans overflow-hidden">
             
             {/* --- Dynamic Header Section --- */}
-            <header className={`bg-white border-b border-slate-200 flex-shrink-0 relative z-30 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-sm`}>
-                <div className="max-w-[1920px] mx-auto w-full px-6 md:px-10 lg:px-12">
+            <header className="bg-white border-b border-slate-200 flex-shrink-0 relative z-30 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] transition-all duration-300">
+                <div className="max-w-[1920px] mx-auto w-full px-6 md:px-8">
                     
-                    {/* Part 1: Collapsible Hero (Title & Carousel) */}
+                    {/* Part 1: Collapsible Hero (Left: Carousel, Right: Intro) */}
                     <div 
                         className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden ${
-                            isScrolled ? 'max-h-0 opacity-0 mb-0' : 'max-h-[500px] opacity-100 py-8 mb-2'
+                            isScrolled ? 'max-h-0 opacity-0 mb-0 py-0' : 'max-h-[300px] opacity-100 py-6'
                         }`}
                     >
-                        <div className="flex flex-col lg:flex-row gap-12 lg:items-center">
-                            {/* Left: Branding */}
-                            <div className="flex-1 max-w-2xl">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-xl shadow-indigo-200">
-                                        <BrainIcon className="w-7 h-7" />
-                                    </div>
-                                    <div>
-                                        <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none">
-                                            Efficiency Market
-                                        </h1>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">
-                                            Digital Workforce Platform
-                                        </p>
-                                    </div>
-                                </div>
-                                <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 leading-[1.1] mb-6 tracking-tight">
-                                    Build Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">AI Team</span>
-                                </h2>
-                                <p className="text-slate-500 text-lg max-w-lg leading-relaxed">
-                                    在 AI 时代重构汽车行业生产力。从战略规划到工程落地，为您匹配最专业的数字员工。
-                                </p>
-                            </div>
-
-                            {/* Right: Carousel */}
-                            <div className="flex-1 w-full lg:h-[320px] relative hidden lg:block group rounded-[32px] overflow-hidden shadow-2xl shadow-indigo-100/50 transform translate-x-4">
+                        <div className="flex flex-col md:flex-row gap-8 items-center h-full">
+                            {/* Left: Carousel (Compact) */}
+                            <div className="w-full md:w-[480px] h-[200px] flex-shrink-0 relative group rounded-2xl overflow-hidden shadow-lg shadow-indigo-100/50">
                                 {HERO_SLIDES.map((slide, index) => (
                                     <div 
                                         key={slide.id}
@@ -187,99 +164,116 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                                             alt={slide.title} 
                                             className="w-full h-full object-cover transition-transform duration-[8s] ease-linear scale-105 group-hover:scale-110" 
                                         />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent"></div>
-                                        <div className="absolute bottom-0 left-0 p-8 w-full">
-                                            <span className="inline-block px-2 py-1 mb-3 text-[10px] font-black tracking-widest text-white bg-white/20 backdrop-blur-md rounded border border-white/20">
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                                        <div className="absolute bottom-0 left-0 p-5 w-full">
+                                            <span className="inline-block px-1.5 py-0.5 mb-2 text-[9px] font-black tracking-widest text-white bg-white/20 backdrop-blur-md rounded border border-white/20">
                                                 {slide.tag}
                                             </span>
-                                            <h3 className="text-2xl font-bold text-white mb-2 leading-tight">{slide.title}</h3>
-                                            <p className="text-sm text-slate-300 line-clamp-2">{slide.desc}</p>
+                                            <h3 className="text-lg font-bold text-white leading-tight line-clamp-1">{slide.title}</h3>
                                         </div>
                                     </div>
                                 ))}
-                                <div className="absolute top-6 right-6 flex gap-1.5 z-20">
+                                {/* Indicators */}
+                                <div className="absolute top-4 right-4 flex gap-1 z-20">
                                     {HERO_SLIDES.map((_, idx) => (
-                                        <div key={idx} className={`h-1 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-6 bg-white' : 'w-2 bg-white/30'}`} />
+                                        <div key={idx} className={`h-1 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-4 bg-white' : 'w-1.5 bg-white/40'}`} />
                                     ))}
                                 </div>
+                            </div>
+
+                            {/* Right: Intro Text */}
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                                        <BrainIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h1 className="text-xl font-black text-slate-900 tracking-tight leading-none">
+                                            Efficiency Market
+                                        </h1>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                            Digital Workforce Platform
+                                        </p>
+                                    </div>
+                                </div>
+                                <h2 className="text-3xl font-extrabold text-slate-900 leading-tight mb-3 tracking-tight">
+                                    Build Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">AI Team</span>
+                                </h2>
+                                <p className="text-slate-500 text-sm max-w-xl leading-relaxed hidden md:block">
+                                    在 AI 时代重构汽车行业生产力。从战略规划到工程落地，为您匹配最专业的数字员工。
+                                </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Part 2: Sticky Control Bar (Morphing Layout) */}
-                    <div className={`transition-all duration-500 ease-in-out flex items-center ${isScrolled ? 'pb-3 pt-3 gap-6' : 'flex-col items-start gap-6 pb-0'}`}>
+                    {/* Part 2: Sticky Control Bar (Tabs Left, Search Right) */}
+                    <div className="flex items-center justify-between pb-2 pt-2 gap-4 h-[60px]">
                         
-                        {/* Compact Logo (Visible only when scrolled) */}
-                        <div 
-                            className={`flex items-center gap-2 transition-all duration-500 overflow-hidden ${
-                                isScrolled ? 'w-auto opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-4'
-                            }`}
-                        >
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-md flex-shrink-0">
-                                <BrainIcon className="w-5 h-5" />
-                            </div>
-                            <h1 className="text-lg font-black text-slate-900 hidden xl:block whitespace-nowrap">Efficiency Market</h1>
-                        </div>
-
-                        {/* Search Bar (Morphs width) */}
-                        <div 
-                            className={`relative group transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                                isScrolled ? 'w-[320px] flex-shrink-0' : 'w-full max-w-2xl'
-                            }`}
-                        >
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <SearchIcon className={`text-slate-400 group-focus-within:text-indigo-600 transition-colors ${isScrolled ? 'w-4 h-4' : 'w-5 h-5'}`} />
-                            </div>
-                            <input 
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder={isScrolled ? "搜索..." : "搜索数字员工、技能或岗位 (如: 竞品分析)..."}
-                                className={`w-full bg-white border border-slate-200 text-base font-medium focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400 ${
-                                    isScrolled 
-                                        ? 'pl-10 pr-8 py-2 rounded-xl text-sm shadow-sm' 
-                                        : 'pl-12 pr-4 py-4 rounded-2xl shadow-lg shadow-slate-200/50'
+                        {/* Left: Logo (Conditional) & Tabs */}
+                        <div className="flex items-center gap-6 overflow-hidden flex-1">
+                            {/* Small Logo appears when scrolled */}
+                            <div 
+                                className={`flex items-center gap-2 transition-all duration-500 ${
+                                    isScrolled ? 'w-auto opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-4 pointer-events-none'
                                 }`}
-                            />
-                            {searchQuery && (
-                                <button 
-                                    onClick={() => setSearchQuery('')}
-                                    className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600"
-                                >
-                                    <span className={`font-bold bg-slate-100 rounded-full flex items-center justify-center ${isScrolled ? 'w-4 h-4 text-[10px]' : 'text-xs px-2 py-1'}`}>
-                                        {isScrolled ? '✕' : 'ESC'}
-                                    </span>
-                                </button>
-                            )}
-                        </div>
+                            >
+                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-md flex-shrink-0">
+                                    <BrainIcon className="w-5 h-5" />
+                                </div>
+                                <span className="font-black text-slate-800 text-sm hidden lg:block whitespace-nowrap">Efficiency Market</span>
+                                <div className="h-4 w-px bg-slate-200 ml-2 hidden lg:block"></div>
+                            </div>
 
-                        {/* Navigation Pills (Morphs from full row to inline) */}
-                        <div className={`flex-1 overflow-x-auto no-scrollbar flex items-center ${isScrolled ? 'justify-end' : 'w-full border-b border-slate-200'}`}>
-                            <div className="flex gap-2 pb-1">
+                            {/* Tabs */}
+                            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
                                 {CATEGORIES.map(cat => {
                                     const isActive = activeCategory === cat;
-                                    const config = BATTLEFIELD_CONFIG[cat];
-                                    const Icon = config.icon;
+                                    const Icon = BATTLEFIELD_CONFIG[cat].icon;
                                     return (
                                         <button
                                             key={cat}
                                             onClick={() => { setActiveCategory(cat); setSearchQuery(''); }}
                                             className={`
-                                                relative flex items-center gap-2 font-bold transition-all whitespace-nowrap
-                                                ${isScrolled
-                                                    ? `px-3 py-1.5 rounded-lg text-xs ${isActive ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`
-                                                    : `px-5 py-3 text-sm rounded-t-2xl border-t border-x ${isActive ? 'bg-[#F8FAFC] border-slate-200 text-indigo-600 z-10 translate-y-[1px]' : 'bg-white border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50 border-b border-b-slate-200'}`
+                                                relative flex items-center gap-2 px-3 py-2 text-sm font-bold transition-all whitespace-nowrap rounded-lg
+                                                ${isActive 
+                                                    ? 'bg-slate-900 text-white shadow-md' 
+                                                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                                                 }
                                             `}
                                         >
-                                            <Icon className={`${isActive ? 'text-indigo-600' : 'text-slate-400'} ${isScrolled ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
+                                            <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-300' : 'text-slate-400'}`} />
                                             <span>{cat}</span>
                                         </button>
                                     );
                                 })}
                             </div>
                         </div>
+
+                        {/* Right: Search */}
+                        <div className="w-[240px] md:w-[280px] flex-shrink-0">
+                             <div className="relative group">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <SearchIcon className="w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                                </div>
+                                <input 
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="搜索数字员工、技能..."
+                                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400 focus:bg-white"
+                                />
+                                {searchQuery && (
+                                    <button 
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-600"
+                                    >
+                                        <span className="text-[10px] font-bold bg-slate-200 rounded-full w-4 h-4 flex items-center justify-center">✕</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
+
                 </div>
             </header>
 
