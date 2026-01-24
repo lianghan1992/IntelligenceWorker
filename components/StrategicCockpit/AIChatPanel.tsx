@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { streamChatCompletions, createSession, getPromptDetail } from '../../api/stratify';
+import { streamChatCompletions, createSession, getPromptDetail, performWebSearch } from '../../api/stratify';
 import { searchSemanticGrouped } from '../../api/intelligence';
-import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
+import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon } from '../icons';
 import { InfoItem } from '../../types';
 import { AGENTS } from '../../agentConfig';
 import { marked } from 'marked';
@@ -33,6 +33,7 @@ interface Message {
         type: 'searching' | 'results';
         query?: string;
         items?: InfoItem[];
+        searchSource?: 'internal' | 'web'; // New: distinguish source
     };
     
     timestamp?: number;
@@ -44,17 +45,17 @@ const PROMPT_NAME = "strategic_copilot"; // The prompt ID/Name to fetch config f
 
 // --- Agent Tools Definition ---
 
-const SEARCH_TOOL_DEF = {
+const SEARCH_KNOWLEDGE_BASE_DEF = {
     type: "function",
     function: {
         name: "search_knowledge_base",
-        description: "搜索内部汽车行业情报数据库。当用户询问行业动态、技术细节、竞品信息或任何需要事实依据的问题时，必须优先使用此工具。如果一次搜索结果不足，可以尝试更换关键词再次搜索。",
+        description: "搜索内部汽车行业情报数据库。这是默认的检索方式。",
         parameters: {
             type: "object",
             properties: {
                 query: {
                     type: "string",
-                    description: "搜索关键词。应提炼用户问题的核心实体和意图，例如'小米SU7 交付量' 或 '固态电池 技术路线'。"
+                    description: "搜索关键词。提取用户问题的核心实体和意图，例如'小米SU7 交付量'。"
                 }
             },
             required: ["query"]
@@ -62,17 +63,23 @@ const SEARCH_TOOL_DEF = {
     }
 };
 
-const DEFAULT_SYSTEM_PROMPT = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
-你的职责是基于事实回答用户问题。
-
-### 工作流程：
-1. **分析意图**：首先判断用户问题是否需要外部事实支持。
-2. **工具调用**：如果需要事实（如数据、新闻、参数），请**务必**调用 \`search_knowledge_base\` 工具。不要直接编造答案。
-3. **多轮思考**：如果第一次检索结果不理想，可以尝试换个角度或关键词再次检索。
-4. **基于证据**：回答时请引用检索到的资料（UI会自动展示引用卡片，你只需在文本中自然融合信息）。
-5. **风格**：保持专业、客观、逻辑清晰。使用简体中文。
-
-请记住：你的知识库是最新的，利用好它。`;
+const SEARCH_INTERNET_DEF = {
+    type: "function",
+    function: {
+        name: "search_internet",
+        description: "使用搜索引擎检索互联网最新信息。",
+        parameters: {
+            type: "object",
+            properties: {
+                query: {
+                    type: "string",
+                    description: "搜索关键词。针对互联网搜索优化，包含时间、事件等限定词。"
+                }
+            },
+            required: ["query"]
+        }
+    }
+};
 
 // --- Components ---
 
@@ -113,34 +120,45 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     );
 };
 
-const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
+const RetrievedIntelligence: React.FC<{ 
+    query: string; 
+    items: InfoItem[]; 
+    isSearching: boolean; 
+    searchSource?: 'internal' | 'web';
+    onClick: (item: InfoItem) => void 
+}> = ({ query, items, isSearching, searchSource = 'internal', onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     
     // Only render if searching or we have results
     if (!isSearching && (!items || items.length === 0)) return null;
 
     const itemCount = items ? items.length : 0;
+    const isWeb = searchSource === 'web';
+    const ThemeIcon = isWeb ? GlobeIcon : DatabaseIcon;
+    const themeColor = isWeb ? 'text-indigo-600' : 'text-blue-600';
+    const themeBg = isWeb ? 'bg-indigo-50/50 hover:bg-indigo-50' : 'bg-blue-50/50 hover:bg-blue-50';
+    const themeBorder = isWeb ? 'border-indigo-100' : 'border-blue-100';
 
     return (
-        <div className="mb-4 rounded-xl border border-blue-100 bg-white overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm max-w-full font-serif">
+        <div className={`mb-4 rounded-xl border ${themeBorder} bg-white overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm max-w-full font-serif`}>
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-blue-700 bg-blue-50/50 hover:bg-blue-50 transition-colors select-none"
+                className={`w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold ${isWeb ? 'text-indigo-700' : 'text-blue-700'} ${themeBg} transition-colors select-none`}
             >
-                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />}
+                {isSearching ? <RefreshIcon className={`w-3.5 h-3.5 animate-spin ${themeColor} flex-shrink-0`} /> : <ThemeIcon className={`w-3.5 h-3.5 ${themeColor} flex-shrink-0`} />}
                 <span className="flex-1 text-left truncate min-w-0">
-                    {isSearching ? `正在调用工具检索: "${query}"` : `已检索到 ${itemCount} 篇相关情报 ("${query}")`}
+                    {isSearching ? `正在${isWeb ? '全网' : '库内'}检索: "${query}"` : `已检索到 ${itemCount} 篇${isWeb ? '互联网' : '内部'}情报 ("${query}")`}
                 </span>
                 {!isSearching && itemCount > 0 && (
-                    <span className="ml-1 bg-white px-1.5 py-0.5 rounded text-[9px] text-blue-600 border border-blue-100 font-mono flex-shrink-0">{itemCount}</span>
+                    <span className={`ml-1 bg-white px-1.5 py-0.5 rounded text-[9px] ${themeColor} border ${themeBorder} font-mono flex-shrink-0`}>{itemCount}</span>
                 )}
-                <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform flex-shrink-0 text-blue-400 ${isExpanded ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform flex-shrink-0 ${isWeb ? 'text-indigo-400' : 'text-blue-400'} ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
-                <div className="p-2 border-t border-blue-100/50 bg-slate-50/30">
+                <div className={`p-2 border-t ${themeBorder} bg-slate-50/30`}>
                     {isSearching ? (
-                        <div className="py-3 flex flex-col items-center justify-center text-blue-500 gap-1">
-                             <span className="text-[10px] font-bold opacity-80 animate-pulse font-serif">AI 正在阅读知识库文档...</span>
+                        <div className={`py-3 flex flex-col items-center justify-center ${isWeb ? 'text-indigo-500' : 'text-blue-500'} gap-1`}>
+                             <span className="text-[10px] font-bold opacity-80 animate-pulse font-serif">{isWeb ? 'AI 正在扫描全网资讯...' : 'AI 正在阅读知识库文档...'}</span>
                         </div>
                     ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto custom-slim-scrollbar pr-1">
@@ -148,22 +166,22 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                                 <div 
                                     key={item.id || idx} 
                                     onClick={() => onClick(item)}
-                                    className="p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group"
+                                    className={`p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:${themeBorder} hover:shadow-md transition-all group`}
                                 >
                                     <div className="flex items-start gap-2">
-                                        <span className="flex-shrink-0 w-4 h-4 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center justify-center font-mono border border-blue-100 mt-0.5">
+                                        <span className={`flex-shrink-0 w-4 h-4 rounded-md ${isWeb ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-blue-50 text-blue-600 border-blue-100'} text-[10px] font-bold flex items-center justify-center font-mono border mt-0.5`}>
                                             {idx + 1}
                                         </span>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-[12px] font-bold text-slate-800 leading-snug group-hover:text-blue-700 font-serif mb-1 line-clamp-2">
+                                            <div className={`text-[12px] font-bold text-slate-800 leading-snug group-hover:${isWeb ? 'text-indigo-700' : 'text-blue-700'} font-serif mb-1 line-clamp-2`}>
                                                 {item.title}
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-slate-400 font-serif">
-                                                <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{item.source_name}</span>
+                                                <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 truncate max-w-[120px]">{item.source_name}</span>
                                                 {item.publish_date && <span>{new Date(item.publish_date).toLocaleDateString()}</span>}
                                             </div>
                                         </div>
-                                        <ChevronRightIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-400 flex-shrink-0 mt-1" />
+                                        <ChevronRightIcon className={`w-3.5 h-3.5 text-slate-300 group-hover:${isWeb ? 'text-indigo-400' : 'text-blue-400'} flex-shrink-0 mt-1`} />
                                     </div>
                                 </div>
                             )) : (
@@ -187,11 +205,14 @@ export const AIChatPanel: React.FC<{
     const [input, setInput] = useState('');
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false); // Indicates Agent loop is active
+    
+    // --- New Toggle State ---
+    const [useWebSearch, setUseWebSearch] = useState(false);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
     // Dynamic Configuration State
     const [currentModel, setCurrentModel] = useState(DEFAULT_MODEL);
-    const [systemInstruction, setSystemInstruction] = useState(DEFAULT_SYSTEM_PROMPT);
 
     // Initial Config Load
     useEffect(() => {
@@ -202,9 +223,6 @@ export const AIChatPanel: React.FC<{
                 if (promptConfig) {
                     if (promptConfig.channel_code && promptConfig.model_id) {
                         setCurrentModel(`${promptConfig.channel_code}@${promptConfig.model_id}`);
-                    }
-                    if (promptConfig.content) {
-                        setSystemInstruction(promptConfig.content);
                     }
                 }
             } catch (e) {
@@ -220,7 +238,7 @@ export const AIChatPanel: React.FC<{
         return [{ 
             id: 'init', 
             role: 'assistant', 
-            content: `我是您的 **AI Copilot**。\n📅 今天是 **${today}**。\n\n我已连接至实时情报数据库。请问您想了解什么？（例如：“查询最近关于固态电池的进展”或“小米汽车的最新动态”）`, 
+            content: `我是您的 **AI Copilot**。\n📅 今天是 **${today}**。\n\n我已连接至内部情报库。如需查询最新互联网信息，请开启下方的 **"联网搜索"** 开关。`, 
             timestamp: Date.now() 
         }];
     });
@@ -259,9 +277,32 @@ export const AIChatPanel: React.FC<{
             return apiMsg;
         });
 
-        // Add System Prompt if not present (usually managed by backend via Agent ID, but we enforce specific instruction here)
+        // Dynamic System Prompt based on Toggle
+        let systemPrompt = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
+你的职责是基于事实回答用户问题。
+
+### 核心指令：
+1. **默认行为**：用户开启了【${useWebSearch ? '联网模式' : '纯净模式'}】。
+2. **工具调用**：
+   - 始终优先调用 \`search_knowledge_base\` 查询内部高质量数据。
+   ${useWebSearch ? '- **必须**同时调用 \`search_internet\` 查询最新的互联网公开信息，因为用户明确要求了联网。' : '- 除非用户问题显然涉及库外常识，否则**不要**捏造数据。'}
+3. **回答风格**：保持专业、客观、逻辑清晰。使用简体中文。
+4. **引用**：必须基于工具返回的结果回答，严禁幻觉。
+
+请记住：你的知识库是最新的，利用好它。`;
+
+        // Add System Prompt if not present
         if (apiHistory.length > 0 && apiHistory[0].role !== 'system') {
-             apiHistory = [{ role: 'system', content: systemInstruction }, ...apiHistory];
+             apiHistory = [{ role: 'system', content: systemPrompt }, ...apiHistory];
+        } else if (apiHistory.length > 0 && apiHistory[0].role === 'system') {
+            // Update existing system prompt with new toggle state
+            apiHistory[0].content = systemPrompt;
+        }
+
+        // Define Tools based on Toggle
+        const activeTools = [SEARCH_KNOWLEDGE_BASE_DEF];
+        if (useWebSearch) {
+            activeTools.push(SEARCH_INTERNET_DEF);
         }
 
         try {
@@ -290,7 +331,7 @@ export const AIChatPanel: React.FC<{
                     messages: apiHistory,
                     stream: true,
                     temperature: 0.1, // Low temp for tool use reliability
-                    tools: [SEARCH_TOOL_DEF], // Pass tools
+                    tools: activeTools, 
                     tool_choice: "auto",
                     enable_billing: true
                 }, (chunk) => {
@@ -329,7 +370,6 @@ export const AIChatPanel: React.FC<{
                         ...m,
                         content: accumulatedContent,
                         reasoning: accumulatedReasoning,
-                        // If we detect a tool call is starting, we can show a "Planning..." indicator in reasoning or UI
                     } : m));
 
                 }, undefined, (err) => {
@@ -356,35 +396,53 @@ export const AIChatPanel: React.FC<{
 
                 // Check if Tool Calls exist
                 if (finalMsg.tool_calls && finalMsg.tool_calls.length > 0) {
-                    // Update UI to show the final "thinking" state before executing tool
-                    // We don't break loop yet. We execute tool.
                     
                     // --- Execute Tools ---
                     for (const toolCall of finalMsg.tool_calls) {
-                        if (toolCall.function.name === 'search_knowledge_base') {
-                            let args = { query: '' };
-                            try {
-                                args = JSON.parse(toolCall.function.arguments);
-                            } catch (e) {
-                                console.error("Failed to parse tool args", e);
-                                args.query = "error"; 
-                            }
+                        const fnName = toolCall.function.name;
+                        let args = { query: '' };
+                        try {
+                            args = JSON.parse(toolCall.function.arguments);
+                        } catch (e) {
+                            console.error("Failed to parse tool args", e);
+                            args.query = "error"; 
+                        }
 
-                            // A. UI: Show "Searching" Card (Temporary placeholder)
-                            const toolMsgId = crypto.randomUUID();
-                            setMessages(prev => [...prev, {
-                                id: toolMsgId,
-                                role: 'tool',
-                                content: 'Searching...',
-                                tool_call_id: toolCall.id,
-                                uiState: { type: 'searching', query: args.query }
-                            }]);
+                        // Determine Source Type
+                        const isWebSearch = fnName === 'search_internet';
+                        const searchSource = isWebSearch ? 'web' : 'internal';
 
-                            // B. API: Call Vector Search
-                            let searchResultString = "No results found.";
-                            let foundItems: InfoItem[] = [];
-                            
-                            try {
+                        // A. UI: Show "Searching" Card
+                        const toolMsgId = crypto.randomUUID();
+                        setMessages(prev => [...prev, {
+                            id: toolMsgId,
+                            role: 'tool',
+                            content: 'Searching...',
+                            tool_call_id: toolCall.id,
+                            uiState: { type: 'searching', query: args.query, searchSource }
+                        }]);
+
+                        let searchResultString = "No results found.";
+                        let foundItems: InfoItem[] = [];
+                        
+                        try {
+                            // B. API Call
+                            if (isWebSearch) {
+                                // Call Web Search
+                                const res = await performWebSearch(args.query, 6);
+                                // Map web results to InfoItem
+                                foundItems = (res.results || []).map((item: any, i: number) => ({
+                                    id: `web-${i}-${Date.now()}`,
+                                    title: item.title,
+                                    content: item.content || item.snippet || '',
+                                    source_name: item.link ? new URL(item.link).hostname : 'Internet',
+                                    publish_date: item.publish_date || new Date().toISOString(),
+                                    original_url: item.link,
+                                    created_at: new Date().toISOString(),
+                                    is_atomized: false
+                                }));
+                            } else {
+                                // Call Internal Vector Search
                                 const res = await searchSemanticGrouped({ 
                                     query_text: args.query, 
                                     page: 1, 
@@ -392,14 +450,16 @@ export const AIChatPanel: React.FC<{
                                     similarity_threshold: 0.35 
                                 });
                                 
-                                // Strict De-duplication by article_id
+                                // Strict De-duplication by article_id (or UUID fallback)
                                 const uniqueItemsMap = new Map<string, InfoItem>();
                                 (res.items || []).forEach((item: any) => {
-                                    if (!uniqueItemsMap.has(item.article_id)) {
-                                        uniqueItemsMap.set(item.article_id, {
-                                            id: item.article_id,
+                                    // Robust ID Check: article_id > id > uuid
+                                    const realId = item.article_id || item.id || item.uuid;
+                                    if (realId && !uniqueItemsMap.has(realId)) {
+                                        uniqueItemsMap.set(realId, {
+                                            id: realId,
                                             title: item.title,
-                                            content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : '',
+                                            content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : (item.content || ''),
                                             source_name: item.source_name,
                                             publish_date: item.publish_date,
                                             original_url: item.url,
@@ -408,38 +468,40 @@ export const AIChatPanel: React.FC<{
                                     }
                                 });
                                 foundItems = Array.from(uniqueItemsMap.values());
-
-                                if (foundItems.length > 0) {
-                                    searchResultString = JSON.stringify(foundItems.map(i => ({
-                                        title: i.title,
-                                        source: i.source_name,
-                                        date: i.publish_date,
-                                        content: i.content
-                                    }))); // Minified JSON for LLM
-                                }
-
-                            } catch (err: any) {
-                                searchResultString = `Search Error: ${err.message}`;
                             }
 
-                            // C. UI: Update Card with Results
-                            setMessages(prev => prev.map(m => m.id === toolMsgId ? {
-                                ...m,
-                                content: `Found ${foundItems.length} items.`, // Internal log
-                                uiState: { 
-                                    type: 'results', 
-                                    query: args.query, 
-                                    items: foundItems 
-                                }
-                            } : m));
+                            if (foundItems.length > 0) {
+                                searchResultString = JSON.stringify(foundItems.map(i => ({
+                                    title: i.title,
+                                    source: i.source_name,
+                                    date: i.publish_date,
+                                    content: i.content,
+                                    url: i.original_url
+                                }))); 
+                            }
 
-                            // D. API History: Add Tool Result
-                            apiHistory.push({
-                                role: 'tool',
-                                tool_call_id: toolCall.id,
-                                content: searchResultString
-                            });
+                        } catch (err: any) {
+                            searchResultString = `Search Error: ${err.message}`;
                         }
+
+                        // C. UI: Update Card with Results
+                        setMessages(prev => prev.map(m => m.id === toolMsgId ? {
+                            ...m,
+                            content: `Found ${foundItems.length} items.`, // Internal log
+                            uiState: { 
+                                type: 'results', 
+                                query: args.query, 
+                                items: foundItems,
+                                searchSource 
+                            }
+                        } : m));
+
+                        // D. API History: Add Tool Result
+                        apiHistory.push({
+                            role: 'tool',
+                            tool_call_id: toolCall.id,
+                            content: searchResultString
+                        });
                     }
                     // Loop continues to let LLM process the tool results
                 } else {
@@ -534,7 +596,6 @@ export const AIChatPanel: React.FC<{
                     </div>
                     <div>
                         <h3 className="text-base font-black text-slate-800 tracking-tight font-serif">AI Copilot</h3>
-                        {/* Hidden Model Name as requested */}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -566,6 +627,7 @@ export const AIChatPanel: React.FC<{
                                          query={msg.uiState.query || ''} 
                                          items={msg.uiState.items || []} 
                                          isSearching={msg.uiState.type === 'searching'} 
+                                         searchSource={msg.uiState.searchSource}
                                          onClick={(item) => onReferenceClick && onReferenceClick(item)} 
                                      />
                                  </div>
@@ -598,12 +660,25 @@ export const AIChatPanel: React.FC<{
 
             <div className="p-4 bg-white border-t border-slate-100 relative z-30 flex-shrink-0">
                 <div className="relative bg-slate-50 border border-slate-200/60 rounded-[20px] shadow-inner focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 focus-within:bg-white transition-all duration-200">
+                    
+                    {/* Toggle Bar */}
+                    <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+                        <button 
+                            onClick={() => setUseWebSearch(!useWebSearch)}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all duration-200 ${useWebSearch ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                            title={useWebSearch ? "关闭联网搜索" : "开启联网搜索"}
+                        >
+                            <GlobeIcon className={`w-3.5 h-3.5 ${useWebSearch ? 'text-indigo-500' : 'text-slate-400'}`} />
+                            {useWebSearch ? '联网搜索: 开启' : '联网搜索: 关闭'}
+                        </button>
+                    </div>
+
                     <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                         placeholder="询问关于汽车行业的问题..."
-                        className="w-full bg-transparent px-4 py-3 text-sm focus:outline-none resize-none h-14 md:h-16 max-h-32 custom-slim-scrollbar placeholder:text-slate-400 font-medium text-slate-700 font-serif"
+                        className="w-full bg-transparent px-4 py-2 text-sm focus:outline-none resize-none h-12 md:h-14 max-h-32 custom-slim-scrollbar placeholder:text-slate-400 font-medium text-slate-700 font-serif"
                         disabled={isProcessing}
                     />
                     <div className="flex justify-between items-center px-2 pb-2">
