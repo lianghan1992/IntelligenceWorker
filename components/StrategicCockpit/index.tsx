@@ -73,8 +73,11 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
 
             // ⚡️ 核心优化：首次进入或切换分类时，默认选中第一篇文章展示
-            if (page === 1 && items.length > 0 && !selectedArticle) {
-                setSelectedArticle(items[0]);
+            // 注意：这里移除了 selectedArticle 依赖，避免点击文章触发重刷列表导致滚动条置顶
+            // 由于 handleNavChange 会重置 selectedArticle 为 null，此逻辑在切换分类时依然有效
+            if (page === 1 && items.length > 0) {
+                // 使用函数式更新检查当前状态，避免依赖闭包中的 stale value
+                setSelectedArticle(prev => prev ? prev : items[0]);
             }
 
         } catch (err: any) {
@@ -83,7 +86,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         } finally {
             setIsLoading(false);
         }
-    }, [selectedArticle]);
+    }, []); // Explicitly empty deps to prevent re-creation on state changes
 
     useEffect(() => {
         if (activeQuery.type === 'all' || activeQuery.value) {
