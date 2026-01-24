@@ -234,7 +234,7 @@ const ReviewRefundModal: React.FC<{ refund: RefundOrder; onClose: () => void; on
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm space-y-2">
                     <div className="flex justify-between">
                         <span className="text-slate-500">申请人:</span>
-                        <span className="font-mono text-slate-700" title={refund.user_id}>{refund.username || refund.user_id.slice(0,8)}</span>
+                        <span className="font-mono text-slate-700" title={refund.user_id}>{refund.username || (refund.user_id ? refund.user_id.slice(0,8) : 'Unknown')}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="text-slate-500">退款金额:</span>
@@ -572,7 +572,7 @@ export const FinanceManager: React.FC = () => {
                                             <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
                                                 <td className="px-6 py-4 align-top">
                                                     <div className="text-xs font-bold text-slate-700">{new Date(tx.created_at).toLocaleString()}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{tx.id.slice(0, 8)}...</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{tx.id ? tx.id.slice(0, 8) : ''}...</div>
                                                 </td>
                                                 <td className="px-6 py-4 align-top">
                                                     <button 
@@ -581,7 +581,7 @@ export const FinanceManager: React.FC = () => {
                                                         title="点击查看用户详情"
                                                     >
                                                         <UserIcon className="w-3 h-3"/>
-                                                        {tx.user_id.slice(0, 8)}...
+                                                        {tx.user_id ? tx.user_id.slice(0, 8) : ''}...
                                                     </button>
                                                 </td>
                                                 <td className="px-6 py-4 align-top">
@@ -660,7 +660,7 @@ export const FinanceManager: React.FC = () => {
                                                     className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors cursor-pointer flex items-center gap-1 w-fit"
                                                 >
                                                     <UserIcon className="w-3 h-3"/>
-                                                    {order.user_id.slice(0, 8)}...
+                                                    {order.user_id ? order.user_id.slice(0, 8) : ''}...
                                                 </button>
                                             </td>
                                             <td className="px-6 py-4 align-top">
@@ -718,7 +718,7 @@ export const FinanceManager: React.FC = () => {
                                                     title={refund.user_id}
                                                 >
                                                     <UserIcon className="w-3 h-3"/>
-                                                    {refund.username || refund.user_id.slice(0, 8)}
+                                                    {refund.username || (refund.user_id ? refund.user_id.slice(0, 8) : 'Unknown')}
                                                 </button>
                                             </td>
                                             <td className="px-6 py-4 text-right font-mono font-black text-slate-800 align-top">

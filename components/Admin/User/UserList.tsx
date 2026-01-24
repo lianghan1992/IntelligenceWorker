@@ -151,6 +151,7 @@ const EditUserModal: React.FC<{ user: UserListItem; onClose: () => void; onSave:
                             <option value="free">免费版</option>
                             <option value="pro">专业版</option>
                             <option value="enterprise">企业版</option>
+                            <option value="admin">管理员 (Admin)</option>
                         </select>
                     </div>
                     <div>
@@ -277,6 +278,7 @@ export const UserList: React.FC = () => {
                             <option value="free">免费版</option>
                             <option value="pro">专业版</option>
                             <option value="enterprise">企业版</option>
+                            <option value="admin">管理员</option>
                         </select>
 
                         <select 
@@ -348,11 +350,12 @@ export const UserList: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="font-bold text-gray-900">{user.username}</div>
-                                        <div className="font-mono text-xs text-gray-400 mt-0.5">{user.id.slice(0, 8)}...</div>
+                                        <div className="font-mono text-xs text-gray-400 mt-0.5">{(user.id || '').slice(0, 8)}...</div>
                                     </td>
                                     <td className="px-6 py-4">{user.email}</td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                                            user.plan_name === 'admin' ? 'bg-slate-900 text-white' :
                                             user.plan_name?.includes('pro') || user.plan_name?.includes('专业') ? 'bg-indigo-100 text-indigo-700' : 
                                             user.plan_name?.includes('enterprise') ? 'bg-purple-100 text-purple-700' :
                                             'bg-gray-100 text-gray-600'
