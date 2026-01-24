@@ -154,7 +154,7 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (view) {
       case 'cockpit':
-        return <StrategicCockpit subscriptions={subscriptions} user={user} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={user} onNavigate={handleNavigate} onLogout={handleLogout} onShowProfile={() => setShowProfileModal(true)} />;
       case 'techboard':
         return <CompetitivenessDashboard />;
       case 'dives':
@@ -168,7 +168,7 @@ const App: React.FC = () => {
       case 'admin':
         return <AdminPage />;
       default:
-        return <StrategicCockpit subscriptions={subscriptions} user={user} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={user} onNavigate={handleNavigate} onLogout={handleLogout} onShowProfile={() => setShowProfileModal(true)} />;
     }
   };
 
