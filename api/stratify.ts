@@ -253,6 +253,24 @@ export function parseLlmJson<T>(jsonStr: string): T | null {
     }
 }
 
+// --- Tools ---
+
+export interface WebSearchResult {
+    title: string;
+    link: string;
+    content: string;
+    icon?: string;
+    media?: string;
+    publish_date?: string;
+}
+
+export const performWebSearch = async (query: string, count: number = 10) => {
+    return apiFetch<{ results: WebSearchResult[], usage: any }>(`${STRATIFY_SERVICE_PATH}/v1/search`, {
+        method: 'POST',
+        body: JSON.stringify({ query, count })
+    });
+};
+
 // --- 2. Scenario Management ---
 
 export const getScenarios = (): Promise<StratifyScenario[]> =>

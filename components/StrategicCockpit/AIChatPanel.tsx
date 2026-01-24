@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { streamChatCompletions, createSession, getPromptDetail } from '../../api/stratify';
+import { streamChatCompletions, createSession, getPromptDetail, performWebSearch } from '../../api/stratify';
 import { searchSemanticGrouped } from '../../api/intelligence';
-import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
+import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon } from '../icons';
 import { InfoItem } from '../../types';
 import { AGENTS } from '../../agentConfig';
 import { marked } from 'marked';
@@ -33,6 +33,7 @@ interface Message {
         type: 'searching' | 'results';
         query?: string;
         items?: InfoItem[];
+        searchSource?: 'internal' | 'web'; // New: distinguish source
     };
     
     timestamp?: number;
@@ -44,7 +45,7 @@ const PROMPT_NAME = "strategic_copilot"; // The prompt ID/Name to fetch config f
 
 // --- Agent Tools Definition ---
 
-const SEARCH_TOOL_DEF = {
+const SEARCH_KNOWLEDGE_BASE_DEF = {
     type: "function",
     function: {
         name: "search_knowledge_base",
@@ -62,12 +63,33 @@ const SEARCH_TOOL_DEF = {
     }
 };
 
+const SEARCH_INTERNET_DEF = {
+    type: "function",
+    function: {
+        name: "search_internet",
+        description: "搜索互联网上的最新信息。仅在内部知识库无法提供答案，或者用户明确要求查询最新实时新闻/外部数据时使用。",
+        parameters: {
+            type: "object",
+            properties: {
+                query: {
+                    type: "string",
+                    description: "搜索关键词。"
+                }
+            },
+            required: ["query"]
+        }
+    }
+};
+
 const DEFAULT_SYSTEM_PROMPT = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
 你的职责是基于事实回答用户问题。
 
 ### 工作流程：
 1. **分析意图**：首先判断用户问题是否需要外部事实支持。
-2. **工具调用**：如果需要事实（如数据、新闻、参数），请**务必**调用 \`search_knowledge_base\` 工具。不要直接编造答案。
+2. **工具调用**：
+   - 优先使用 \`search_knowledge_base\` 搜索内部高质量情报库。
+   - 仅当内部库无结果，或用户询问最新实时新闻（如“今天发生了什么”）时，使用 \`search_internet\`。
+   - 不要直接编造答案。
 3. **多轮思考**：如果第一次检索结果不理想，可以尝试换个角度或关键词再次检索。
 4. **基于证据**：回答时请引用检索到的资料（UI会自动展示引用卡片，你只需在文本中自然融合信息）。
 5. **风格**：保持专业、客观、逻辑清晰。使用简体中文。
@@ -113,34 +135,45 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     );
 };
 
-const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
+const RetrievedIntelligence: React.FC<{ 
+    query: string; 
+    items: InfoItem[]; 
+    isSearching: boolean; 
+    searchSource?: 'internal' | 'web';
+    onClick: (item: InfoItem) => void 
+}> = ({ query, items, isSearching, searchSource = 'internal', onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     
     // Only render if searching or we have results
     if (!isSearching && (!items || items.length === 0)) return null;
 
     const itemCount = items ? items.length : 0;
+    const isWeb = searchSource === 'web';
+    const ThemeIcon = isWeb ? GlobeIcon : DatabaseIcon;
+    const themeColor = isWeb ? 'text-indigo-600' : 'text-blue-600';
+    const themeBg = isWeb ? 'bg-indigo-50/50 hover:bg-indigo-50' : 'bg-blue-50/50 hover:bg-blue-50';
+    const themeBorder = isWeb ? 'border-indigo-100' : 'border-blue-100';
 
     return (
-        <div className="mb-4 rounded-xl border border-blue-100 bg-white overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm max-w-full font-serif">
+        <div className={`mb-4 rounded-xl border ${themeBorder} bg-white overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm max-w-full font-serif`}>
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-blue-700 bg-blue-50/50 hover:bg-blue-50 transition-colors select-none"
+                className={`w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold ${isWeb ? 'text-indigo-700' : 'text-blue-700'} ${themeBg} transition-colors select-none`}
             >
-                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />}
+                {isSearching ? <RefreshIcon className={`w-3.5 h-3.5 animate-spin ${themeColor} flex-shrink-0`} /> : <ThemeIcon className={`w-3.5 h-3.5 ${themeColor} flex-shrink-0`} />}
                 <span className="flex-1 text-left truncate min-w-0">
-                    {isSearching ? `正在调用工具检索: "${query}"` : `已检索到 ${itemCount} 篇相关情报 ("${query}")`}
+                    {isSearching ? `正在${isWeb ? '全网' : '库内'}检索: "${query}"` : `已检索到 ${itemCount} 篇${isWeb ? '互联网' : '内部'}情报 ("${query}")`}
                 </span>
                 {!isSearching && itemCount > 0 && (
-                    <span className="ml-1 bg-white px-1.5 py-0.5 rounded text-[9px] text-blue-600 border border-blue-100 font-mono flex-shrink-0">{itemCount}</span>
+                    <span className={`ml-1 bg-white px-1.5 py-0.5 rounded text-[9px] ${themeColor} border ${themeBorder} font-mono flex-shrink-0`}>{itemCount}</span>
                 )}
-                <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform flex-shrink-0 text-blue-400 ${isExpanded ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform flex-shrink-0 ${isWeb ? 'text-indigo-400' : 'text-blue-400'} ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
-                <div className="p-2 border-t border-blue-100/50 bg-slate-50/30">
+                <div className={`p-2 border-t ${themeBorder} bg-slate-50/30`}>
                     {isSearching ? (
-                        <div className="py-3 flex flex-col items-center justify-center text-blue-500 gap-1">
-                             <span className="text-[10px] font-bold opacity-80 animate-pulse font-serif">AI 正在阅读知识库文档...</span>
+                        <div className={`py-3 flex flex-col items-center justify-center ${isWeb ? 'text-indigo-500' : 'text-blue-500'} gap-1`}>
+                             <span className="text-[10px] font-bold opacity-80 animate-pulse font-serif">{isWeb ? 'AI 正在扫描全网资讯...' : 'AI 正在阅读知识库文档...'}</span>
                         </div>
                     ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto custom-slim-scrollbar pr-1">
@@ -148,22 +181,22 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                                 <div 
                                     key={item.id || idx} 
                                     onClick={() => onClick(item)}
-                                    className="p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group"
+                                    className={`p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:${themeBorder} hover:shadow-md transition-all group`}
                                 >
                                     <div className="flex items-start gap-2">
-                                        <span className="flex-shrink-0 w-4 h-4 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center justify-center font-mono border border-blue-100 mt-0.5">
+                                        <span className={`flex-shrink-0 w-4 h-4 rounded-md ${isWeb ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-blue-50 text-blue-600 border-blue-100'} text-[10px] font-bold flex items-center justify-center font-mono border mt-0.5`}>
                                             {idx + 1}
                                         </span>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-[12px] font-bold text-slate-800 leading-snug group-hover:text-blue-700 font-serif mb-1 line-clamp-2">
+                                            <div className={`text-[12px] font-bold text-slate-800 leading-snug group-hover:${isWeb ? 'text-indigo-700' : 'text-blue-700'} font-serif mb-1 line-clamp-2`}>
                                                 {item.title}
                                             </div>
                                             <div className="flex items-center gap-2 text-[10px] text-slate-400 font-serif">
-                                                <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{item.source_name}</span>
+                                                <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 truncate max-w-[120px]">{item.source_name}</span>
                                                 {item.publish_date && <span>{new Date(item.publish_date).toLocaleDateString()}</span>}
                                             </div>
                                         </div>
-                                        <ChevronRightIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-400 flex-shrink-0 mt-1" />
+                                        <ChevronRightIcon className={`w-3.5 h-3.5 text-slate-300 group-hover:${isWeb ? 'text-indigo-400' : 'text-blue-400'} flex-shrink-0 mt-1`} />
                                     </div>
                                 </div>
                             )) : (
@@ -290,7 +323,7 @@ export const AIChatPanel: React.FC<{
                     messages: apiHistory,
                     stream: true,
                     temperature: 0.1, // Low temp for tool use reliability
-                    tools: [SEARCH_TOOL_DEF], // Pass tools
+                    tools: [SEARCH_KNOWLEDGE_BASE_DEF, SEARCH_INTERNET_DEF], // Pass BOTH tools
                     tool_choice: "auto",
                     enable_billing: true
                 }, (chunk) => {
@@ -361,30 +394,50 @@ export const AIChatPanel: React.FC<{
                     
                     // --- Execute Tools ---
                     for (const toolCall of finalMsg.tool_calls) {
-                        if (toolCall.function.name === 'search_knowledge_base') {
-                            let args = { query: '' };
-                            try {
-                                args = JSON.parse(toolCall.function.arguments);
-                            } catch (e) {
-                                console.error("Failed to parse tool args", e);
-                                args.query = "error"; 
-                            }
+                        const fnName = toolCall.function.name;
+                        let args = { query: '' };
+                        try {
+                            args = JSON.parse(toolCall.function.arguments);
+                        } catch (e) {
+                            console.error("Failed to parse tool args", e);
+                            args.query = "error"; 
+                        }
 
-                            // A. UI: Show "Searching" Card (Temporary placeholder)
-                            const toolMsgId = crypto.randomUUID();
-                            setMessages(prev => [...prev, {
-                                id: toolMsgId,
-                                role: 'tool',
-                                content: 'Searching...',
-                                tool_call_id: toolCall.id,
-                                uiState: { type: 'searching', query: args.query }
-                            }]);
+                        // Determine Source Type
+                        const isWebSearch = fnName === 'search_internet';
+                        const searchSource = isWebSearch ? 'web' : 'internal';
 
-                            // B. API: Call Vector Search
-                            let searchResultString = "No results found.";
-                            let foundItems: InfoItem[] = [];
-                            
-                            try {
+                        // A. UI: Show "Searching" Card (Temporary placeholder)
+                        const toolMsgId = crypto.randomUUID();
+                        setMessages(prev => [...prev, {
+                            id: toolMsgId,
+                            role: 'tool',
+                            content: 'Searching...',
+                            tool_call_id: toolCall.id,
+                            uiState: { type: 'searching', query: args.query, searchSource }
+                        }]);
+
+                        let searchResultString = "No results found.";
+                        let foundItems: InfoItem[] = [];
+                        
+                        try {
+                            // B. API Call
+                            if (isWebSearch) {
+                                // Call Web Search
+                                const res = await performWebSearch(args.query, 6);
+                                // Map web results to InfoItem
+                                foundItems = (res.results || []).map((item: any, i: number) => ({
+                                    id: `web-${i}`,
+                                    title: item.title,
+                                    content: item.content || item.snippet || '',
+                                    source_name: item.link ? new URL(item.link).hostname : 'Internet',
+                                    publish_date: item.publish_date || new Date().toISOString(),
+                                    original_url: item.link,
+                                    created_at: new Date().toISOString(),
+                                    is_atomized: false
+                                }));
+                            } else {
+                                // Call Internal Vector Search
                                 const res = await searchSemanticGrouped({ 
                                     query_text: args.query, 
                                     page: 1, 
@@ -408,38 +461,40 @@ export const AIChatPanel: React.FC<{
                                     }
                                 });
                                 foundItems = Array.from(uniqueItemsMap.values());
-
-                                if (foundItems.length > 0) {
-                                    searchResultString = JSON.stringify(foundItems.map(i => ({
-                                        title: i.title,
-                                        source: i.source_name,
-                                        date: i.publish_date,
-                                        content: i.content
-                                    }))); // Minified JSON for LLM
-                                }
-
-                            } catch (err: any) {
-                                searchResultString = `Search Error: ${err.message}`;
                             }
 
-                            // C. UI: Update Card with Results
-                            setMessages(prev => prev.map(m => m.id === toolMsgId ? {
-                                ...m,
-                                content: `Found ${foundItems.length} items.`, // Internal log
-                                uiState: { 
-                                    type: 'results', 
-                                    query: args.query, 
-                                    items: foundItems 
-                                }
-                            } : m));
+                            if (foundItems.length > 0) {
+                                searchResultString = JSON.stringify(foundItems.map(i => ({
+                                    title: i.title,
+                                    source: i.source_name,
+                                    date: i.publish_date,
+                                    content: i.content,
+                                    url: i.original_url
+                                }))); // Minified JSON for LLM
+                            }
 
-                            // D. API History: Add Tool Result
-                            apiHistory.push({
-                                role: 'tool',
-                                tool_call_id: toolCall.id,
-                                content: searchResultString
-                            });
+                        } catch (err: any) {
+                            searchResultString = `Search Error: ${err.message}`;
                         }
+
+                        // C. UI: Update Card with Results
+                        setMessages(prev => prev.map(m => m.id === toolMsgId ? {
+                            ...m,
+                            content: `Found ${foundItems.length} items.`, // Internal log
+                            uiState: { 
+                                type: 'results', 
+                                query: args.query, 
+                                items: foundItems,
+                                searchSource 
+                            }
+                        } : m));
+
+                        // D. API History: Add Tool Result
+                        apiHistory.push({
+                            role: 'tool',
+                            tool_call_id: toolCall.id,
+                            content: searchResultString
+                        });
                     }
                     // Loop continues to let LLM process the tool results
                 } else {
@@ -566,6 +621,7 @@ export const AIChatPanel: React.FC<{
                                          query={msg.uiState.query || ''} 
                                          items={msg.uiState.items || []} 
                                          isSearching={msg.uiState.type === 'searching'} 
+                                         searchSource={msg.uiState.searchSource}
                                          onClick={(item) => onReferenceClick && onReferenceClick(item)} 
                                      />
                                  </div>
