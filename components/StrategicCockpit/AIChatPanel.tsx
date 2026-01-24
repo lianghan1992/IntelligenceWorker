@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { streamChatCompletions, createSession } from '../../api/stratify';
+import { streamChatCompletions, createSession, getPromptDetail } from '../../api/stratify';
 import { searchSemanticGrouped } from '../../api/intelligence';
 import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
 import { InfoItem } from '../../types';
@@ -38,7 +38,9 @@ interface Message {
     timestamp?: number;
 }
 
-const MODEL_ID = "zhipu@glm-4-flash";
+// Default fallback if config fails
+const DEFAULT_MODEL = "zhipu@glm-4-flash";
+const PROMPT_NAME = "strategic_copilot"; // The prompt ID/Name to fetch config from
 
 // --- Agent Tools Definition ---
 
@@ -60,7 +62,7 @@ const SEARCH_TOOL_DEF = {
     }
 };
 
-const SYSTEM_PROMPT = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
+const DEFAULT_SYSTEM_PROMPT = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
 你的职责是基于事实回答用户问题。
 
 ### 工作流程：
@@ -187,6 +189,31 @@ export const AIChatPanel: React.FC<{
     const [isProcessing, setIsProcessing] = useState(false); // Indicates Agent loop is active
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
+    // Dynamic Configuration State
+    const [currentModel, setCurrentModel] = useState(DEFAULT_MODEL);
+    const [systemInstruction, setSystemInstruction] = useState(DEFAULT_SYSTEM_PROMPT);
+
+    // Initial Config Load
+    useEffect(() => {
+        const loadConfig = async () => {
+            try {
+                // Try to fetch configured prompt to get model settings
+                const promptConfig = await getPromptDetail(PROMPT_NAME);
+                if (promptConfig) {
+                    if (promptConfig.channel_code && promptConfig.model_id) {
+                        setCurrentModel(`${promptConfig.channel_code}@${promptConfig.model_id}`);
+                    }
+                    if (promptConfig.content) {
+                        setSystemInstruction(promptConfig.content);
+                    }
+                }
+            } catch (e) {
+                console.warn("Failed to load dynamic agent config, using defaults.", e);
+            }
+        };
+        loadConfig();
+    }, []);
+    
     // We keep a local message history that aligns with OpenAI format
     const [messages, setMessages] = useState<Message[]>(() => {
         const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
@@ -234,7 +261,7 @@ export const AIChatPanel: React.FC<{
 
         // Add System Prompt if not present (usually managed by backend via Agent ID, but we enforce specific instruction here)
         if (apiHistory.length > 0 && apiHistory[0].role !== 'system') {
-             apiHistory = [{ role: 'system', content: SYSTEM_PROMPT }, ...apiHistory];
+             apiHistory = [{ role: 'system', content: systemInstruction }, ...apiHistory];
         }
 
         try {
@@ -259,7 +286,7 @@ export const AIChatPanel: React.FC<{
 
                 // 2. Stream Request to LLM
                 await streamChatCompletions({
-                    model: MODEL_ID,
+                    model: currentModel,
                     messages: apiHistory,
                     stream: true,
                     temperature: 0.1, // Low temp for tool use reliability
@@ -365,15 +392,22 @@ export const AIChatPanel: React.FC<{
                                     similarity_threshold: 0.35 
                                 });
                                 
-                                foundItems = (res.items || []).map((item: any) => ({
-                                    id: item.article_id,
-                                    title: item.title,
-                                    content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : '',
-                                    source_name: item.source_name,
-                                    publish_date: item.publish_date,
-                                    original_url: item.url,
-                                    created_at: item.created_at
-                                }));
+                                // Strict De-duplication by article_id
+                                const uniqueItemsMap = new Map<string, InfoItem>();
+                                (res.items || []).forEach((item: any) => {
+                                    if (!uniqueItemsMap.has(item.article_id)) {
+                                        uniqueItemsMap.set(item.article_id, {
+                                            id: item.article_id,
+                                            title: item.title,
+                                            content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : '',
+                                            source_name: item.source_name,
+                                            publish_date: item.publish_date,
+                                            original_url: item.url,
+                                            created_at: item.created_at
+                                        });
+                                    }
+                                });
+                                foundItems = Array.from(uniqueItemsMap.values());
 
                                 if (foundItems.length > 0) {
                                     searchResultString = JSON.stringify(foundItems.map(i => ({
