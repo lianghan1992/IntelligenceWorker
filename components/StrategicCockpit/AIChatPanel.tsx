@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions, createSession } from '../../api/stratify';
-import { searchSemanticSegments } from '../../api/intelligence';
-import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
+import { searchSemanticGrouped } from '../../api/intelligence';
+import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon } from '../icons';
 import { InfoItem } from '../../types';
 import { AGENTS } from '../../agentConfig';
 import { marked } from 'marked';
@@ -70,7 +70,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
             >
                 {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />}
                 <span className="flex-1 text-left truncate min-w-0">
-                    {isSearching ? `检索中: "${query}"` : `已检索到 ${itemCount} 条情报`}
+                    {isSearching ? `检索中: "${query}"` : `已检索到 ${itemCount} 篇情报`}
                 </span>
                 {!isSearching && itemCount > 0 && (
                     <span className="ml-1 bg-white px-1.5 py-0.5 rounded text-[9px] text-blue-600 border border-blue-100 font-mono flex-shrink-0">{itemCount}</span>
@@ -91,15 +91,22 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                                     onClick={() => onClick(item)}
                                     className="p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group"
                                 >
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                        <span className="flex-shrink-0 w-4 h-4 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center justify-center font-mono border border-blue-100">
+                                    <div className="flex items-start gap-2">
+                                        <span className="flex-shrink-0 w-4 h-4 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold flex items-center justify-center font-mono border border-blue-100 mt-0.5">
                                             {idx + 1}
                                         </span>
-                                        <span className="text-[11px] font-bold text-slate-800 truncate flex-1 group-hover:text-blue-700 min-w-0 font-serif">{item.title}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-[12px] font-bold text-slate-800 leading-snug group-hover:text-blue-700 font-serif mb-1 line-clamp-2">
+                                                {item.title}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                                <span className="bg-slate-50 px-1 rounded border border-slate-100">{item.source_name}</span>
+                                                {item.publish_date && <span>{new Date(item.publish_date).toLocaleDateString()}</span>}
+                                            </div>
+                                        </div>
+                                        <ChevronRightIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-400 flex-shrink-0 mt-1" />
                                     </div>
-                                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-6 opacity-90 group-hover:opacity-100 font-serif">
-                                        {item.content}
-                                    </p>
+                                    {/* Snippet display removed as per request for cleaner UI */}
                                 </div>
                             )) : (
                                 <div className="py-3 text-center text-xs text-slate-400 italic">知识库中未找到相关内容</div>
@@ -171,8 +178,27 @@ export const AIChatPanel: React.FC<{
             const activeSessionId = await ensureSession();
             let retrievedItems: InfoItem[] = [];
             try {
-                const searchRes = await searchSemanticSegments({ query_text: currentInput, page: 1, page_size: 6, similarity_threshold: 0.3 });
-                retrievedItems = searchRes.items || [];
+                // Use grouped search to avoid duplicates
+                const searchRes = await searchSemanticGrouped({ 
+                    query_text: currentInput, 
+                    page: 1, 
+                    size: 6, 
+                    similarity_threshold: 0.3 
+                });
+                
+                // Map result to InfoItem array
+                retrievedItems = (searchRes.items || []).map((item: any) => ({
+                    id: item.article_id,
+                    title: item.title,
+                    content: item.segments ? item.segments.map((s: any) => s.content).join('\n\n') : '', // Keep content for LLM context, but UI hides it
+                    source_name: item.source_name,
+                    point_name: item.point_name,
+                    original_url: item.url,
+                    publish_date: item.publish_date,
+                    created_at: item.created_at,
+                    is_atomized: !!item.is_atomized
+                }));
+
             } catch (e) { console.error(e); }
 
             setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, retrievedItems: retrievedItems } : m));
@@ -180,10 +206,9 @@ export const AIChatPanel: React.FC<{
             setIsStreaming(true);
 
             const contextText = retrievedItems.length > 0
-                ? retrievedItems.map((item, idx) => `[资料${idx + 1}] ${item.title}: ${item.content}`).join('\n\n')
+                ? retrievedItems.map((item, idx) => `[资料${idx + 1}] ${item.title} (来源: ${item.source_name}):\n${item.content}`).join('\n\n')
                 : "（未找到直接相关资料，请基于已有知识库回答）";
 
-            // Fix: Replace undefined variable 'currentMessagePayload' with 'currentInput'
             await streamChatCompletions({
                 model: MODEL_ID,
                 messages: [

@@ -304,6 +304,25 @@ export const searchSemanticSegments = async (data: any): Promise<{ items: InfoIt
 };
 
 /**
+ * 语义检索（按文章分组）- 新增
+ * 返回结果已按文章聚合，适合Copilot引用
+ */
+export const searchSemanticGrouped = async (data: any): Promise<{ items: any[], total_articles: number }> => {
+    const payload = {
+        ...data,
+        source_id: data.source_uuid || data.source_id,
+        point_id: data.point_uuid || data.point_id
+    };
+    delete payload.source_uuid;
+    delete payload.point_uuid;
+
+    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/search/semantic/grouped`, { 
+        method: 'POST', 
+        body: JSON.stringify(payload) 
+    });
+};
+
+/**
  * 批量分组语义检索 (最新)
  * 支持同时检索多个文本，返回按检索项分组的结果
  */
