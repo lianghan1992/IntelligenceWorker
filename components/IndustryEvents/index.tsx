@@ -105,7 +105,7 @@ export const IndustryEvents: React.FC = () => {
 
     return (
         <>
-            <div className="md:p-6 p-0 min-h-full flex flex-col relative bg-gray-50">
+            <div className="md:p-6 p-0 h-full overflow-y-auto relative bg-gray-50 custom-scrollbar">
                 <div className="space-y-6 md:space-y-10 pb-20 md:pb-20">
                     <HeroSection tasks={tasks as LivestreamTask[]} onViewReport={handleTaskCardClick} />
 

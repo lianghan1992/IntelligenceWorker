@@ -10,7 +10,7 @@ import {
     SearchIcon, DocumentTextIcon, CalendarIcon, 
     SparklesIcon, CloudIcon, EyeIcon, 
     ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon,
-    ViewGridIcon
+    ViewGridIcon, FilterIcon
 } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
 
@@ -74,7 +74,7 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
 
     return (
         <section 
-            className="w-full bg-white relative overflow-hidden border-b border-slate-200"
+            className="w-full bg-white relative overflow-hidden border-b border-slate-200 flex-shrink-0"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -82,74 +82,74 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
             <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-transparent z-10 pointer-events-none"></div>
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0" style={{ backgroundImage: 'radial-gradient(#136dec 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
             
-            <div className="max-w-[1440px] mx-auto px-4 md:px-10 py-10 lg:py-16 relative z-20 w-full transition-opacity duration-500">
-                <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-center" key={currentTask.id}>
+            {/* Reduced vertical padding */}
+            <div className="max-w-[1440px] mx-auto px-4 md:px-10 py-6 lg:py-10 relative z-20 w-full transition-opacity duration-500">
+                <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-center" key={currentTask.id}>
                     {/* Text Content */}
-                    <div className="flex-1 flex flex-col gap-6 items-start z-20 max-w-2xl animate-in fade-in slide-in-from-left-4 duration-500">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600">
-                            <span className="relative flex h-2 w-2">
+                    <div className="flex-1 flex flex-col gap-4 items-start z-20 max-w-2xl animate-in fade-in slide-in-from-left-4 duration-500">
+                        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-600">
+                            <span className="relative flex h-1.5 w-1.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600"></span>
                             </span>
-                            <span className="text-xs font-bold uppercase tracking-wider">最新发布 · {new Date(currentTask.created_at).getFullYear()}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider">最新发布 · {new Date(currentTask.created_at).getFullYear()}</span>
                         </div>
-                        <div className="flex flex-col gap-3 text-left">
-                            <h1 className="text-slate-900 text-3xl md:text-5xl font-black leading-tight tracking-tight line-clamp-2" title={currentTask.file_name}>
+                        <div className="flex flex-col gap-2 text-left">
+                            <h1 className="text-slate-900 text-2xl md:text-4xl font-black leading-tight tracking-tight line-clamp-2" title={currentTask.file_name}>
                                 {currentTask.file_name.replace(/\.[^/.]+$/, "")}
                                 <br/>
                             </h1>
-                            <h2 className="text-slate-500 text-base md:text-lg font-normal leading-relaxed max-w-xl line-clamp-3">
+                            <h2 className="text-slate-500 text-sm md:text-base font-normal leading-relaxed max-w-xl line-clamp-2">
                                 {currentTask.summary || `本报告利用 AI 深度解析技术，为您提炼核心观点、数据图表及行业趋势。${currentTask.processed_pages > 0 ? `包含 ${currentTask.processed_pages} 页精读内容。` : ''}`}
                             </h2>
                         </div>
-                        <div className="flex flex-wrap gap-4 mt-4 w-full md:w-auto">
+                        <div className="flex flex-wrap gap-4 mt-2 w-full md:w-auto">
                             <button 
                                 onClick={() => onRead(currentTask)}
-                                className="flex items-center justify-center gap-2 rounded-lg h-12 px-8 bg-blue-600 hover:bg-blue-700 transition-all text-white text-base font-bold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:scale-95 w-full md:w-auto"
+                                className="flex items-center justify-center gap-2 rounded-lg h-10 px-6 bg-blue-600 hover:bg-blue-700 transition-all text-white text-sm font-bold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:scale-95 w-full md:w-auto"
                             >
-                                <EyeIcon className="w-5 h-5" />
+                                <EyeIcon className="w-4 h-4" />
                                 <span>立即阅读</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* Visual Cover */}
-                    <div className="flex-1 w-full h-[240px] sm:h-[300px] md:h-[400px] rounded-2xl overflow-hidden relative shadow-2xl shadow-slate-200 border border-white group cursor-pointer animate-in fade-in zoom-in-95 duration-500" onClick={() => onRead(currentTask)}>
+                    {/* Visual Cover - Reduced Height */}
+                    <div className="flex-1 w-full h-[200px] sm:h-[240px] md:h-[300px] rounded-2xl overflow-hidden relative shadow-2xl shadow-slate-200 border border-white group cursor-pointer animate-in fade-in zoom-in-95 duration-500" onClick={() => onRead(currentTask)}>
                         <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-transform duration-700 group-hover:scale-105 flex items-center justify-center">
                             {coverUrl ? (
                                 <img src={coverUrl} alt="Cover" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                             ) : (
                                 <div className="text-center p-8 opacity-50">
-                                    <DocumentTextIcon className="w-32 h-32 mx-auto text-slate-300 mb-4" />
-                                    <div className="text-4xl font-black text-slate-300 uppercase tracking-widest">{currentTask.file_type}</div>
+                                    <DocumentTextIcon className="w-24 h-24 mx-auto text-slate-300 mb-4" />
+                                    <div className="text-3xl font-black text-slate-300 uppercase tracking-widest">{currentTask.file_type}</div>
                                 </div>
                             )}
                         </div>
                         
                         {/* Overlay Info */}
-                        <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-md p-4 rounded-xl border border-white/50 shadow-xl max-w-[240px] hidden md:block animate-in slide-in-from-bottom-4 duration-700 delay-100">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                                    <SparklesIcon className="w-5 h-5" />
+                        <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md p-3 rounded-xl border border-white/50 shadow-xl max-w-[200px] hidden md:block animate-in slide-in-from-bottom-4 duration-700 delay-100">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600">
+                                    <SparklesIcon className="w-4 h-4" />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-xs text-slate-500 font-medium">AI 提炼知识点</span>
-                                    <span className="text-slate-900 font-bold text-lg">High Value</span>
+                                    <span className="text-[10px] text-slate-500 font-medium">AI 提炼知识点</span>
+                                    <span className="text-slate-900 font-bold text-sm">High Value</span>
                                 </div>
                             </div>
-                            <p className="text-xs text-slate-500 leading-tight">点击阅读，即刻获取结构化情报摘要</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Indicators */}
                 {safeTasks.length > 1 && (
-                    <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+                    <div className="absolute bottom-3 md:bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-30">
                         {safeTasks.map((_, idx) => (
                             <button
                                 key={idx}
                                 onClick={() => setCurrentIndex(idx)}
-                                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-6 md:w-8 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'}`}
+                                className={`h-1 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-4 md:w-6 bg-blue-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400'}`}
                             />
                         ))}
                     </div>
@@ -160,15 +160,15 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
                     <>
                         <button 
                             onClick={() => setCurrentIndex(prev => (prev - 1 + safeTasks.length) % safeTasks.length)}
-                            className="absolute left-4 md:left-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 hover:bg-white text-slate-500 hover:text-blue-600 backdrop-blur-sm border border-slate-200 shadow-sm transition-all z-30 opacity-0 group-hover:opacity-100"
+                            className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 hover:bg-white text-slate-500 hover:text-blue-600 backdrop-blur-sm border border-slate-200 shadow-sm transition-all z-30 opacity-0 group-hover:opacity-100"
                         >
-                            <ChevronLeftIcon className="w-6 h-6" />
+                            <ChevronLeftIcon className="w-5 h-5" />
                         </button>
                         <button 
                             onClick={() => setCurrentIndex(prev => (prev + 1) % safeTasks.length)}
-                            className="absolute right-4 md:right-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 hover:bg-white text-slate-500 hover:text-blue-600 backdrop-blur-sm border border-slate-200 shadow-sm transition-all z-30 opacity-0 group-hover:opacity-100"
+                            className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 hover:bg-white text-slate-500 hover:text-blue-600 backdrop-blur-sm border border-slate-200 shadow-sm transition-all z-30 opacity-0 group-hover:opacity-100"
                         >
-                            <ChevronRightIcon className="w-6 h-6" />
+                            <ChevronRightIcon className="w-5 h-5" />
                         </button>
                     </>
                  )}
@@ -314,7 +314,6 @@ export const DeepDives: React.FC = () => {
     
     // Filter States
     const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
     const [sortOption, setSortOption] = useState('newest');
     
     const [readerTask, setReaderTask] = useState<DeepInsightTask | null>(null);
@@ -356,7 +355,6 @@ export const DeepDives: React.FC = () => {
                 limit, 
                 page, 
                 category_name: selectedCategoryName || undefined, // Use name as per new API spec
-                // Light API doesn't support generic search yet in standard params, assuming keyword is for filtering logic if backend supports it.
             });
             
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
@@ -424,25 +422,28 @@ export const DeepDives: React.FC = () => {
     };
 
     return (
-        <div className="relative min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
+        <div className="relative h-full overflow-y-auto bg-[#f8fafc] font-sans text-slate-900 flex flex-col custom-scrollbar">
             
-            <main className="flex-1 flex flex-col items-center w-full">
+            <main className="flex-1 flex flex-col items-center w-full min-h-0">
                 
                 {/* 1. Hero Section (Always Visible, independent of filters) */}
                 {featuredTasks.length > 0 && <HeroSection tasks={featuredTasks} onRead={setReaderTask} />}
 
                 {/* 2. Filter Section */}
-                <section className="w-full max-w-[1440px] px-4 md:px-10 py-8" id="report-grid-section">
-                    <div className="flex flex-col gap-6">
-                        {/* Categories - Modern Pill Style */}
-                        <div className="flex flex-wrap items-center gap-3">
-                            <span className="text-slate-500 text-sm font-medium mr-2">分类标签:</span>
+                <section className="w-full max-w-[1440px] px-4 md:px-10 py-6" id="report-grid-section">
+                    <div className="flex flex-col gap-4">
+                        {/* Categories - Cleaner Pill Style */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mr-2 flex items-center gap-1">
+                                <FilterIcon className="w-4 h-4"/>
+                                Topic
+                            </span>
                             <button 
                                 onClick={() => setSelectedCategoryName(null)}
-                                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm ${
+                                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 border ${
                                     selectedCategoryName === null 
-                                    ? 'bg-slate-900 text-white shadow-md' 
-                                    : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200' 
+                                    : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600'
                                 }`}
                             >
                                 全部
@@ -453,15 +454,15 @@ export const DeepDives: React.FC = () => {
                                     <button 
                                         key={cat.id}
                                         onClick={() => setSelectedCategoryName(cat.name)}
-                                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm flex items-center gap-2 ${
+                                        className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 border flex items-center gap-2 ${
                                             isSelected 
-                                            ? 'bg-slate-900 text-white shadow-md' 
-                                            : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200' 
+                                            : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-200 hover:text-indigo-600'
                                         }`}
                                     >
                                         {cat.name}
                                         {cat.count !== undefined && (
-                                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md ${isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                                 {cat.count}
                                             </span>
                                         )}
@@ -471,7 +472,7 @@ export const DeepDives: React.FC = () => {
                         </div>
 
                         {/* Toolbar - Combined Search and Filters */}
-                        <div className="flex flex-col lg:flex-row gap-4 items-end lg:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex flex-col lg:flex-row gap-4 items-end lg:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-2">
                             <div className="flex flex-wrap gap-4 flex-1 w-full lg:w-auto">
                                 {/* Search removed as Light API doesn't support it yet effectively */}
                                 <label className="flex items-center gap-3 min-w-[200px] w-full md:w-auto">
