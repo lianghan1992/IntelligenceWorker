@@ -7,7 +7,7 @@ import {
 } from '../icons';
 import { marked } from 'marked';
 import { PPTStage, ChatMessage, PPTData, SharedGeneratorProps } from './types';
-import { streamChatCompletions } from '../../api/stratify';
+import { streamChatCompletions, getPromptDetail } from '../../api/stratify';
 import { searchSemanticBatchGrouped } from '../../api/intelligence';
 import { AGENTS } from '../../agentConfig';
 
@@ -35,7 +35,8 @@ export const tryParsePartialJson = (jsonStr: string) => {
 };
 
 // --- Constants ---
-const MODEL_ID = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; // Cost-effective model for chat
+const DEFAULT_FALLBACK_MODEL = "openrouter@xiaomi/mimo-v2-flash:free"; // Stable fallback
+const PROMPT_NAME = "report_generator_main"; // The prompt key to fetch config
 
 export const SEARCH_TOOL_DEF = {
     type: "function",
@@ -115,6 +116,31 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const scrollRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
 
+    // Dynamic Configuration
+    const [activeModel, setActiveModel] = useState<string>(DEFAULT_FALLBACK_MODEL);
+    const [systemInstruction, setSystemInstruction] = useState<string>('');
+
+    // Load Configuration
+    useEffect(() => {
+        const loadConfig = async () => {
+            try {
+                // Try to fetch configured prompt to get model settings
+                const promptConfig = await getPromptDetail(PROMPT_NAME);
+                if (promptConfig) {
+                    if (promptConfig.channel_code && promptConfig.model_id) {
+                        setActiveModel(`${promptConfig.channel_code}@${promptConfig.model_id}`);
+                    }
+                    if (promptConfig.content) {
+                        setSystemInstruction(promptConfig.content);
+                    }
+                }
+            } catch (e) {
+                console.warn("Failed to load dynamic agent config, using defaults.", e);
+            }
+        };
+        loadConfig();
+    }, []);
+
     // Auto-scroll
     useEffect(() => {
         if (scrollRef.current) {
@@ -148,27 +174,22 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             let accumulatedReasoning = '';
             let toolCallsBuffer: any[] = [];
             
-            const systemPrompt = `你是一个专业的行业研究员。
+            // Use dynamically loaded system prompt or default
+            const currentSystemPrompt = systemInstruction || `你是一个专业的行业研究员。
 当前阶段：${stage}
 已确定主题：${data.topic || '待定'}
 参考资料摘要：${data.referenceMaterials ? '已包含' : '无'}
 
 如果当前是 'collect' 阶段，请引导用户明确研究主题，或者根据用户输入的主题调用搜索工具收集信息。
-当信息收集足够时，请生成一份报告大纲（JSON格式），包含 title 和 instruction 字段。
-
-如果是 'outline' 阶段，请根据用户反馈调整大纲。
-如果是 'compose' 阶段，请根据用户对当前页面的反馈进行修改或重写。
-如果是 'finalize' 阶段，请辅助用户进行最后的润色。
-
-请保持专业、客观。`;
+当信息收集足够时，请生成一份报告大纲（JSON格式），包含 title 和 instruction 字段。`;
 
             const apiMessages = [
-                { role: 'system', content: systemPrompt },
+                { role: 'system', content: currentSystemPrompt },
                 ...newHistory.map(m => ({ role: m.role, content: m.content }))
             ];
 
             await streamChatCompletions({
-                model: MODEL_ID,
+                model: activeModel,
                 messages: apiMessages,
                 stream: true,
                 enable_billing: true,
@@ -181,12 +202,25 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 // Tool Call Handling
                 if (chunk.tool_calls) {
                     chunk.tool_calls.forEach((tc: any) => {
-                        const idx = tc.index;
+                        // Ensure we have a valid index
+                        const idx = tc.index !== undefined ? tc.index : 0;
+                        
                         if (!toolCallsBuffer[idx]) {
-                            toolCallsBuffer[idx] = { ...tc, function: { name: "", arguments: "" } };
-                        } else {
-                            if (tc.function?.name) toolCallsBuffer[idx].function.name += tc.function.name;
-                            if (tc.function?.arguments) toolCallsBuffer[idx].function.arguments += tc.function.arguments;
+                            toolCallsBuffer[idx] = { 
+                                index: idx,
+                                id: '', 
+                                type: 'function',
+                                function: { name: "", arguments: "" } 
+                            };
+                        }
+                        
+                        // Robustly update fields
+                        if (tc.id) toolCallsBuffer[idx].id = tc.id;
+                        if (tc.type) toolCallsBuffer[idx].type = tc.type;
+                        
+                        if (tc.function) {
+                            if (tc.function.name) toolCallsBuffer[idx].function.name += tc.function.name;
+                            if (tc.function.arguments) toolCallsBuffer[idx].function.arguments += tc.function.arguments;
                         }
                     });
                 }
