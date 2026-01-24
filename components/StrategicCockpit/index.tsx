@@ -73,11 +73,15 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             }
             
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
-            const items = response.items || [];
+            const rawItems = response.items || [];
+            
+            // Filter out "深度洞察报告" sources globally here to ensure list and selection are consistent
+            const items = rawItems.filter(a => a.source_name !== '深度洞察报告');
+
             setArticles(items);
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
 
-            // Desktop Auto Select First
+            // Desktop Auto Select First Valid Item
             const isDesktop = window.innerWidth >= 768;
             if (page === 1 && items.length > 0 && isDesktop) {
                 setSelectedArticle(prev => prev ? prev : items[0]);

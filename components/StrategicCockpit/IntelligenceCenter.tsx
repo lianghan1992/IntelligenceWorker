@@ -153,9 +153,6 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
         }
     };
 
-    // Filter out "深度洞察报告" sources
-    const filteredArticles = articles.filter(a => a.source_name !== '深度洞察报告');
-
     return (
         <div className="h-full flex flex-col bg-[#f8f9fa]">
             {/* Header Section */}
@@ -253,9 +250,9 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                         <p className="text-sm text-slate-600 font-bold">加载失败</p>
                         <p className="text-xs text-slate-400 mt-1">{error}</p>
                     </div>
-                ) : filteredArticles.length > 0 ? (
+                ) : articles.length > 0 ? (
                     <div className="pb-12">
-                        {filteredArticles.map((article) => (
+                        {articles.map((article) => (
                             <ArticleCard
                                 key={article.id}
                                 article={article}
