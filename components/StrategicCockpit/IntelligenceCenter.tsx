@@ -53,11 +53,11 @@ const ArticleCard: React.FC<{
                     </span>
                 )}
                 
-                {/* Refined Indicator */}
+                {/* Refined Indicator - Updated Check */}
                 {article.has_refined_content && (
                     <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-50 text-green-600 border border-green-100/50" title="AI重构内容">
                         <ShieldCheckIcon className="w-2.5 h-2.5" />
-                        AI重构
+                        AI Refined
                     </span>
                 )}
             </div>

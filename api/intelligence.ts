@@ -170,15 +170,23 @@ export const getSpiderArticles = (params: any): Promise<PaginatedResponse<Spider
     // Rename param filters
     if (apiParams.source_uuid) { apiParams.source_id = apiParams.source_uuid; delete apiParams.source_uuid; }
     if (apiParams.point_uuid) { apiParams.point_id = apiParams.point_uuid; delete apiParams.point_uuid; }
+    
+    // Map 'is_atomized' to 'has_refined_content' if needed by backend, though API doc says 'has_refined_content' is used for filtering.
+    // The previous implementation used 'is_atomized'. We should check if the backend supports 'has_refined_content' as a filter.
+    // The prompt says "has_refined_content: optional... (compatible with is_atomized)". So sending has_refined_content is safer.
+    if (apiParams.is_atomized !== undefined) {
+        apiParams.has_refined_content = apiParams.is_atomized;
+        delete apiParams.is_atomized;
+    }
 
     const query = createApiQuery(apiParams);
     return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/${query}`).then(res => ({
         items: res.items.map((a: any) => ({ 
             ...a, 
-            is_atomized: !!a.is_atomized,
+            is_atomized: !!a.is_atomized, // Keep for backward compat
             refined_title: a.refined_title,
-            has_refined_content: a.has_refined_content,
-            refined_content: a.refined_content
+            refined_content: a.refined_content,
+            has_refined_content: a.has_refined_content
         })),
         total: res.total,
         page: res.page,

@@ -10,7 +10,7 @@ interface EvidenceTrailProps {
     onBack?: () => void;
 }
 
-// Helper to unescape unicode characters in content (e.g., \u25cf -> ●)
+// Helper to unescape unicode characters in content
 const unescapeUnicode = (str: string) => {
     return str.replace(/\\u([0-9a-fA-F]{4})/gi, (match, grp) => {
         return String.fromCharCode(parseInt(grp, 16));
@@ -56,6 +56,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                         if (detail.original_url) setArticleUrl(detail.original_url);
                         
                         // Update title/content logic based on detail
+                        // Prioritize refined fields
                         const titleToUse = detail.refined_title || detail.title;
                         const contentToUse = detail.refined_content || detail.content || '';
                         
@@ -76,24 +77,19 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
         return () => { active = false; };
     }, [selectedArticle]);
     
-    const fallbackArticleHtml = useMemo(() => {
+    const renderedMarkdown = useMemo(() => {
         if (!fullContent) return '';
 
-        // Unescape potential unicode escape sequences first
+        // Unescape unicode characters
         const decodedContent = unescapeUnicode(fullContent);
 
         try {
-            const markdownWithStyledImages = decodedContent.replace(
-                /!\[(.*?)\]\((.*?)\)/g,
-                '<figure class="my-8"><img src="$2" alt="$1" class="rounded-xl w-full object-cover shadow-md border border-slate-100"><figcaption class="text-center text-xs text-slate-400 mt-2 italic">$1</figcaption></figure>'
-            );
-            return marked.parse(markdownWithStyledImages) as string;
+            // Use marked to parse markdown
+            // Basic sanitization should be handled by marked or a separate library if untrusted input
+            return marked.parse(decodedContent) as string;
         } catch (e) {
-             const escapedContent = decodedContent
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;");
-            return escapedContent.split('\n').map(p => `<p>${p}</p>`).join('');
+             // Fallback for simple text display if parsing fails
+             return `<p>${decodedContent}</p>`;
         }
     }, [fullContent]);
 
@@ -112,9 +108,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
     }
 
     return (
-        <aside className="h-full flex flex-col bg-white overflow-hidden relative shadow-xl z-30">
+        <aside className="h-full flex flex-col bg-white overflow-hidden relative shadow-xl z-30 font-serif">
+             {/* Note: font-serif applied to container for heritage feel */}
+             
             {/* Header - Modern & Clean */}
-            <div className="flex-shrink-0 border-b border-slate-100 bg-white z-20">
+            <div className="flex-shrink-0 border-b border-slate-100 bg-white z-20 font-sans">
                 <div className="px-4 py-4 md:px-6 md:py-5 flex gap-3">
                     {/* Mobile Back Button */}
                     {onBack && (
@@ -128,10 +126,10 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                     
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2 text-xs">
-                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md uppercase tracking-wide">
+                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md uppercase tracking-wide font-sans">
                                 {selectedArticle.source_name}
                             </span>
-                            <span className="text-slate-400 flex items-center gap-1 font-medium">
+                            <span className="text-slate-400 flex items-center gap-1 font-medium font-sans">
                                 <ClockIcon className="w-3.5 h-3.5" />
                                 {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric'})}
                             </span>
@@ -139,19 +137,19 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                             {isRefined && (
                                 <div className="flex items-center gap-1 text-green-600 font-bold ml-auto" title="内容已由AI重构，规避版权风险">
                                     <ShieldCheckIcon className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] uppercase tracking-wider">AI Refined</span>
+                                    <span className="text-[10px] uppercase tracking-wider font-sans">AI Refined</span>
                                 </div>
                             )}
                         </div>
                         
-                        <h3 className="font-extrabold text-slate-900 text-lg md:text-xl md:text-2xl leading-tight line-clamp-2 md:line-clamp-none">
+                        <h3 className="font-extrabold text-slate-900 text-lg md:text-xl md:text-2xl leading-tight line-clamp-3 md:line-clamp-none font-serif tracking-tight">
                             {displayTitle}
                         </h3>
                     </div>
                 </div>
 
                 {/* Toolbar */}
-                <div className="px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+                <div className="px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-end font-sans">
                     {articleUrl ? (
                         <a 
                             href={articleUrl} 
@@ -170,24 +168,31 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
             {/* Content Area */}
             <div className="flex-1 bg-white overflow-hidden relative">
                 {isContentLoading ? (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3 font-sans">
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                         <p className="text-sm font-medium animate-pulse">正在加载深度内容...</p>
                     </div>
                 ) : (
                     <div className="h-full overflow-y-auto p-6 md:px-10 md:py-8 custom-scrollbar bg-white scroll-smooth">
                         <article 
-                            className="prose prose-sm md:prose-base prose-slate max-w-none 
-                                prose-headings:font-black prose-headings:tracking-tight prose-headings:text-slate-900
-                                prose-p:text-slate-600 prose-p:leading-loose prose-p:mb-6
-                                prose-a:text-indigo-600 prose-a:font-bold prose-a:no-underline hover:prose-a:underline
-                                prose-strong:text-slate-800 prose-strong:font-bold
+                            className="
+                                prose prose-base md:prose-lg max-w-none 
+                                text-[#1a202c] 
+                                font-serif 
+                                leading-loose 
+                                tracking-normal
+                                prose-headings:font-bold prose-headings:text-slate-900 prose-headings:font-sans
+                                prose-p:mb-6 prose-p:leading-[2]
+                                prose-li:leading-[1.8]
+                                prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
+                                prose-strong:font-bold prose-strong:text-slate-900
                                 prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8
-                                prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 prose-blockquote:bg-slate-50 prose-blockquote:px-6 prose-blockquote:py-4 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-blockquote:text-slate-700
-                                prose-li:text-slate-600"
-                            dangerouslySetInnerHTML={{ __html: fallbackArticleHtml }}
+                                prose-blockquote:border-l-4 prose-blockquote:border-slate-200 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-slate-500
+                            "
+                            style={{ fontFamily: '"Songti SC", "STSong", "SimSun", "Times New Roman", serif' }}
+                            dangerouslySetInnerHTML={{ __html: renderedMarkdown }}
                         />
-                         <div className="mt-12 pt-8 border-t border-slate-100 text-center text-xs text-slate-300 pb-8">
+                         <div className="mt-12 pt-8 border-t border-slate-100 text-center text-xs text-slate-300 pb-8 font-sans">
                             — END OF DOCUMENT —
                         </div>
                     </div>

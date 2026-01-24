@@ -44,8 +44,10 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
     }, [articleUuid]);
 
     const contentHtml = useMemo(() => {
-        // Prefer refined content
-        const rawContent = article?.refined_content || article?.content || '';
+        if (!article) return '';
+        
+        // Prioritize refined content
+        const rawContent = article.refined_content || article.content || '';
         if (!rawContent) return '';
         
         const decodedContent = unescapeUnicode(rawContent);
@@ -66,10 +68,10 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
         const isRefined = !!article.refined_content;
 
         return (
-            <div className="flex flex-col h-full">
-                <div className="p-6 border-b bg-white flex justify-between items-start">
+            <div className="flex flex-col h-full bg-white font-serif">
+                <div className="p-6 border-b bg-white flex justify-between items-start font-sans">
                     <div className="pr-8">
-                        <h2 className="text-xl font-bold text-gray-900 leading-snug">{displayTitle}</h2>
+                        <h2 className="text-xl font-bold text-gray-900 leading-snug font-serif tracking-tight">{displayTitle}</h2>
                         <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-gray-500">
                             {article.publish_date && (
                                 <span className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
@@ -94,8 +96,24 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
                     </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-8 bg-white">
-                    <article className="prose prose-sm md:prose-base max-w-none text-slate-800" dangerouslySetInnerHTML={{ __html: contentHtml }} />
+                <div className="flex-1 overflow-y-auto p-8 bg-white custom-scrollbar">
+                    <article 
+                        className="
+                            prose prose-base md:prose-lg max-w-none 
+                            text-[#1a202c] 
+                            font-serif 
+                            leading-loose 
+                            tracking-normal
+                            prose-headings:font-bold prose-headings:text-slate-900 prose-headings:font-sans
+                            prose-p:mb-6 prose-p:leading-[2]
+                            prose-li:leading-[1.8]
+                            prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
+                            prose-strong:font-bold prose-strong:text-slate-900
+                            prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8
+                        "
+                        style={{ fontFamily: '"Songti SC", "STSong", "SimSun", "Times New Roman", serif' }}
+                        dangerouslySetInnerHTML={{ __html: contentHtml }} 
+                    />
                 </div>
             </div>
         );
@@ -103,7 +121,7 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
 
     // Removed bg-black/50 backdrop-blur-sm, kept positioning and centering.
     return (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 animate-in fade-in zoom-in-95 pointer-events-none">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 animate-in fade-in zoom-in-95 pointer-events-none bg-black/50 backdrop-blur-sm">
             <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] shadow-2xl overflow-hidden flex flex-col pointer-events-auto border border-gray-200">
                 {renderContent()}
             </div>
