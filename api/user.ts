@@ -4,7 +4,7 @@ import {
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
     PaymentStatusResponse, QuotaConfig, ModelPricing,
-    AdminTransaction, PaymentOrder, RefundOrder, RefundBatchResponse
+    AdminTransaction, PaymentOrder, RefundApplyResponse, RefundOrder
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -128,21 +128,53 @@ export const checkPaymentStatus = (orderNo: string): Promise<PaymentStatusRespon
 
 // --- Refund APIs ---
 
-export const getUserRefunds = (params: any): Promise<PaginatedResponse<RefundOrder>> => {
+export const applyRefund = (amount?: number, reason?: string): Promise<RefundApplyResponse> =>
+    apiFetch<RefundApplyResponse>(`${USER_SERVICE_PATH}/wallet/refund/apply`, {
+        method: 'POST',
+        body: JSON.stringify({ amount, reason })
+    });
+
+export const getMyRefunds = async (params: any = {}): Promise<PaginatedResponse<RefundOrder>> => {
     const query = createApiQuery(params);
-    return apiFetch(`${USER_SERVICE_PATH}/wallet/refunds${query}`);
-}
+    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/wallet/refunds${query}`);
+    return {
+        items: response.items || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        limit: response.limit || response.size || 20,
+        totalPages: response.totalPages || response.total_pages || 1
+    };
+};
 
-export const applyRefund = (data: { amount?: number; reason: string }): Promise<RefundBatchResponse> =>
-    apiFetch(`${USER_SERVICE_PATH}/wallet/refund/apply`, { method: 'POST', body: JSON.stringify(data) });
+export const getAdminRefunds = async (params: any = {}): Promise<PaginatedResponse<RefundOrder>> => {
+    const apiParams = { ...params };
+    if (apiParams.limit) {
+        apiParams.size = apiParams.limit;
+        delete apiParams.limit;
+    }
+    const query = createApiQuery(apiParams);
+    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/refunds${query}`);
+    return {
+        items: response.items || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        limit: response.limit || response.size || 20,
+        totalPages: response.totalPages || response.total_pages || 1
+    };
+};
 
-export const getAdminRefunds = (params: any): Promise<PaginatedResponse<RefundOrder>> => {
-    const query = createApiQuery(params);
-    return apiFetch(`${USER_SERVICE_PATH}/admin/refunds${query}`);
-}
+export const adminCreateRefund = (data: { user_id: string; amount: number; reason: string }): Promise<RefundApplyResponse> =>
+    apiFetch<RefundApplyResponse>(`${USER_SERVICE_PATH}/admin/refund/create`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
 
-export const reviewRefund = (refund_no: string, data: { action: 'approve' | 'reject'; reason?: string }): Promise<void> =>
-    apiFetch(`${USER_SERVICE_PATH}/admin/refund/${refund_no}/review`, { method: 'POST', body: JSON.stringify(data) });
+export const adminReviewRefund = (refundNo: string, action: 'approve' | 'reject', reason?: string): Promise<void> =>
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/refund/${refundNo}/review`, {
+        method: 'POST',
+        body: JSON.stringify({ action, reason })
+    });
+
 
 // --- Quota Management (Admin) ---
 export const getQuotaConfigs = (): Promise<QuotaConfig[]> => 
