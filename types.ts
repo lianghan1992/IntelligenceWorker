@@ -1,102 +1,251 @@
 
+export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'marketplace' | 'admin';
+
 export interface User {
     id: string;
     username: string;
     email: string;
-    role?: string;
-    plan_name?: string;
-    status?: string;
-    created_at: string;
+    plan_name: string;
+    status: string;
     source_subscription_count?: number;
     poi_count?: number;
+    created_at: string;
 }
 
-export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'marketplace' | 'admin';
+// --- Common Search Types ---
+export interface CommonSearchItem {
+    title: string;
+    href: string;
+    body: string;
+}
+
+export interface CommonSearchStatus {
+    queue_length: number;
+    max_concurrent: number;
+    proxy_enabled: boolean;
+}
+
+export interface CommonSearchResponse {
+    items: CommonSearchItem[];
+    meta: CommonSearchStatus;
+}
 
 export interface SystemSource {
     id: string;
     source_name: string;
     source_type?: string;
-    points_count?: number;
+    points_count: number;
     articles_count?: number;
 }
 
+export interface PlanConfig {
+    name: string;
+    price?: number;
+    max_sources?: number;
+    max_pois?: number;
+    features?: string[];
+}
+
 export interface PlanDetails {
-    [key: string]: {
-        name: string;
-        max_sources?: number;
-        max_pois?: number;
-    }
+    [key: string]: PlanConfig;
+}
+
+export interface QuotaItem {
+    resource_key: string;
+    usage_count: number;
+    limit_value: number; // -1 for unlimited
+    period_end?: string;
+    allow_overage: boolean;
+}
+
+export interface QuotaConfig {
+    id?: string;
+    plan_type: string;
+    resource_key: string;
+    limit_value: number;
+    period: 'monthly' | 'daily' | 'total';
+    allow_overage: boolean;
+    overage_unit_price: number;
+    overage_strategy?: 'unit_price' | 'external_pricing'; // New field
+    remark?: string; // New field
+}
+
+export interface WalletBalance {
+    balance: number;
+    currency?: string; 
+    plan_name?: string;      // New from API update
+    remaining_balance?: number; // New from API update
+}
+
+// New Interface for Wallet Transactions based on documentation
+export interface WalletTransaction {
+    id: string;
+    amount: number;
+    balance_after: number;
+    transaction_type: string; // e.g., 'ai_consumption', 'recharge', 'gift', 'refund'
+    description: string;
+    created_at: string;
+    meta_data: string | null; // JSON string containing details like model, tokens, etc.
+}
+
+// Admin view of transaction extends basic transaction with user info
+export interface AdminTransaction {
+    id: string;
+    user_id: string;
+    amount: number;
+    balance_after: number;
+    transaction_type: string;
+    description: string;
+    created_at: string;
+    meta_data: string | null;
+}
+
+export interface PaymentOrder {
+    order_no: string;
+    amount: number;
+    gateway: string;
+    status: 'paid' | 'pending' | 'failed' | 'cancelled';
+    external_order_no?: string;
+    qr_code_url?: string;
+    user_id: string;
+    username?: string; // Optional enriched data
+    created_at: string;
+    paid_at?: string;
+}
+
+export interface RechargeResponse {
+    order_no: string;
+    pay_url?: string;
+    qr_code_url?: string;
+    message: string;
+}
+
+export interface PaymentStatusResponse {
+    status: 'paid' | 'pending' | 'failed' | 'cancelled';
+    remote_status?: string;
+    order?: any;
+}
+
+// --- Refund Types ---
+export interface RefundOrder {
+    refund_no: string;
+    original_order_no: string;
+    user_id: string;
+    username?: string;
+    email?: string;
+    amount: number;
+    status: 'pending' | 'processing' | 'success' | 'failed' | 'rejected';
+    reason: string;
+    admin_reason?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface RefundableBalance {
+    refundable_amount: number;
+    current_balance: number;
+    history_recharge_limit: number;
+}
+
+// --- New Billing Types ---
+export interface BillItem {
+    id: string;
+    user_id: string;
+    username?: string;
+    email?: string;
+    bill_type: 'recharge' | 'consumption' | 'subscription' | 'refund';
+    channel: string; // payapi, balance, manual
+    gateway?: string; // manual, alipay, wechat
+    amount: number;
+    currency: string;
+    status: 'pending' | 'paid' | 'failed' | 'cancelled' | 'refunded';
+    order_no: string;
+    external_order_no?: string;
+    description?: string;
+    created_at: string;
+    paid_at?: string;
+}
+
+export interface BillStats {
+    total_count: number;
+    total_amount: number;
+    by_type: Array<{ key: string; count: number; amount: number }>;
+    by_status: Array<{ key: string; count: number; amount: number }>;
+    by_channel: Array<{ key: string; count: number; amount: number }>;
+    by_day: Array<{ day: string; count: number; amount: number }>;
+}
+
+export interface UserBillSummary {
+    user_id: string;
+    username: string;
+    email: string;
+    bills_count: number;
+    total_amount: number;
+    recharge_amount: number;
+    consumption_amount: number;
+    subscription_amount: number;
+    refund_amount: number;
+    last_bill_at?: string;
 }
 
 export interface DeepDive {
     id: string;
     title: string;
-    summary?: string;
-    cover_image?: string;
-    created_at: string;
-    file_type: string;
-    file_size?: number;
 }
 
 export interface RecommendedSubscription {
     id: string;
     name: string;
-    description: string;
 }
 
 export interface LivestreamTask {
     id: string;
     task_name: string;
     company: string;
-    live_url: string;
-    start_time: string;
     status: string;
-    summary_prompt?: string;
+    start_time: string;
+    live_url: string;
     cover_image_b64?: string;
-    stats_json?: any;
-    created_at?: string;
+    stats_json?: string | any;
+    summary_prompt?: string;
+    created_at: string;
 }
 
-export type AdminView = 'users' | 'model_management' | 'events' | 'intelligence' | 'competitiveness' | 'stratify_ai' | 'deep_insight' | 'html_design';
-
 export interface LivestreamPrompt {
-    id: string;
     name: string;
     content: string;
 }
 
+export interface PaginatedResponse<T> {
+    items: T[];
+    total: number;
+    page: number;
+    limit: number; // Frontend uses 'limit', mapped from 'size'
+    totalPages: number;
+}
+
 export interface IntelligencePointPublic {
-    id: string;
-    uuid: string; // compatibility
-    source_id: string;
-    source_uuid?: string;
+    id: string; // Standardized
+    source_id: string; // Standardized
     source_name: string;
     name: string;
-    point_name?: string;
     url: string;
-    point_url?: string;
+    point_name: string;
+    point_url: string;
     cron_schedule: string;
     is_active: boolean;
-    url_filters?: string[];
-    extra_hint?: string;
+    url_filters: string[];
+    extra_hint: string;
     created_at: string;
     updated_at: string;
     status: string;
-    initial_pages: number;
+    max_depth?: number;
+    initial_pages?: number;
     total_articles?: number;
-    
-    // Generic point specific
-    last_crawled_at?: string;
-    list_hint?: string;
-    list_filters?: string[];
-    mode?: string;
-    type?: string;
 }
 
 export interface IntelligenceSourcePublic {
-    id: string;
-    uuid: string;
+    id: string; // Standardized
     name: string;
     source_name: string;
     main_url: string;
@@ -116,8 +265,8 @@ export interface Subscription {
     point_url: string;
     cron_schedule: string;
     is_active: boolean;
-    url_filters?: string[];
-    extra_hint?: string;
+    url_filters: string[];
+    extra_hint: string;
 }
 
 export interface InfoItem {
@@ -132,289 +281,121 @@ export interface InfoItem {
     original_url: string;
     publish_date?: string;
     created_at: string;
-    is_atomized: boolean;
-    tags?: string;
     similarity?: number;
+    is_atomized?: boolean;
 }
 
-export interface ArticlePublic extends InfoItem {}
+export interface ArticlePublic extends InfoItem {
+    point_name: string;
+    tags?: string;
+}
 
 export interface UserListItem {
     id: string;
     username: string;
     email: string;
-    plan_name?: string;
+    plan_name: string;
     status: string;
+    source_subscription_count: number;
+    poi_count: number;
     created_at: string;
-    source_subscription_count?: number;
-    poi_count?: number;
 }
 
 export interface UserForAdminUpdate {
-    username?: string;
-    email?: string;
-    plan_name?: string;
-    status?: string;
+    username: string;
+    email: string;
+    plan_name: string;
+    status: string;
+    
 }
 
 export interface UserProfileDetails {
-    intelligence_sources: { items: any[] }; // simplified
-    points_of_interest: { items: ApiPoi[] };
+    intelligence_sources: { items: any[] };
+    points_of_interest: { items: any[] };
 }
 
 export interface ApiPoi {
     id: string;
     content: string;
-    keywords?: string;
-}
-
-export interface PaymentStatusResponse {
-    status: 'paid' | 'pending' | 'failed' | 'expired';
-}
-
-export interface RefundableBalanceResponse {
-    refundable_amount: number;
-    current_balance: number;
-    history_recharge_limit: number;
-}
-
-export interface RefundOrder {
-    refund_no: string;
-    original_order_no?: string;
-    amount: number;
-    status: 'pending' | 'processing' | 'success' | 'failed' | 'rejected';
-    reason: string;
-    created_at: string;
-    user_id?: string;
-    username?: string;
-}
-
-export interface RefundApplyResponse {
-    total_amount?: number;
-    refund_orders?: RefundOrder[];
-}
-
-export interface PaginatedResponse<T> {
-    items: T[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+    keywords: string;
 }
 
 export interface SpiderSource {
-    id: string;
+    id: string; // Standardized from uuid
     name: string;
     main_url: string;
-    total_points?: number;
-    total_articles?: number;
+    total_points: number;
+    total_articles: number;
     created_at?: string;
 }
 
 export interface SpiderPoint {
-    id: string;
-    source_id: string;
+    id: string; // Standardized from uuid
     name: string;
     url: string;
     cron_schedule: string;
     is_active: boolean;
-    initial_pages: number;
-    total_articles?: number;
     last_crawled_at?: string;
-    
-    // Generic
+    initial_pages?: number;
+    source_id: string; // Standardized from source_uuid
+    source_name: string;
+    total_articles?: number;
+    // For generic mode
+    list_hint?: string;
+    list_filters?: string[];
     mode?: string;
     type?: string;
-    list_hint?: string;
-    extra_hint?: string;
-    list_filters?: string[];
-    url_filters?: string[];
 }
 
 export interface SpiderArticle {
-    id: string;
+    id: string; // Standardized from uuid
     title: string;
     refined_title?: string;
-    content?: string;
+    content: string;
     refined_content?: string;
     has_refined_content?: boolean;
+    url: string;
     source_name: string;
-    point_name?: string;
-    url: string; // original_url in mapped types
-    original_url?: string;
+    point_name: string;
     publish_date?: string;
     created_at: string;
     is_atomized?: boolean;
     tags?: string;
+    original_url?: string;
 }
 
-export interface SearchChunkResult {
-    article_id: string;
-    chunk_text: string;
-    similarity_score: number;
-    article_title: string;
-    article_url: string;
-    article_publish_date?: string;
-    source_name: string;
-}
-
-export interface LlmSearchTaskItem {
-    id: string;
-    prompt_text: string;
-    created_at: string;
-    processed_count: number;
-    matched_count: number;
-}
-
-export interface GenericPoint extends IntelligencePointPublic {
-    // Already defined in IntelligencePointPublic via intersection or just mapping in code
-    // Assuming mapping happens in component, GenericPoint just needs to be compatible
-    last_crawled_at?: string;
-    list_hint?: string;
-    list_filters?: string[];
-}
-
-export interface GenericTask {
-    id: string;
-    source_name: string;
-    point_name: string;
-    url: string;
-    task_type: string;
-    stage: string;
-    detail_info: string;
-    start_time: string;
-    end_time?: string;
-    created_at: string;
+export interface SpiderTaskTriggerResponse {
+    message: string;
+    id?: string;
 }
 
 export interface PendingArticle {
     id: string;
     title: string;
-    content?: string;
+    content: string;
     source_name: string;
     point_name: string;
     original_url: string;
-    status: 'pending' | 'rejected' | 'approved';
+    status: string;
     created_at: string;
     publish_date?: string;
 }
 
-export interface IntelligenceTaskPublic {
-    id: string;
+export interface PendingArticlePublic extends PendingArticle {}
+
+export interface SpiderTask {
+    id: string; // Standardized from uuid
+    url: string;
     task_type: string;
-    source_name?: string;
-    point_name?: string;
-    url?: string;
     status: string;
     error_message?: string;
+    created_at: string;
     start_time?: string;
     end_time?: string;
-    created_at: string;
-    articles_collected?: number;
     page_number?: number;
-}
-
-export interface SpiderTask extends IntelligenceTaskPublic {}
-
-export interface IntelLlmTask {
-    id: string;
-    description: string;
-    time_range?: string;
-    status: 'pending' | 'analyzing' | 'completed' | 'failed';
-    progress: number;
-    created_at: string;
-}
-
-export interface AnalysisTemplate {
-    uuid: string;
-    name: string;
-    prompt_template: string;
-    output_schema?: any;
-    target_model?: string;
-    is_active: boolean;
-}
-
-export interface AnalysisResult {
-    uuid: string;
-    template_name: string;
-    username: string;
-    article_uuid: string;
-    article_title?: string;
-    result_json: any;
-    result?: any;
-    status: string;
-    created_at: string;
-    completed_at?: string;
-    duration?: string;
-    model_used?: string;
-}
-
-export interface UploadedDocument {
-    uuid: string;
-    original_filename: string;
-    file_size: number;
-    page_count: number;
-    mime_type?: string;
-    status: string;
-    process_stage?: string;
-    process_progress?: number;
-    error_message?: string;
-    point_uuid?: string;
+    articles_collected?: number;
+    source_name?: string;
     point_name?: string;
-    created_at: string;
-    updated_at?: string;
-    summary?: string;
-    cover_image?: string;
-    publish_date?: string;
-}
-
-export interface DocTag {
-    uuid: string;
-    name: string;
-    doc_count: number;
-    created_at: string;
-}
-
-export interface SpiderProxy {
-    url: string;
-    enabled: boolean;
-    latency_ms?: number;
-    note?: string;
-}
-
-export interface DeepInsightCategory {
-    id: string;
-    name: string;
-    created_at: string;
-}
-
-export interface DeepInsightTask {
-    id: string;
-    file_name: string;
-    file_type: string;
-    file_size: number;
-    status: string;
-    total_pages: number;
-    processed_pages: number;
-    category_id?: string;
-    category_name?: string;
-    created_at: string;
-    updated_at: string;
-    summary?: string;
-    cover_image?: string;
-    // For light list compatibility
-    category_name?: string;
-}
-
-export interface DeepInsightPagesResponse {
-    items: DeepInsightPage[];
-    total: number;
-}
-
-export interface DeepInsightPage {
-    id: string;
-    page_index: number;
-    status: string;
 }
 
 export interface SpiderTaskCounts {
@@ -424,8 +405,105 @@ export interface SpiderTaskCounts {
     error: number;
 }
 
-export interface SpiderTaskTypeCounts {
-    [key: string]: number;
+export type SpiderTaskTypeCounts = Record<string, number>;
+
+export interface SpiderProxy {
+    url: string;
+    enabled: boolean;
+    latency_ms?: number;
+    note?: string;
+}
+
+export interface SemanticSearchRequest {
+    query_text: string;
+    page?: number;
+    page_size?: number;
+    similarity_threshold?: number;
+    max_segments?: number;
+    source_id?: string;
+    point_id?: string;
+    start_date?: string;
+    end_date?: string;
+}
+
+export interface SemanticSearchResponse {
+    items: any[];
+    total_segments: number;
+}
+
+export interface CreateIntelLlmTaskRequest {
+    user_id: string;
+    description: string;
+    time_range?: string;
+    source_ids?: string[];
+    need_summary?: boolean;
+}
+
+export interface IntelLlmTask {
+    id: string;
+    description: string;
+    status: string;
+    progress: number;
+    created_at: string;
+    time_range?: string;
+}
+
+export interface IntelligenceTaskPublic extends SpiderTask {
+    source_name?: string;
+    point_name?: string;
+}
+
+export interface DeepInsightTask {
+    id: string;
+    file_name: string;
+    file_type: string;
+    file_size?: number;
+    status: string;
+    total_pages: number;
+    processed_pages: number;
+    category_id?: string;
+    category_name?: string; // New field for display
+    summary?: string;
+    cover_image?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface DeepInsightCategory {
+    id: string;
+    name: string;
+    created_at: string;
+    count?: number; // Added count field
+}
+
+export interface TaskPhase {
+    status: string;
+    content?: string;
+}
+
+export interface StratifyTask {
+    id: string;
+    input_text: string;
+    scenario_name: string;
+    session_id: string;
+    status: string;
+    created_at: string;
+    result?: { phases: Record<string, TaskPhase> };
+    context?: any;
+}
+
+export interface Scenario {
+    name: string;
+    title?: string;
+    description?: string;
+}
+
+export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self';
+
+export interface TechDimensionCategory {
+    key: string;
+    label: string;
+    subDimensions: Array<{ key: string; label: string }>;
 }
 
 export interface VehicleTechSpec {
@@ -434,14 +512,14 @@ export interface VehicleTechSpec {
     brand: string;
     model: string;
     year: number;
-    platform?: string;
-    specs: Record<string, any>;
+    platform: string;
+    specs: Record<string, Record<string, string | SpecDetail | null>>;
 }
 
 export interface SpecDetail {
     value: string;
     supplier?: string;
-    details?: any;
+    details?: Record<string, any>;
 }
 
 export type ComparisonMode = 'forecast' | 'competitor' | 'brand' | 'evolution' | 'tech' | 'supply_chain';
@@ -460,12 +538,6 @@ export interface NewTechForecast {
     sourceUrl: string;
 }
 
-export interface TechDimensionCategory {
-    key: string;
-    label: string;
-    subDimensions: { key: string; label: string }[];
-}
-
 export interface TechAnalysisTask {
     id: string;
     status: string;
@@ -473,38 +545,26 @@ export interface TechAnalysisTask {
 
 export interface TechItem {
     id: string;
-    vehicle_brand: string;
-    tech_dimension: string;
-    secondary_tech_dimension?: string;
     name: string;
+    vehicle_brand: string;
+    vehicle_model: string;
+    tech_dimension: string;
+    secondary_tech_dimension: string;
     description: string;
     reliability: number;
-    created_at: string;
     updated_at: string;
+    created_at: string;
     history?: TechItemHistory[];
-    
-    // Front-end extra props
-    field?: string;
-    status?: string; // used for application status in UI
-    original_url?: string;
-    sourceArticleTitle?: string;
-    isSelected?: boolean;
-    analysisState?: 'idle' | 'analyzing' | 'generating_html' | 'done' | 'error' | 'review';
-    markdownContent?: string;
-    markdownDetail?: string;
-    htmlContent?: string;
-    htmlCode?: string;
-    logs?: string[];
-    usedModel?: string;
+    is_reviewed?: boolean;
 }
 
 export interface TechItemHistory {
     id: string;
+    article_id?: string;
     event_time: string;
     change_type: string;
     description_snapshot: string;
     reliability_snapshot: number;
-    article_id?: string;
 }
 
 export interface CompetitivenessStatus {
@@ -523,53 +583,142 @@ export interface CompetitivenessDimension {
 export interface DataQueryResponse<T> {
     data: T[];
     total: number;
-    page: number;
-    size: number;
 }
 
 export interface VehicleTechnologyFinding {
     id: string;
     entity_name: string;
     technology_name: string;
-    application_area?: string;
-    maturity_level?: string;
-    event_date?: string;
+    application_area: string;
+    maturity_level: string;
+    event_date: string;
     updated_at: string;
 }
 
 export interface MarketAnalysisFinding {
     id: string;
     entity_name: string;
-    revenue?: number;
-    growth_rate?: number;
-    market_share?: number;
-    event_date?: string;
+    revenue: number;
+    growth_rate: number;
+    market_share: number;
+    event_date: string;
     updated_at: string;
+}
+
+export interface SearchChunkResult {
+    article_id: string;
+    article_title: string;
+    article_url: string;
+    source_name: string;
+    article_publish_date?: string;
+    similarity_score: number;
+    chunk_text: string;
+}
+
+export interface DocumentTask {
+    id: string;
+    original_filename: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    file_size: number;
+    total_pages: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PaginatedDocumentsResponse {
+    items: DocumentTask[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
 }
 
 export interface LlmSearchRequest {
     query_text: string;
 }
 
-export interface DocumentTask {
+export interface LlmSearchTaskItem {
     id: string;
-    status: string;
-    // ... other fields if needed for documentProcessing.ts
+    prompt_text: string;
+    created_at: string;
+    processed_count: number;
+    matched_count: number;
 }
 
-export interface PaginatedDocumentsResponse extends PaginatedResponse<DocumentTask> {} // Or UploadedDocument
-
-export interface StratifyTask {
+export interface DeepInsightPage {
     id: string;
-    scenario_name: string;
-    input_text: string;
+    page_index: number;
     status: string;
-    created_at: string;
+}
+
+export interface DeepInsightPagesResponse {
+    items: DeepInsightPage[];
+    total: number;
+}
+
+export interface StratifyPage {
+    page_index: number;
+    title: string;
+    content_markdown: string;
+    html_content: string | null;
+    status: 'pending' | 'generating' | 'done' | 'failed';
+}
+
+export interface StratifyOutline {
+    title: string;
+    pages: Array<{ title: string; content: string }>;
 }
 
 export interface GenerateStreamParams {
-    prompt: string;
-    // legacy
+    prompt_name?: string;
+    variables?: any;
+    scenario?: string;
+    task_id?: string;
+    phase_name?: string;
+    session_id?: string;
+    model_override?: string;
+    model?: string;
+    messages?: Array<{role: string, content: string}>;
+    stream?: boolean;
+    temperature?: number;
+}
+
+// Updated AdminView type: Removed common_search, added model_management
+export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'deep_insight' | 'stratify_ai' | 'html_design' | 'model_management';
+
+export interface WorkflowVariable {
+    name: string;
+    label: string;
+    type: 'text' | 'textarea' | 'select' | 'file' | 'boolean';
+    required?: boolean;
+    default?: any;
+    options?: string[]; // for select
+    placeholder?: string;
+}
+
+export interface WorkflowStep {
+    id: string;
+    name: string;
+    type: 'generation' | 'user_input' | 'approval';
+    condition?: string;
+    depends_on?: string[];
+    llm_config?: {
+        channel_code?: string;
+        model?: string;
+        temperature?: number;
+    };
+    prompt_id?: string;
+    input_mapping?: Record<string, string>;
+    ui?: {
+        component?: string; // ChatBox, MarkdownEditor, Preview
+        editable?: boolean;
+        actions?: string[]; // regenerate, chat
+    };
+}
+
+export interface WorkflowConfig {
+    variables: WorkflowVariable[];
+    steps: WorkflowStep[];
 }
 
 export interface StratifyScenario {
@@ -577,8 +726,25 @@ export interface StratifyScenario {
     name: string;
     title: string;
     description: string;
+    default_model?: string; // Kept for legacy compatibility if needed
     channel_code?: string;
     model_id?: string;
+    workflow_config?: WorkflowConfig; 
+    created_at: string;
+    updated_at: string;
+}
+
+export interface StratifyPrompt {
+    id: string;
+    name: string;
+    scenario_id?: string; // Link to scenario
+    description?: string;
+    content: string;
+    variables?: string[];
+    channel_code?: string;
+    model_id?: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface StratifyScenarioFile {
@@ -586,6 +752,7 @@ export interface StratifyScenarioFile {
     name: string;
     content: string;
     model?: string;
+    updated_at: string;
 }
 
 export interface StratifyQueueStatus {
@@ -594,32 +761,114 @@ export interface StratifyQueueStatus {
     completed_last_24h: number;
 }
 
+export interface GenericPoint extends SpiderPoint {
+    id: string;
+    list_hint?: string;
+    list_filters?: string[];
+}
+
+export interface GenericTask {
+    id: string;
+    source_name: string;
+    point_name: string;
+    url: string;
+    task_type: string;
+    stage: string;
+    detail_info: string;
+    start_time: string;
+    end_time: string;
+    created_at: string;
+}
+
+export interface AnalysisTemplate {
+    uuid: string;
+    user_uuid: string;
+    name: string;
+    prompt_template: string;
+    output_schema: Record<string, any>;
+    target_model: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CreateAnalysisTemplateRequest {
+    user_uuid: string;
+    name: string;
+    prompt_template: string;
+    output_schema: Record<string, any>;
+    target_model?: string;
+    is_active?: boolean;
+}
+
+export interface AnalysisResult {
+    uuid: string;
+    article_uuid: string;
+    status: string;
+    result: Record<string, any>;
+    created_at: string;
+    
+    // Enriched fields
+    article_title?: string;
+    template_name?: string;
+    username?: string;
+    model_used?: string;
+    completed_at?: string;
+    duration?: string;
+    result_json?: Record<string, any>;
+}
+
+export interface UploadedDocument {
+    uuid: string;
+    original_filename: string;
+    title?: string;
+    file_size: number;
+    mime_type: string;
+    page_count: number;
+    download_count: number;
+    view_count: number;
+    publish_date: string;
+    created_at: string;
+    point_name: string;
+    point_uuid?: string;
+    source_name?: string;
+    
+    // Status fields
+    status: string;
+    process_stage?: string;
+    process_progress?: number;
+    error_message?: string | null;
+    
+    // Enhanced fields
+    summary?: string;
+    cover_image?: string;
+}
+
+export interface DocTag {
+    uuid: string;
+    name: string;
+    created_at: string;
+    doc_count: number;
+}
+
 export interface LLMChannel {
     id: number;
     channel_code: string;
     name: string;
-    base_url?: string;
-    api_key?: string; // usually hidden
-    models: string;
+    base_url: string;
+    models: string; // comma separated
     is_active: boolean;
-}
-
-export interface StratifyPrompt {
-    id: string;
-    name: string;
-    description?: string;
-    content: string;
-    variables?: string[];
-    scenario_id?: string;
-    channel_code?: string;
-    model_id?: string;
+    config?: any;
+    api_key?: string; // Optional for input/update, usually not returned fully
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface ModelPricing {
     id?: string;
-    channel_code: string; // was model_name in one file, normalized here
-    model: string; // was model_name in another
-    model_name?: string; // alias
+    channel_code?: string;
+    model?: string;
+    model_name: string; // Legacy field, kept for compatibility
     input_price: number;
     output_price: number;
     multiplier: number;
@@ -628,12 +877,17 @@ export interface ModelPricing {
 
 export interface AgentSession {
     id: string;
+    user_id: string;
     agent_id: string;
     title: string;
     current_stage: string;
     context_data: any;
+    total_tokens: number;
     total_cost: number;
+    currency: string;
     updated_at: string;
+    created_at: string;
+    status: string;
 }
 
 export interface SessionSnapshot {
@@ -641,116 +895,27 @@ export interface SessionSnapshot {
     session_id: string;
     stage_tag: string;
     description: string;
-    data_snapshot: any;
     created_at: string;
 }
 
 export interface UsageStat {
-    session_time: string;
     user_id: string;
-    username?: string;
-    email?: string;
-    session_id: string;
+    username?: string; // New: User name
+    email?: string;    // New: User email
     agent_id: string;
+    session_id: string;
+    session_time: string;
     model: string;
     total_input_tokens: number;
     total_output_tokens: number;
-    original_cost: number;
     total_cost: number;
+    original_cost: number;
 }
 
 export interface UsageSummary {
-    total_cost: number;
-    total_original_cost: number;
+    total_tokens: number;
     total_input_tokens: number;
     total_output_tokens: number;
-}
-
-export interface StratifyOutline {
-    title: string;
-    pages: { title: string; content: string }[];
-}
-
-export interface WorkflowConfig {
-    variables: { name: string; label: string; type: string; required?: boolean; default?: string; options?: string[] }[];
-    steps: {
-        id: string;
-        name: string;
-        type: string;
-        ui?: any;
-        condition?: string;
-        prompt_id?: string;
-        llm_config?: { channel_code: string; model: string };
-        input_mapping?: any;
-    }[];
-}
-
-export interface QuotaConfig {
-    id: string;
-    plan_type: string;
-    resource_key: string;
-    limit_value: number;
-    period: string;
-    allow_overage: boolean;
-    overage_unit_price: number;
-    overage_strategy: string;
-    remark?: string;
-}
-
-export interface QuotaItem {
-    resource_key: string;
-    usage_count: number;
-    limit_value: number;
-}
-
-export interface WalletBalance {
-    balance: number;
-    plan_name?: string;
-}
-
-export interface RechargeResponse {
-    order_no: string;
-    pay_url?: string;
-    qr_code_url?: string;
-    message: string;
-}
-
-export interface WalletTransaction {
-    id: string;
-    user_id: string;
-    transaction_type: string;
-    amount: number;
-    balance_after: number;
-    description: string;
-    meta_data: string;
-    created_at: string;
-}
-
-export interface AdminTransaction extends WalletTransaction {}
-
-export interface PaymentOrder {
-    order_no: string;
-    user_id: string;
-    amount: number;
-    status: string;
-    gateway: string;
-    created_at: string;
-    paid_at?: string;
-    external_order_no?: string;
-}
-
-export interface CommonSearchResponse {
-    items: CommonSearchItem[];
-    meta?: CommonSearchStatus;
-}
-
-export interface CommonSearchStatus {
-    queue_length: number;
-    proxy_enabled: boolean;
-}
-
-export interface CommonSearchItem {
-    title: string;
-    href: string;
-    body: string;
+    total_cost: number;
+    total_original_cost: number;
 }

@@ -1,8 +1,15 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions, getUserUsageStats, applyRefund, getMyRefunds, getRefundableBalance } from '../../api/user';
-import { User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction, RefundOrder, RefundableBalanceResponse } from '../../types';
-import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon, ShieldExclamationIcon, CreditCardIcon } from '../icons';
+import { 
+    getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, 
+    getWalletTransactions, getUserUsageStats, getRefundableBalance, applyRefund, getMyRefunds 
+} from '../../api/user';
+import { User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction, RefundableBalance, RefundOrder } from '../../types';
+import { 
+    CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, 
+    CheckCircleIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, 
+    ClockIcon, CheckIcon, ShieldExclamationIcon, ShieldCheckIcon 
+} from '../icons';
 import { AGENT_NAMES } from '../../agentConfig';
 
 interface BillingModalProps {
@@ -11,6 +18,7 @@ interface BillingModalProps {
 }
 
 const Spinner = () => <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-600 border-t-transparent"></div>;
+const WhiteSpinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>;
 
 // 解析 meta_data 的辅助函数
 const parseMeta = (metaStr: string | null) => {
@@ -49,166 +57,25 @@ const getTransactionTypeLabel = (type: string) => {
 
 const getRefundStatusBadge = (status: string) => {
     switch (status) {
-        case 'success': return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit"><CheckCircleIcon className="w-3 h-3"/> 成功</span>;
-        case 'processing': return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold w-fit flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 处理中</span>;
-        case 'pending': return <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold w-fit">待审核</span>;
-        case 'rejected': return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit"><CloseIcon className="w-3 h-3"/> 已拒绝</span>;
+        case 'success': return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit"><CheckIcon className="w-3 h-3"/> 退款成功</span>;
+        case 'pending': return <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold w-fit flex items-center gap-1"><ClockIcon className="w-3 h-3"/> 审核中</span>;
+        case 'processing': return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold w-fit animate-pulse">处理中</span>;
         case 'failed': return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1 w-fit"><ShieldExclamationIcon className="w-3 h-3"/> 失败</span>;
+        case 'rejected': return <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs font-bold w-fit">已拒绝</span>;
         default: return <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-xs w-fit">{status}</span>;
     }
 };
 
-// --- Refund Application Modal ---
-const RefundApplicationModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void }> = ({ isOpen, onClose, onSuccess }) => {
-    const [amount, setAmount] = useState('');
-    const [reason, setReason] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [refundData, setRefundData] = useState<RefundableBalanceResponse | null>(null);
-
-    useEffect(() => {
-        if (isOpen) {
-            setIsLoading(true);
-            setError('');
-            getRefundableBalance()
-                .then(data => setRefundData(data))
-                .catch(err => setError('无法获取可退款金额: ' + (err.message || '网络错误')))
-                .finally(() => setIsLoading(false));
-        }
-    }, [isOpen]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        
-        let applyAmount = amount ? parseFloat(amount) : undefined;
-        const maxAmount = refundData?.refundable_amount || 0;
-
-        if (applyAmount && (isNaN(applyAmount) || applyAmount <= 0)) {
-            setError('请输入有效的退款金额');
-            return;
-        }
-        if (applyAmount && applyAmount > maxAmount) {
-            setError(`退款金额不能超过可退余额 ¥${maxAmount.toFixed(2)}`);
-            return;
-        }
-        if (!reason.trim()) {
-            setError('请输入退款原因');
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            await applyRefund(applyAmount, reason);
-            alert('退款申请已提交，请等待管理员审核。资金将原路返回至您的支付账户。');
-            onSuccess();
-            onClose();
-        } catch (err: any) {
-            setError(err.message || '申请失败，请稍后重试');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
-                <div className="p-5 border-b border-slate-100 bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                        <ShieldExclamationIcon className="w-5 h-5 text-indigo-600" />
-                        申请退款
-                    </h3>
-                    <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full text-slate-400"><CloseIcon className="w-5 h-5"/></button>
-                </div>
-                
-                <div className="p-6">
-                    {isLoading ? (
-                        <div className="py-8 text-center"><Spinner /></div>
-                    ) : (
-                        <form onSubmit={handleSubmit} className="space-y-5">
-                             {/* Balance Info Card */}
-                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                                <div className="flex justify-between items-center text-xs text-slate-500">
-                                    <span>当前账户余额</span>
-                                    <span className="font-mono">¥{refundData?.current_balance.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs text-slate-500">
-                                    <span className="flex items-center gap-1">充值记录上限 <div className="w-3 h-3 rounded-full bg-slate-200 text-[8px] flex items-center justify-center text-slate-500 cursor-help" title="仅支持原路退回您实际支付充值的金额，系统赠送金额不可提现。">?</div></span>
-                                    <span className="font-mono">¥{refundData?.history_recharge_limit.toFixed(2)}</span>
-                                </div>
-                                <div className="h-px bg-slate-200"></div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm font-bold text-indigo-900">本次可退金额</span>
-                                    <span className="text-xl font-black text-indigo-600 font-mono">¥{refundData?.refundable_amount.toFixed(2)}</span>
-                                </div>
-                            </div>
-                            
-                            {(refundData?.refundable_amount || 0) <= 0 && (
-                                <div className="text-xs text-red-500 bg-red-50 p-3 rounded-lg border border-red-100">
-                                    当前无可退金额。可能原因：余额不足或余额主要由系统赠送构成。
-                                </div>
-                            )}
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款金额 (可选)</label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
-                                    <input 
-                                        type="number" 
-                                        step="0.01" 
-                                        max={refundData?.refundable_amount}
-                                        value={amount} 
-                                        onChange={e => setAmount(e.target.value)} 
-                                        className="w-full bg-white border border-slate-300 rounded-xl pl-6 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow"
-                                        placeholder={`如果不填，默认退全额 ¥${refundData?.refundable_amount.toFixed(2)}`}
-                                        disabled={(refundData?.refundable_amount || 0) <= 0}
-                                    />
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款原因 <span className="text-red-500">*</span></label>
-                                <textarea 
-                                    value={reason} 
-                                    onChange={e => setReason(e.target.value)} 
-                                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-24 resize-none transition-shadow"
-                                    placeholder="请说明退款原因，以便我们改进服务..."
-                                    required
-                                    disabled={(refundData?.refundable_amount || 0) <= 0}
-                                />
-                            </div>
-                            
-                            {error && <div className="text-xs text-red-500 font-medium flex items-center gap-1"><ShieldExclamationIcon className="w-3 h-3"/> {error}</div>}
-
-                            <div className="flex justify-end pt-2">
-                                <button 
-                                    type="submit" 
-                                    disabled={isSubmitting || (refundData?.refundable_amount || 0) <= 0} 
-                                    className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-400 shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
-                                >
-                                    {isSubmitting ? <Spinner /> : '提交申请'}
-                                </button>
-                            </div>
-                        </form>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
 
 export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => {
-    const [activeList, setActiveList] = useState<'transactions' | 'refunds'>('transactions');
-    
+    const [activeTab, setActiveTab] = useState<'transactions' | 'refunds'>('transactions');
+
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [refunds, setRefunds] = useState<RefundOrder[]>([]);
-    
     const [stats, setStats] = useState<any>(null); // New Stats structure
     const [wallet, setWallet] = useState<WalletBalance | null>(null);
     const [quotas, setQuotas] = useState<QuotaItem[]>([]);
+    const [refundableBalance, setRefundableBalance] = useState<RefundableBalance | null>(null);
     
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshingWallet, setIsRefreshingWallet] = useState(false);
@@ -231,20 +98,25 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     const pollingRef = useRef<any>(null);
 
     // Refund State
-    const [showRefundModal, setShowRefundModal] = useState(false);
+    const [showRefundApply, setShowRefundApply] = useState(false);
+    const [refundAmount, setRefundAmount] = useState<string>('');
+    const [refundReason, setRefundReason] = useState('');
+    const [isSubmittingRefund, setIsSubmittingRefund] = useState(false);
 
     const fetchWalletAndQuota = async () => {
         setIsRefreshingWallet(true);
         try {
             // Parallel fetch wallet, quota, and new usage stats
-            const [w, q, s] = await Promise.all([
+            const [w, q, s, r] = await Promise.all([
                 getWalletBalance(), 
                 getMyQuotaUsage(),
-                getUserUsageStats() // New API call
+                getUserUsageStats(),
+                getRefundableBalance()
             ]);
             setWallet(w);
             setQuotas(q);
             setStats(s);
+            setRefundableBalance(r);
         } catch (e) {
             console.error("Failed to fetch wallet info", e);
         } finally {
@@ -259,7 +131,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
         if (!isLoadMore) setIsLoading(true);
         
         try {
-            if (activeList === 'transactions') {
+            if (activeTab === 'transactions') {
                 const params = {
                     page: currentPage,
                     limit: limit,
@@ -271,40 +143,35 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                 
                 if (isLoadMore) {
                     setTransactions(prev => [...prev, ...listData]);
-                    setPage(currentPage);
                 } else {
                     setTransactions(listData);
-                    setPage(1);
                 }
                 setHasMore(currentPage < response.totalPages);
-            } else {
-                 const params = {
-                    page: currentPage,
-                    limit: limit
-                };
-                const response = await getMyRefunds(params);
+            } else if (activeTab === 'refunds') {
+                const response = await getMyRefunds({ page: currentPage, limit });
                 const listData = response.items || [];
                 
                 if (isLoadMore) {
                     setRefunds(prev => [...prev, ...listData]);
-                    setPage(currentPage);
                 } else {
                     setRefunds(listData);
-                    setPage(1);
                 }
                 setHasMore(currentPage < response.totalPages);
             }
+            if (isLoadMore) setPage(currentPage);
+            else setPage(1);
+
         } catch (e) {
-            console.error("Failed to fetch list data", e);
+            console.error("Failed to fetch data", e);
         } finally {
             setIsLoading(false);
         }
-    }, [user, startDate, endDate, page, activeList]);
+    }, [user, startDate, endDate, page, activeTab]);
 
     useEffect(() => {
         fetchListData();
         fetchWalletAndQuota();
-    }, [startDate, endDate, activeList]); 
+    }, [startDate, endDate, activeTab]); 
 
     useEffect(() => {
         if (rechargeResult && rechargeResult.order_no && paymentStatus !== 'success') {
@@ -346,7 +213,30 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
         setPaymentStatus(null);
         if (pollingRef.current) clearInterval(pollingRef.current);
     }
-    
+
+    const handleApplyRefund = async () => {
+        if (!refundReason.trim()) {
+            alert('请输入退款原因');
+            return;
+        }
+        setIsSubmittingRefund(true);
+        try {
+            const amount = refundAmount ? parseFloat(refundAmount) : undefined;
+            await applyRefund({ amount, reason: refundReason });
+            alert('退款申请提交成功，请等待管理员审核。');
+            setShowRefundApply(false);
+            setRefundAmount('');
+            setRefundReason('');
+            fetchWalletAndQuota();
+            if (activeTab === 'refunds') fetchListData();
+            else setActiveTab('refunds');
+        } catch (e: any) {
+            alert('申请失败: ' + e.message);
+        } finally {
+            setIsSubmittingRefund(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/50 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-5xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
@@ -370,10 +260,10 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                 <div className="flex-1 flex flex-col md:flex-row min-h-0">
                     
                     {/* Left Panel: Wallet & Quick Actions (Sticky-like) */}
-                    <div className="w-full md:w-80 flex-shrink-0 bg-slate-50 border-r border-slate-200 p-8 flex flex-col gap-8">
+                    <div className="w-full md:w-80 flex-shrink-0 bg-slate-50 border-r border-slate-200 p-8 flex flex-col gap-8 overflow-y-auto">
                         
                         {/* Elegant Wallet Card */}
-                        <div className="relative group perspective-1000">
+                        <div className="relative group perspective-1000 flex-shrink-0">
                             <div className="relative w-full h-48 bg-gradient-to-br from-slate-900 via-indigo-900 to-indigo-800 rounded-xl p-6 shadow-xl overflow-hidden transition-transform duration-500 group-hover:scale-[1.02] active:scale-95">
                                 {/* Decorative elements */}
                                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
@@ -415,28 +305,18 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                             </div>
                         </div>
 
-                        {/* Quick Actions */}
-                        <div className="space-y-3">
-                            <button 
-                                onClick={() => setShowRecharge(true)}
-                                className="w-full py-3 bg-white border border-slate-200 rounded-xl flex items-center justify-center gap-2 text-slate-700 font-bold text-sm shadow-sm hover:border-indigo-500 hover:text-indigo-600 transition-all active:scale-95 group"
-                            >
-                                <PlusIcon className="w-4 h-4 text-indigo-500 group-hover:rotate-90 transition-transform duration-300" />
-                                <span>立即充值余额</span>
-                            </button>
-                            
-                            <button 
-                                onClick={() => setShowRefundModal(true)}
-                                className="w-full py-3 bg-white border border-slate-200 rounded-xl flex items-center justify-center gap-2 text-slate-600 font-bold text-sm shadow-sm hover:border-red-400 hover:text-red-500 transition-all active:scale-95 group"
-                            >
-                                <CreditCardIcon className="w-4 h-4 text-slate-400 group-hover:text-red-500" />
-                                申请余额退款
-                            </button>
-                        </div>
+                        {/* Quick Recharge Entry */}
+                        <button 
+                            onClick={() => setShowRecharge(true)}
+                            className="w-full py-4 bg-white border border-slate-200 rounded-xl flex items-center justify-center gap-3 text-slate-700 font-black text-sm shadow-sm hover:border-indigo-500 hover:text-indigo-600 transition-all hover:shadow-lg active:scale-95 group flex-shrink-0"
+                        >
+                            <PlusIcon className="w-5 h-5 text-indigo-500 group-hover:rotate-180 transition-transform duration-500" />
+                            <span>立即充值余额</span>
+                        </button>
 
                         {/* Quota Highlights - Only show if quotas exist */}
                         {quotas.length > 0 && (
-                            <div className="space-y-4">
+                            <div className="space-y-4 flex-shrink-0">
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">权益额度进度</h4>
                                 <div className="grid grid-cols-1 gap-3">
                                     {quotas.slice(0, 3).map(quota => (
@@ -460,7 +340,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         )}
                     </div>
 
-                    {/* Right Panel: Transaction History */}
+                    {/* Right Panel: Transaction History & Refunds */}
                     <div className="flex-1 flex flex-col min-w-0 bg-white">
                         
                         {/* Data Overview Cards */}
@@ -481,25 +361,23 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         </div>
 
                         {/* List Header */}
-                        <div className="px-8 py-4 flex justify-between items-center">
-                            <div className="flex items-center gap-4">
+                        <div className="px-8 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div className="flex bg-slate-100 p-1 rounded-lg">
                                 <button 
-                                    onClick={() => setActiveList('transactions')}
-                                    className={`text-sm font-bold flex items-center gap-2 pb-2 border-b-2 transition-colors ${activeList === 'transactions' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                                    onClick={() => setActiveTab('transactions')}
+                                    className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${activeTab === 'transactions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    <RefreshIcon className="w-4 h-4" />
                                     交易流水
                                 </button>
                                 <button 
-                                    onClick={() => setActiveList('refunds')}
-                                    className={`text-sm font-bold flex items-center gap-2 pb-2 border-b-2 transition-colors ${activeList === 'refunds' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                                    onClick={() => setActiveTab('refunds')}
+                                    className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${activeTab === 'refunds' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    <ShieldExclamationIcon className="w-4 h-4" />
                                     退款记录
                                 </button>
                             </div>
-
-                            {activeList === 'transactions' && (
+                            
+                            {activeTab === 'transactions' && (
                                 <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
                                     <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
                                     <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-20" />
@@ -507,15 +385,26 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-20" />
                                 </div>
                             )}
+
+                            {activeTab === 'refunds' && (
+                                <button 
+                                    onClick={() => setShowRefundApply(true)}
+                                    className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-md hover:bg-indigo-700 transition-all flex items-center gap-1.5"
+                                >
+                                    <ShieldCheckIcon className="w-3.5 h-3.5" /> 申请退款
+                                </button>
+                            )}
                         </div>
 
-                        {/* Records List - Card Style */}
+                        {/* Content Area */}
                         <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
-                            <div className="space-y-4"> 
-                                {isLoading ? (
-                                    <div className="py-20 text-center"><Spinner /></div>
-                                ) : activeList === 'transactions' ? (
-                                    transactions.length === 0 ? (
+                            
+                            {/* Transactions View */}
+                            {activeTab === 'transactions' && (
+                                <div className="space-y-4">
+                                    {isLoading && transactions.length === 0 ? (
+                                        <div className="py-20 text-center"><Spinner /></div>
+                                    ) : transactions.length === 0 ? (
                                         <div className="py-20 text-center flex flex-col items-center gap-3">
                                             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
                                                 <DocumentTextIcon className="w-8 h-8 text-slate-200" />
@@ -525,10 +414,8 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                     ) : (
                                         transactions.map((record, idx) => {
                                             const meta = parseMeta(record.meta_data);
-                                            const isRecharge = record.transaction_type === 'recharge' || record.transaction_type === 'gift' || record.transaction_type === 'refund';
+                                            const isRecharge = record.transaction_type === 'recharge' || record.transaction_type === 'gift';
                                             
-                                            // 智能解析应用名称：如果有 app_id，尝试从全局配置 AGENT_NAMES 映射中文名，否则显示 app_id。
-                                            // 如果没有 app_id，则显示 record.description。
                                             const typeLabel = getTransactionTypeLabel(record.transaction_type);
                                             let displayTitle = `${typeLabel}: ${record.description || '无描述'}`;
                                             
@@ -562,59 +449,83 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-col items-end shrink-0 pl-6">
-                                                        <div className={`text-lg font-black font-mono ${record.amount > 0 ? 'text-green-600' : 'text-slate-800'}`}>
-                                                            {record.amount > 0 ? '+' : ''}{record.amount.toFixed(4)}
+                                                        <div className={`text-lg font-black font-mono ${isRecharge ? 'text-green-600' : 'text-slate-800'}`}>
+                                                            {isRecharge ? '+' : ''}{record.amount.toFixed(4)}
                                                         </div>
                                                         <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">CNY</span>
                                                     </div>
                                                 </div>
                                             );
                                         })
-                                    )
-                                ) : (
-                                    // Refund List
-                                    refunds.length === 0 ? (
+                                    )}
+                                    {hasMore && !isLoading && transactions.length > 0 && (
+                                        <button onClick={() => fetchListData(true)} className="w-full py-4 text-xs font-black text-slate-400 hover:text-indigo-600 transition-colors uppercase tracking-widest">
+                                            Load More History ↓
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Refunds View */}
+                            {activeTab === 'refunds' && (
+                                <div className="space-y-4">
+                                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-center justify-between">
+                                         <div>
+                                             <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">可退款余额</div>
+                                             <div className="text-2xl font-black text-indigo-900">
+                                                 ¥{refundableBalance ? refundableBalance.refundable_amount.toFixed(2) : '--'}
+                                             </div>
+                                             <p className="text-[10px] text-indigo-400 mt-1">历史充值上限: ¥{refundableBalance?.history_recharge_limit.toFixed(2)}</p>
+                                         </div>
+                                         {refundableBalance && refundableBalance.refundable_amount > 0 && (
+                                              <button 
+                                                onClick={() => setShowRefundApply(true)}
+                                                className="px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg text-xs font-bold hover:bg-indigo-50 shadow-sm transition-all"
+                                              >
+                                                  申请全额退款
+                                              </button>
+                                         )}
+                                     </div>
+
+                                    {isLoading && refunds.length === 0 ? (
+                                        <div className="py-20 text-center"><Spinner /></div>
+                                    ) : refunds.length === 0 ? (
                                         <div className="py-20 text-center flex flex-col items-center gap-3">
                                             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
-                                                <ShieldExclamationIcon className="w-8 h-8 text-slate-200" />
+                                                <ShieldCheckIcon className="w-8 h-8 text-slate-200" />
                                             </div>
-                                            <span className="text-sm font-bold text-slate-400">暂无退款申请记录</span>
+                                            <span className="text-sm font-bold text-slate-400">暂无退款记录</span>
                                         </div>
                                     ) : (
                                         refunds.map((refund, idx) => (
-                                            <div key={idx} className="group bg-white p-5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all duration-300 flex items-center justify-between">
-                                                 <div className="flex items-start gap-4 flex-1 min-w-0">
-                                                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-1">
-                                                        <ShieldExclamationIcon className="w-5 h-5" />
+                                            <div key={refund.refund_no} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex items-center justify-between">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{refund.refund_no}</span>
+                                                        {getRefundStatusBadge(refund.status)}
                                                     </div>
-                                                    <div className="min-w-0 flex-1 space-y-2">
-                                                         <div className="flex items-center gap-2">
-                                                            <span className="font-bold text-slate-800 text-sm">申请退款</span>
-                                                            {getRefundStatusBadge(refund.status)}
-                                                         </div>
-                                                         <p className="text-xs text-slate-500 font-mono">单号: {refund.refund_no}</p>
-                                                         <p className="text-xs text-slate-600">原因: {refund.reason}</p>
-                                                         <p className="text-xs text-slate-400 flex items-center gap-1">
-                                                             <ClockIcon className="w-3 h-3"/> {new Date(refund.created_at).toLocaleString()}
-                                                         </p>
+                                                    <div className="text-sm text-slate-700 font-medium">原因: {refund.reason}</div>
+                                                    <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
+                                                        <ClockIcon className="w-3.5 h-3.5" /> 申请时间: {new Date(refund.created_at).toLocaleString()}
                                                     </div>
-                                                 </div>
-                                                 <div className="flex flex-col items-end shrink-0 pl-6">
-                                                     <div className="text-lg font-black font-mono text-purple-600">
-                                                         ¥{refund.amount.toFixed(2)}
-                                                     </div>
-                                                 </div>
+                                                </div>
+                                                <div className="text-right pl-6">
+                                                    <div className="text-lg font-black text-slate-800">¥{refund.amount.toFixed(2)}</div>
+                                                    {refund.original_order_no && (
+                                                        <div className="text-[10px] text-slate-400 mt-1 font-mono">原订单: {refund.original_order_no}</div>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))
-                                    )
-                                )}
-                                
-                                {hasMore && !isLoading && (
-                                    <button onClick={() => fetchListData(true)} className="w-full py-4 text-xs font-black text-slate-400 hover:text-indigo-600 transition-colors uppercase tracking-widest">
-                                        Load More ↓
-                                    </button>
-                                )}
-                            </div>
+                                    )}
+                                    {hasMore && !isLoading && refunds.length > 0 && (
+                                        <button onClick={() => fetchListData(true)} className="w-full py-4 text-xs font-black text-slate-400 hover:text-indigo-600 transition-colors uppercase tracking-widest">
+                                            Load More Refunds ↓
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
                         </div>
                     </div>
                 </div>
@@ -762,12 +673,60 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         </div>
                     </div>
                 )}
-
-                <RefundApplicationModal 
-                    isOpen={showRefundModal} 
-                    onClose={() => setShowRefundModal(false)}
-                    onSuccess={() => { setActiveList('refunds'); fetchListData(); }}
-                />
+                
+                {/* --- REFUND APPLICATION MODAL --- */}
+                {showRefundApply && (
+                    <div className="absolute inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-6">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-xl font-black text-slate-800">申请退款</h3>
+                                <button onClick={() => setShowRefundApply(false)} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-5 h-5"/></button>
+                            </div>
+                            
+                            <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                <div className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">可退款金额</div>
+                                <div className="text-2xl font-black text-indigo-900">
+                                    ¥{refundableBalance ? refundableBalance.refundable_amount.toFixed(2) : '0.00'}
+                                </div>
+                                <p className="text-[10px] text-indigo-400 mt-2 leading-relaxed">
+                                    系统将自动匹配最近的充值订单进行原路退回。若退款金额大于最近一笔订单，将拆分多笔退款。
+                                </p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款金额 (可选，留空则全额)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01" 
+                                        max={refundableBalance?.refundable_amount}
+                                        value={refundAmount}
+                                        onChange={e => setRefundAmount(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                                        placeholder={`最多 ${refundableBalance?.refundable_amount}`}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">退款原因 (必填)</label>
+                                    <textarea 
+                                        value={refundReason}
+                                        onChange={e => setRefundReason(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20"
+                                        placeholder="请简述退款原因..."
+                                    />
+                                </div>
+                            </div>
+                            
+                            <button 
+                                onClick={handleApplyRefund}
+                                disabled={isSubmittingRefund || !refundReason.trim()}
+                                className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {isSubmittingRefund ? <WhiteSpinner /> : "提交申请"}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
