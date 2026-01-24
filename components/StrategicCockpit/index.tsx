@@ -72,10 +72,10 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             setArticles(items);
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
 
-            // ⚡️ 核心优化：首次进入或切换分类时，默认选中第一篇文章展示
-            // 注意：这里移除了 selectedArticle 依赖，避免点击文章触发重刷列表导致滚动条置顶
-            // 由于 handleNavChange 会重置 selectedArticle 为 null，此逻辑在切换分类时依然有效
-            if (page === 1 && items.length > 0) {
+            // ⚡️ 核心优化：首次进入或切换分类时，默认选中第一篇文章展示 (仅在桌面端)
+            // 移动端优先展示列表，不自动选中，避免触发 EvidenceTrail 的内容加载和状态混乱
+            const isDesktop = window.innerWidth >= 768;
+            if (page === 1 && items.length > 0 && isDesktop) {
                 // 使用函数式更新检查当前状态，避免依赖闭包中的 stale value
                 setSelectedArticle(prev => prev ? prev : items[0]);
             }
@@ -101,7 +101,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         } else {
              setActiveQuery({ type: 'tag', value: label, label: label });
         }
-        setSelectedArticle(null); // Reset selection to trigger auto-select first from new list
+        setSelectedArticle(null); // Reset selection to trigger auto-select first from new list (on desktop)
         setMobileTab('list');
     };
 
