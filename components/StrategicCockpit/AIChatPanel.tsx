@@ -49,13 +49,13 @@ const SEARCH_KNOWLEDGE_BASE_DEF = {
     type: "function",
     function: {
         name: "search_knowledge_base",
-        description: "搜索内部汽车行业情报数据库。当用户询问行业动态、技术细节、竞品信息或任何需要事实依据的问题时，必须优先使用此工具。如果一次搜索结果不足，可以尝试更换关键词再次搜索。",
+        description: "搜索内部汽车行业情报数据库。这是默认的检索方式。",
         parameters: {
             type: "object",
             properties: {
                 query: {
                     type: "string",
-                    description: "搜索关键词。应提炼用户问题的核心实体和意图，例如'小米SU7 交付量' 或 '固态电池 技术路线'。"
+                    description: "搜索关键词。提取用户问题的核心实体和意图，例如'小米SU7 交付量'。"
                 }
             },
             required: ["query"]
@@ -67,34 +67,19 @@ const SEARCH_INTERNET_DEF = {
     type: "function",
     function: {
         name: "search_internet",
-        description: "搜索互联网上的最新信息。仅在内部知识库无法提供答案，或者用户明确要求查询最新实时新闻/外部数据时使用。",
+        description: "使用搜索引擎检索互联网最新信息。",
         parameters: {
             type: "object",
             properties: {
                 query: {
                     type: "string",
-                    description: "搜索关键词。"
+                    description: "搜索关键词。针对互联网搜索优化，包含时间、事件等限定词。"
                 }
             },
             required: ["query"]
         }
     }
 };
-
-const DEFAULT_SYSTEM_PROMPT = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
-你的职责是基于事实回答用户问题。
-
-### 工作流程：
-1. **分析意图**：首先判断用户问题是否需要外部事实支持。
-2. **工具调用**：
-   - 优先使用 \`search_knowledge_base\` 搜索内部高质量情报库。
-   - 仅当内部库无结果，或用户询问最新实时新闻（如“今天发生了什么”）时，使用 \`search_internet\`。
-   - 不要直接编造答案。
-3. **多轮思考**：如果第一次检索结果不理想，可以尝试换个角度或关键词再次检索。
-4. **基于证据**：回答时请引用检索到的资料（UI会自动展示引用卡片，你只需在文本中自然融合信息）。
-5. **风格**：保持专业、客观、逻辑清晰。使用简体中文。
-
-请记住：你的知识库是最新的，利用好它。`;
 
 // --- Components ---
 
@@ -220,11 +205,14 @@ export const AIChatPanel: React.FC<{
     const [input, setInput] = useState('');
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false); // Indicates Agent loop is active
+    
+    // --- New Toggle State ---
+    const [useWebSearch, setUseWebSearch] = useState(false);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
     // Dynamic Configuration State
     const [currentModel, setCurrentModel] = useState(DEFAULT_MODEL);
-    const [systemInstruction, setSystemInstruction] = useState(DEFAULT_SYSTEM_PROMPT);
 
     // Initial Config Load
     useEffect(() => {
@@ -235,9 +223,6 @@ export const AIChatPanel: React.FC<{
                 if (promptConfig) {
                     if (promptConfig.channel_code && promptConfig.model_id) {
                         setCurrentModel(`${promptConfig.channel_code}@${promptConfig.model_id}`);
-                    }
-                    if (promptConfig.content) {
-                        setSystemInstruction(promptConfig.content);
                     }
                 }
             } catch (e) {
@@ -253,7 +238,7 @@ export const AIChatPanel: React.FC<{
         return [{ 
             id: 'init', 
             role: 'assistant', 
-            content: `我是您的 **AI Copilot**。\n📅 今天是 **${today}**。\n\n我已连接至实时情报数据库。请问您想了解什么？（例如：“查询最近关于固态电池的进展”或“小米汽车的最新动态”）`, 
+            content: `我是您的 **AI Copilot**。\n📅 今天是 **${today}**。\n\n我已连接至内部情报库。如需查询最新互联网信息，请开启下方的 **"联网搜索"** 开关。`, 
             timestamp: Date.now() 
         }];
     });
@@ -292,9 +277,32 @@ export const AIChatPanel: React.FC<{
             return apiMsg;
         });
 
-        // Add System Prompt if not present (usually managed by backend via Agent ID, but we enforce specific instruction here)
+        // Dynamic System Prompt based on Toggle
+        let systemPrompt = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
+你的职责是基于事实回答用户问题。
+
+### 核心指令：
+1. **默认行为**：用户开启了【${useWebSearch ? '联网模式' : '纯净模式'}】。
+2. **工具调用**：
+   - 始终优先调用 \`search_knowledge_base\` 查询内部高质量数据。
+   ${useWebSearch ? '- **必须**同时调用 \`search_internet\` 查询最新的互联网公开信息，因为用户明确要求了联网。' : '- 除非用户问题显然涉及库外常识，否则**不要**捏造数据。'}
+3. **回答风格**：保持专业、客观、逻辑清晰。使用简体中文。
+4. **引用**：必须基于工具返回的结果回答，严禁幻觉。
+
+请记住：你的知识库是最新的，利用好它。`;
+
+        // Add System Prompt if not present
         if (apiHistory.length > 0 && apiHistory[0].role !== 'system') {
-             apiHistory = [{ role: 'system', content: systemInstruction }, ...apiHistory];
+             apiHistory = [{ role: 'system', content: systemPrompt }, ...apiHistory];
+        } else if (apiHistory.length > 0 && apiHistory[0].role === 'system') {
+            // Update existing system prompt with new toggle state
+            apiHistory[0].content = systemPrompt;
+        }
+
+        // Define Tools based on Toggle
+        const activeTools = [SEARCH_KNOWLEDGE_BASE_DEF];
+        if (useWebSearch) {
+            activeTools.push(SEARCH_INTERNET_DEF);
         }
 
         try {
@@ -323,7 +331,7 @@ export const AIChatPanel: React.FC<{
                     messages: apiHistory,
                     stream: true,
                     temperature: 0.1, // Low temp for tool use reliability
-                    tools: [SEARCH_KNOWLEDGE_BASE_DEF, SEARCH_INTERNET_DEF], // Pass BOTH tools
+                    tools: activeTools, 
                     tool_choice: "auto",
                     enable_billing: true
                 }, (chunk) => {
@@ -362,7 +370,6 @@ export const AIChatPanel: React.FC<{
                         ...m,
                         content: accumulatedContent,
                         reasoning: accumulatedReasoning,
-                        // If we detect a tool call is starting, we can show a "Planning..." indicator in reasoning or UI
                     } : m));
 
                 }, undefined, (err) => {
@@ -389,8 +396,6 @@ export const AIChatPanel: React.FC<{
 
                 // Check if Tool Calls exist
                 if (finalMsg.tool_calls && finalMsg.tool_calls.length > 0) {
-                    // Update UI to show the final "thinking" state before executing tool
-                    // We don't break loop yet. We execute tool.
                     
                     // --- Execute Tools ---
                     for (const toolCall of finalMsg.tool_calls) {
@@ -407,7 +412,7 @@ export const AIChatPanel: React.FC<{
                         const isWebSearch = fnName === 'search_internet';
                         const searchSource = isWebSearch ? 'web' : 'internal';
 
-                        // A. UI: Show "Searching" Card (Temporary placeholder)
+                        // A. UI: Show "Searching" Card
                         const toolMsgId = crypto.randomUUID();
                         setMessages(prev => [...prev, {
                             id: toolMsgId,
@@ -427,7 +432,7 @@ export const AIChatPanel: React.FC<{
                                 const res = await performWebSearch(args.query, 6);
                                 // Map web results to InfoItem
                                 foundItems = (res.results || []).map((item: any, i: number) => ({
-                                    id: `web-${i}`,
+                                    id: `web-${i}-${Date.now()}`,
                                     title: item.title,
                                     content: item.content || item.snippet || '',
                                     source_name: item.link ? new URL(item.link).hostname : 'Internet',
@@ -445,14 +450,16 @@ export const AIChatPanel: React.FC<{
                                     similarity_threshold: 0.35 
                                 });
                                 
-                                // Strict De-duplication by article_id
+                                // Strict De-duplication by article_id (or UUID fallback)
                                 const uniqueItemsMap = new Map<string, InfoItem>();
                                 (res.items || []).forEach((item: any) => {
-                                    if (!uniqueItemsMap.has(item.article_id)) {
-                                        uniqueItemsMap.set(item.article_id, {
-                                            id: item.article_id,
+                                    // Robust ID Check: article_id > id > uuid
+                                    const realId = item.article_id || item.id || item.uuid;
+                                    if (realId && !uniqueItemsMap.has(realId)) {
+                                        uniqueItemsMap.set(realId, {
+                                            id: realId,
                                             title: item.title,
-                                            content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : '',
+                                            content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : (item.content || ''),
                                             source_name: item.source_name,
                                             publish_date: item.publish_date,
                                             original_url: item.url,
@@ -470,7 +477,7 @@ export const AIChatPanel: React.FC<{
                                     date: i.publish_date,
                                     content: i.content,
                                     url: i.original_url
-                                }))); // Minified JSON for LLM
+                                }))); 
                             }
 
                         } catch (err: any) {
@@ -589,7 +596,6 @@ export const AIChatPanel: React.FC<{
                     </div>
                     <div>
                         <h3 className="text-base font-black text-slate-800 tracking-tight font-serif">AI Copilot</h3>
-                        {/* Hidden Model Name as requested */}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -654,12 +660,25 @@ export const AIChatPanel: React.FC<{
 
             <div className="p-4 bg-white border-t border-slate-100 relative z-30 flex-shrink-0">
                 <div className="relative bg-slate-50 border border-slate-200/60 rounded-[20px] shadow-inner focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 focus-within:bg-white transition-all duration-200">
+                    
+                    {/* Toggle Bar */}
+                    <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+                        <button 
+                            onClick={() => setUseWebSearch(!useWebSearch)}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all duration-200 ${useWebSearch ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                            title={useWebSearch ? "关闭联网搜索" : "开启联网搜索"}
+                        >
+                            <GlobeIcon className={`w-3.5 h-3.5 ${useWebSearch ? 'text-indigo-500' : 'text-slate-400'}`} />
+                            {useWebSearch ? '联网搜索: 开启' : '联网搜索: 关闭'}
+                        </button>
+                    </div>
+
                     <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                         placeholder="询问关于汽车行业的问题..."
-                        className="w-full bg-transparent px-4 py-3 text-sm focus:outline-none resize-none h-14 md:h-16 max-h-32 custom-slim-scrollbar placeholder:text-slate-400 font-medium text-slate-700 font-serif"
+                        className="w-full bg-transparent px-4 py-2 text-sm focus:outline-none resize-none h-12 md:h-14 max-h-32 custom-slim-scrollbar placeholder:text-slate-400 font-medium text-slate-700 font-serif"
                         disabled={isProcessing}
                     />
                     <div className="flex justify-between items-center px-2 pb-2">
