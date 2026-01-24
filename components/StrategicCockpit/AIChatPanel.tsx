@@ -2,12 +2,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions, createSession } from '../../api/stratify';
 import { searchSemanticGrouped } from '../../api/intelligence';
-import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon, ExternalLinkIcon } from '../icons';
+import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
 import { InfoItem } from '../../types';
 import { AGENTS } from '../../agentConfig';
 import { marked } from 'marked';
 
-// --- Types ---
+// --- Types & Interfaces ---
 
 interface ToolCall {
     id: string;
@@ -39,6 +39,38 @@ interface Message {
 }
 
 const MODEL_ID = "zhipu@glm-4-flash";
+
+// --- Agent Tools Definition ---
+
+const SEARCH_TOOL_DEF = {
+    type: "function",
+    function: {
+        name: "search_knowledge_base",
+        description: "搜索内部汽车行业情报数据库。当用户询问行业动态、技术细节、竞品信息或任何需要事实依据的问题时，必须优先使用此工具。如果一次搜索结果不足，可以尝试更换关键词再次搜索。",
+        parameters: {
+            type: "object",
+            properties: {
+                query: {
+                    type: "string",
+                    description: "搜索关键词。应提炼用户问题的核心实体和意图，例如'小米SU7 交付量' 或 '固态电池 技术路线'。"
+                }
+            },
+            required: ["query"]
+        }
+    }
+};
+
+const SYSTEM_PROMPT = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
+你的职责是基于事实回答用户问题。
+
+### 工作流程：
+1. **分析意图**：首先判断用户问题是否需要外部事实支持。
+2. **工具调用**：如果需要事实（如数据、新闻、参数），请**务必**调用 \`search_knowledge_base\` 工具。不要直接编造答案。
+3. **多轮思考**：如果第一次检索结果不理想，可以尝试换个角度或关键词再次检索。
+4. **基于证据**：回答时请引用检索到的资料（UI会自动展示引用卡片，你只需在文本中自然融合信息）。
+5. **风格**：保持专业、客观、逻辑清晰。使用简体中文。
+
+请记住：你的知识库是最新的，利用好它。`;
 
 // --- Components ---
 
@@ -82,7 +114,7 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
 const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     
-    // If not searching and no items, don't render (unless it's an empty result state we want to show)
+    // Only render if searching or we have results
     if (!isSearching && (!items || items.length === 0)) return null;
 
     const itemCount = items ? items.length : 0;
@@ -95,7 +127,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
             >
                 {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />}
                 <span className="flex-1 text-left truncate min-w-0">
-                    {isSearching ? `正在检索知识库: "${query}"` : `已检索到 ${itemCount} 篇相关情报 ("${query}")`}
+                    {isSearching ? `正在调用工具检索: "${query}"` : `已检索到 ${itemCount} 篇相关情报 ("${query}")`}
                 </span>
                 {!isSearching && itemCount > 0 && (
                     <span className="ml-1 bg-white px-1.5 py-0.5 rounded text-[9px] text-blue-600 border border-blue-100 font-mono flex-shrink-0">{itemCount}</span>
@@ -106,7 +138,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                 <div className="p-2 border-t border-blue-100/50 bg-slate-50/30">
                     {isSearching ? (
                         <div className="py-3 flex flex-col items-center justify-center text-blue-500 gap-1">
-                             <span className="text-[10px] font-bold opacity-80 animate-pulse font-serif">正在扫描行业数据库...</span>
+                             <span className="text-[10px] font-bold opacity-80 animate-pulse font-serif">AI 正在阅读知识库文档...</span>
                         </div>
                     ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto custom-slim-scrollbar pr-1">
@@ -133,7 +165,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                                     </div>
                                 </div>
                             )) : (
-                                <div className="py-3 text-center text-xs text-slate-400 italic font-serif">未找到相关内容，尝试更换关键词</div>
+                                <div className="py-3 text-center text-xs text-slate-400 italic font-serif">未找到直接相关内容</div>
                             )}
                         </div>
                     )}
@@ -142,37 +174,6 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
         </div>
     );
 };
-
-// --- Agent Configuration ---
-
-const SEARCH_TOOL_DEF = {
-    type: "function",
-    function: {
-        name: "search_knowledge_base",
-        description: "搜索内部汽车行业情报数据库。当用户询问行业动态、技术细节、竞品信息或任何需要事实依据的问题时，必须优先使用此工具。如果一次搜索结果不足，可以尝试更换关键词再次搜索。",
-        parameters: {
-            type: "object",
-            properties: {
-                query: {
-                    type: "string",
-                    description: "搜索关键词。应提炼用户问题的核心实体和意图，例如'小米SU7 交付量' 或 '固态电池 技术路线'。"
-                }
-            },
-            required: ["query"]
-        }
-    }
-};
-
-const SYSTEM_PROMPT = `你是一个专业的汽车行业情报分析师 (AI Copilot)。
-你的职责是基于事实回答用户问题。
-1. **优先检索**：遇到任何事实性问题，必须先调用 \`search_knowledge_base\` 工具获取信息。不要直接编造答案。
-2. **多轮思考**：如果第一次检索结果不理想，可以尝试换个角度或关键词再次检索。
-3. **基于证据**：回答时请引用检索到的资料（UI会自动展示引用卡片，你只需在文本中自然融合信息）。
-4. **风格**：保持专业、客观、逻辑清晰。使用简体中文。字体风格应正式（前端已配置衬线体，你只需输出 Markdown）。
-5. **UI交互**：当展示列表时，适当使用 Markdown 列表。
-
-请记住：你的知识库是最新的，利用好它。`;
-
 
 export const AIChatPanel: React.FC<{ 
     className?: string; 
@@ -342,7 +343,7 @@ export const AIChatPanel: React.FC<{
                                 args.query = "error"; 
                             }
 
-                            // A. UI: Show "Searching" Card
+                            // A. UI: Show "Searching" Card (Temporary placeholder)
                             const toolMsgId = crypto.randomUUID();
                             setMessages(prev => [...prev, {
                                 id: toolMsgId,
@@ -499,6 +500,7 @@ export const AIChatPanel: React.FC<{
                     </div>
                     <div>
                         <h3 className="text-base font-black text-slate-800 tracking-tight font-serif">AI Copilot</h3>
+                        {/* Hidden Model Name as requested */}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
