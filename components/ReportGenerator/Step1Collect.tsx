@@ -3,10 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
     CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon, PlusIcon,
-    DatabaseIcon, CloseIcon, ExternalLinkIcon, EyeIcon, GlobeIcon
+    DatabaseIcon, CloseIcon, ExternalLinkIcon, EyeIcon
 } from '../icons';
-import { getPromptDetail, streamChatCompletions, performWebSearch } from '../../api/stratify';
-import { searchSemanticGrouped } from '../../api/intelligence';
+import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
+import { searchSemanticSegments, getArticleHtml } from '../../api/intelligence';
 import { getWalletBalance } from '../../api/user'; // Import wallet balance check
 import { PPTStage, ChatMessage, PPTData, PPTPageData, SharedGeneratorProps } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
@@ -125,7 +125,7 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
         <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/50 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-indigo-600 hover:bg-indigo-100/50 transition-colors select-none bg-indigo-50/50 font-serif"
+                className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-indigo-600 hover:bg-indigo-100/50 transition-colors"
             >
                 <BrainIcon className={`w-3.5 h-3.5 ${isStreaming ? 'animate-pulse' : ''}`} />
                 <span>深度思考过程 {isStreaming ? '...' : ''}</span>
@@ -151,24 +151,15 @@ const RetrievalBlock: React.FC<{
     isSearching: boolean; 
     query: string; 
     items?: InfoItem[]; 
-    sourceType?: 'internal' | 'web';
     onItemClick: (item: InfoItem) => void 
-}> = ({ isSearching, query, items, sourceType = 'internal', onItemClick }) => {
+}> = ({ isSearching, query, items, onItemClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
-    
-    const isWeb = sourceType === 'web';
-    const ThemeIcon = isWeb ? GlobeIcon : DatabaseIcon;
-    const themeColor = isWeb ? 'text-indigo-600' : 'text-blue-600';
-    const themeBg = isWeb ? 'bg-indigo-50/50 hover:bg-indigo-50' : 'bg-blue-50/50 hover:bg-blue-50';
-    const themeBorder = isWeb ? 'border-indigo-100' : 'border-blue-100';
 
     if (isSearching) {
         return (
-            <div className={`mb-3 p-3 bg-white border ${themeBorder} rounded-xl shadow-sm flex items-center gap-3 animate-pulse`}>
-                <RefreshIcon className={`w-4 h-4 animate-spin ${themeColor}`} />
-                <span className="text-xs text-slate-600 font-medium">
-                    {isWeb ? '正在扫描全网资讯' : '正在检索知识库'}: <strong>{query}</strong>...
-                </span>
+            <div className="mb-3 p-3 bg-white border border-blue-100 rounded-xl shadow-sm flex items-center gap-3 animate-pulse">
+                <RefreshIcon className="w-4 h-4 text-blue-500 animate-spin" />
+                <span className="text-xs text-slate-600 font-medium">正在检索知识库: <strong>{query}</strong>...</span>
             </div>
         );
     }
@@ -176,42 +167,39 @@ const RetrievalBlock: React.FC<{
     if (!items || items.length === 0) return null;
 
     return (
-        <div className={`mb-3 rounded-xl border ${themeBorder} bg-white overflow-hidden shadow-sm font-serif`}>
+        <div className="mb-3 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className={`w-full flex items-center gap-2 px-3 py-2.5 ${themeBg} transition-colors border-b ${themeBorder}`}
+                className="w-full flex items-center gap-2 px-3 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors border-b border-slate-100"
             >
-                <CheckCircleIcon className={`w-4 h-4 ${isWeb ? 'text-indigo-500' : 'text-green-500'}`} />
-                <span className={`text-xs font-bold ${isWeb ? 'text-indigo-700' : 'text-slate-700'}`}>
-                    已找到 {items.length} 篇{isWeb ? '互联网' : '内部'}资料
-                </span>
+                <CheckCircleIcon className="w-4 h-4 text-green-500" />
+                <span className="text-xs font-bold text-slate-700">已找到 {items.length} 篇相关资料</span>
                 <span className="text-[10px] text-slate-400 truncate max-w-[150px] ml-1">({query})</span>
                 <ChevronDownIcon className={`w-3 h-3 ml-auto text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             
             {isExpanded && (
-                <div className="max-h-60 overflow-y-auto custom-scrollbar p-1 bg-slate-50/30">
+                <div className="max-h-60 overflow-y-auto custom-scrollbar p-1 bg-slate-50/50">
                     {items.map((item, idx) => (
                         <div 
                             key={idx}
                             onClick={() => onItemClick(item)}
-                            className={`p-2 m-1 bg-white border border-slate-100 rounded-lg hover:${themeBorder} hover:shadow-sm transition-all cursor-pointer group`}
+                            className="p-2 m-1 bg-white border border-slate-200 rounded-lg hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer group"
                         >
                             <div className="flex items-start gap-2">
-                                <span className={`flex-shrink-0 w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center mt-0.5 ${isWeb ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-100 text-slate-500'}`}>
+                                <span className="flex-shrink-0 w-4 h-4 bg-slate-100 text-slate-500 rounded text-[9px] font-bold flex items-center justify-center mt-0.5">
                                     {idx + 1}
                                 </span>
                                 <div className="flex-1 min-w-0">
-                                    <div className={`text-xs font-bold text-slate-800 truncate group-hover:${themeColor} font-serif`}>
+                                    <div className="text-xs font-bold text-slate-800 truncate group-hover:text-indigo-600">
                                         {item.title}
                                     </div>
-                                    <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5 font-sans">
-                                        <span className="bg-slate-100 px-1 rounded truncate max-w-[80px]">{item.source_name}</span>
-                                        {!isWeb && <span>{(item.similarity ? item.similarity * 100 : 0).toFixed(0)}% 相似度</span>}
-                                        {item.publish_date && <span>{new Date(item.publish_date).toLocaleDateString()}</span>}
+                                    <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                                        <span className="bg-slate-100 px-1 rounded">{item.source_name}</span>
+                                        <span>{(item.similarity ? item.similarity * 100 : 0).toFixed(0)}% 相似度</span>
                                     </div>
                                 </div>
-                                <ExternalLinkIcon className={`w-3 h-3 text-slate-300 group-hover:${isWeb ? 'text-indigo-400' : 'text-blue-400'}`} />
+                                <ExternalLinkIcon className="w-3 h-3 text-slate-300 group-hover:text-indigo-400" />
                             </div>
                         </div>
                     ))}
@@ -238,11 +226,11 @@ const ReferenceReaderModal: React.FC<{ item: InfoItem; onClose: () => void }> = 
 
     return (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 font-serif">
+            <div className="bg-white w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <div className="flex-1 min-w-0 pr-4">
                         <h3 className="text-base font-bold text-slate-800 truncate">{item.title}</h3>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 font-sans">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                             <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded">{item.source_name}</span>
                             <a href={item.original_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-indigo-600 hover:underline">
                                 <ExternalLinkIcon className="w-3 h-3"/> 原文
@@ -312,9 +300,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     // Title Edit State
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [tempTitle, setTempTitle] = useState('');
-    
-    // Toggle State
-    const [useWebSearch, setUseWebSearch] = useState(false);
 
     useEffect(() => {
         setTempTitle(sessionTitle || '');
@@ -374,8 +359,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const performResearch = async (query: string): Promise<string> => {
         // 1. Add "Searching" placeholder to history
         const searchMsgId = crypto.randomUUID();
-        const searchSource = useWebSearch ? 'web' : 'internal';
-        
         setHistory(prev => [...prev, { 
             role: 'assistant', 
             content: '', 
@@ -384,46 +367,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         }]);
 
         try {
-            let items: InfoItem[] = [];
-
-            if (useWebSearch) {
-                 // Web Search
-                 const res = await performWebSearch(query, 6);
-                 items = (res.results || []).map((item: any, i: number) => ({
-                    id: `web-${i}-${Date.now()}`,
-                    title: item.title,
-                    content: item.content || item.snippet || '',
-                    source_name: item.link ? new URL(item.link).hostname : 'Internet',
-                    publish_date: item.publish_date || new Date().toISOString(),
-                    original_url: item.link,
-                    created_at: new Date().toISOString(),
-                    is_atomized: false
-                }));
-            } else {
-                // Internal Search with Grouped Deduplication
-                const res = await searchSemanticGrouped({
-                    query_text: query,
-                    page: 1,
-                    page_size: 5, // Top 5 articles
-                    similarity_threshold: 0.35
-                });
-                
-                // Grouped API returns items with 'article_id'. We need to flatten/map them to InfoItem.
-                // Or simply use the deduplication logic if using segment API. 
-                // Let's use the segment API logic but deduplicate by article_id manually to be safe if grouped API is too new.
-                // Actually searchSemanticGrouped is better.
-                
-                items = (res.items || []).map((item: any) => ({
-                    id: item.article_id,
-                    title: item.title,
-                    content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : (item.content || ''),
-                    source_name: item.source_name,
-                    publish_date: item.publish_date,
-                    original_url: item.url,
-                    created_at: item.created_at,
-                    similarity: item.segments?.[0]?.similarity
-                }));
-            }
+            // 2. Execute Search
+            const res = await searchSemanticSegments({
+                query_text: query,
+                page: 1,
+                page_size: 5,
+                similarity_threshold: 0.35
+            });
+            const items = res.items || [];
 
             // 3. Update the placeholder with results
             setHistory(prev => {
@@ -434,9 +385,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     newHist[targetIdx] = {
                         ...newHist[targetIdx],
                         isRetrieving: false,
-                        retrievedItems: items,
-                        searchSource // Add source type to message for UI rendering
-                    } as any;
+                        retrievedItems: items
+                    };
                 }
                 return newHist;
             });
@@ -512,7 +462,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         }
 
         if (allReferences.trim().length > 0) {
-            finalPrompt = `【参考背景资料(基于${useWebSearch ? '全网' : '内部库'}检索)】\n${allReferences}\n\n【用户指令】\n${userPromptText}`;
+            finalPrompt = `【参考背景资料(基于向量检索)】\n${allReferences}\n\n【用户指令】\n${userPromptText}`;
         }
         
         let systemPrompt = `You are an expert presentation outline generator. Current Date: ${currentDate}. Output STRICT JSON: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary..." }, ... ] }`;
@@ -814,10 +764,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     }, [stage, isLlmActive, autoGenMode, data.pages]);
 
     // ... Modification logic omitted for brevity as it remains similar ...
+    // Using a simpler placeholder here for modification as it's less affected by RAG flow currently
     const handleModification = async (instruction: string) => {
+         // (Keep existing modification logic, ensuring isLlmActive is handled)
+         // For now, assuming user doesn't need explicit new RAG for simple modification unless requested.
+         // Standard implementation...
          setIsLlmActive(true);
          setHistory(prev => [...prev, { role: 'assistant', content: "收到修改指令，正在处理..." }]);
-         setTimeout(() => setIsLlmActive(false), 1000); 
+         setTimeout(() => setIsLlmActive(false), 1000); // Mock
     };
 
 
@@ -880,7 +834,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             query={msg.searchQuery || 'Context Search'}
                             items={msg.retrievedItems}
                             onItemClick={setViewingItem}
-                            sourceType={(msg as any).searchSource} // Pass source type for UI distinction
                         />
                     );
                 }
@@ -1058,19 +1011,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0 relative">
-                    
-                     {/* Toggle Web Search Bar */}
-                     <div className="flex items-center gap-2 px-1 pb-2">
-                        <button 
-                            onClick={() => setUseWebSearch(!useWebSearch)}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border transition-all duration-200 ${useWebSearch ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
-                            title={useWebSearch ? "关闭联网搜索" : "开启联网搜索"}
-                        >
-                            <GlobeIcon className={`w-3 h-3 ${useWebSearch ? 'text-indigo-500' : 'text-slate-400'}`} />
-                            {useWebSearch ? '联网搜索: 开启' : '联网搜索: 关闭'}
-                        </button>
-                    </div>
-
                     <ContextAnchor 
                         stage={stage}
                         pageIndex={activePageIndex}
