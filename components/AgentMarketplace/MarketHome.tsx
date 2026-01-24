@@ -6,7 +6,7 @@ import {
     SearchIcon, CubeIcon, SparklesIcon, LockClosedIcon, 
     ArrowRightIcon, BrainIcon,
     GlobeIcon, ChipIcon, TruckIcon, UsersIcon, 
-    FilterIcon
+    FilterIcon, LightningBoltIcon, TrendingUpIcon
 } from '../icons';
 
 interface MarketHomeProps {
@@ -145,15 +145,16 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
             <header className="bg-white border-b border-slate-200 flex-shrink-0 relative z-30 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] transition-all duration-300">
                 <div className="max-w-[1920px] mx-auto w-full px-6 md:px-8">
                     
-                    {/* Part 1: Collapsible Hero (Left: Carousel, Right: Intro) */}
+                    {/* Part 1: Collapsible Hero (3-Column Layout: Carousel | Text | Stats) */}
                     <div 
                         className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden ${
-                            isScrolled ? 'max-h-0 opacity-0 mb-0 py-0' : 'max-h-[300px] opacity-100 py-6'
+                            isScrolled ? 'max-h-0 opacity-0 mb-0 py-0' : 'max-h-[340px] opacity-100 py-6'
                         }`}
                     >
-                        <div className="flex flex-col md:flex-row gap-8 items-center h-full">
-                            {/* Left: Carousel (Compact) */}
-                            <div className="w-full md:w-[480px] h-[200px] flex-shrink-0 relative group rounded-2xl overflow-hidden shadow-lg shadow-indigo-100/50">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center h-full">
+                            
+                            {/* Col 1: Carousel (5/12) */}
+                            <div className="lg:col-span-5 w-full h-[220px] relative group rounded-2xl overflow-hidden shadow-lg shadow-indigo-100/50">
                                 {HERO_SLIDES.map((slide, index) => (
                                     <div 
                                         key={slide.id}
@@ -181,8 +182,8 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                                 </div>
                             </div>
 
-                            {/* Right: Intro Text */}
-                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            {/* Col 2: Intro Text (4/12) */}
+                            <div className="lg:col-span-4 flex flex-col justify-center pl-2">
                                 <div className="flex items-center gap-3 mb-3">
                                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
                                         <BrainIcon className="w-6 h-6" />
@@ -199,10 +200,46 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                                 <h2 className="text-3xl font-extrabold text-slate-900 leading-tight mb-3 tracking-tight">
                                     Build Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">AI Team</span>
                                 </h2>
-                                <p className="text-slate-500 text-sm max-w-xl leading-relaxed hidden md:block">
+                                <p className="text-slate-500 text-sm leading-relaxed hidden md:block">
                                     在 AI 时代重构汽车行业生产力。从战略规划到工程落地，为您匹配最专业的数字员工。
                                 </p>
                             </div>
+
+                            {/* Col 3: Market Stats (3/12) - Filling the empty right space */}
+                            <div className="hidden lg:flex lg:col-span-3 flex-col gap-3 h-full justify-center">
+                                {/* Card 1: Active Agents */}
+                                <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100/60 relative overflow-hidden group hover:border-indigo-200 transition-colors">
+                                    <div className="absolute -right-4 -top-4 w-16 h-16 bg-indigo-100 rounded-full blur-xl opacity-50 group-hover:opacity-80 transition-opacity"></div>
+                                    <div className="relative z-10">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="text-[10px] font-black text-indigo-400 uppercase tracking-wider">Platform Agents</div>
+                                            <CubeIcon className="w-4 h-4 text-indigo-300" />
+                                        </div>
+                                        <div className="text-2xl font-black text-indigo-900">{AGENT_REGISTRY.length}+</div>
+                                        <div className="text-[10px] text-indigo-600/70 font-medium mt-0.5">Available for deployment</div>
+                                    </div>
+                                </div>
+
+                                {/* Card 2: Efficiency Metric */}
+                                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all">
+                                    <div>
+                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Tasks Executed</div>
+                                        <div className="text-xl font-black text-slate-800">12.5k</div>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100">
+                                        <TrendingUpIcon className="w-5 h-5" />
+                                    </div>
+                                </div>
+
+                                {/* Card 3: Trending Tag */}
+                                <div className="flex items-center gap-2">
+                                     <span className="text-[10px] font-bold text-slate-400 uppercase">Trending:</span>
+                                     <span className="px-2 py-1 rounded-md bg-orange-50 text-orange-600 text-[10px] font-bold border border-orange-100 flex items-center gap-1">
+                                         <LightningBoltIcon className="w-3 h-3" /> Deep Research
+                                     </span>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
