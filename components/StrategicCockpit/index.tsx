@@ -178,7 +178,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     />
                 </div>
 
-                {/* 3. Right Column: AI Copilot (Dynamic Width) */}
+                {/* 3. Right Column: AI Copilot (Dynamic Width) - Desktop Only Container */}
                 <div className={`
                     hidden md:flex flex-col transition-all duration-500 ease-in-out flex-shrink-0
                     bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden
@@ -191,17 +191,19 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     />
                 </div>
 
-                {/* Mobile Copilot Overlay (Always Full) */}
+                {/* Mobile Copilot Overlay (Always Full) - Conditional Render to prevent auto-scroll hijack */}
                 <div className={`
                     md:hidden w-full flex flex-col z-30 transition-transform duration-300 absolute inset-0
                     bg-white
                     ${mobileTab === 'chat' ? 'translate-x-0' : 'translate-x-full'}
                 `}>
-                     <AIChatPanel 
-                        isExpanded={true} 
-                        hideToggle={true}
-                        onReferenceClick={handleCopilotCitationClick} 
-                    />
+                     {mobileTab === 'chat' && (
+                        <AIChatPanel 
+                            isExpanded={true} 
+                            hideToggle={true}
+                            onReferenceClick={handleCopilotCitationClick} 
+                        />
+                     )}
                 </div>
             </div>
 
