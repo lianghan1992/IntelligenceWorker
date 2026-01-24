@@ -145,7 +145,10 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
         items: res.items.map(a => ({
             id: a.id,
             title: a.title,
+            refined_title: a.refined_title,
             content: a.content || '',
+            refined_content: a.refined_content,
+            has_refined_content: a.has_refined_content,
             source_name: a.source_name,
             point_name: a.point_name,
             original_url: a.url,
@@ -170,7 +173,13 @@ export const getSpiderArticles = (params: any): Promise<PaginatedResponse<Spider
 
     const query = createApiQuery(apiParams);
     return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/${query}`).then(res => ({
-        items: res.items.map((a: any) => ({ ...a, is_atomized: !!a.is_atomized })),
+        items: res.items.map((a: any) => ({ 
+            ...a, 
+            is_atomized: !!a.is_atomized,
+            refined_title: a.refined_title,
+            has_refined_content: a.has_refined_content,
+            refined_content: a.refined_content
+        })),
         total: res.total,
         page: res.page,
         limit: res.size,
@@ -181,7 +190,10 @@ export const getSpiderArticles = (params: any): Promise<PaginatedResponse<Spider
 export const getArticleById = (id: string): Promise<InfoItem> => getSpiderArticleDetail(id).then(a => ({
     id: a.id,
     title: a.title,
+    refined_title: a.refined_title,
     content: a.content || '',
+    refined_content: a.refined_content,
+    has_refined_content: a.has_refined_content,
     source_name: a.source_name,
     point_name: a.point_name,
     original_url: a.url,
@@ -272,7 +284,10 @@ export const searchSemanticSegments = async (data: any): Promise<{ items: InfoIt
     const items = (res.items || []).map((item: any) => ({
         ...item,
         id: String(item.article_id || item.id || ''), 
-        is_atomized: !!item.is_atomized
+        is_atomized: !!item.is_atomized,
+        refined_title: item.refined_title,
+        refined_content: item.refined_content,
+        has_refined_content: item.has_refined_content
     }));
     return {
         items,
@@ -302,7 +317,12 @@ export const searchSemanticBatchGrouped = async (data: {
 export const getArticlesByTags = (data: any): Promise<PaginatedResponse<ArticlePublic>> => {
     const query = createApiQuery(data); 
     return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/by_tags${query}`).then(res => ({
-        items: res.items.map((a: any) => ({ ...a, is_atomized: !!a.is_atomized })),
+        items: res.items.map((a: any) => ({ 
+            ...a, 
+            is_atomized: !!a.is_atomized,
+            refined_title: a.refined_title,
+            has_refined_content: a.has_refined_content
+        })),
         total: res.total,
         page: res.page,
         limit: res.size,

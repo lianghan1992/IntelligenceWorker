@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { InfoItem } from '../../types';
-import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, ExternalLinkIcon, ClockIcon, ChevronLeftIcon } from '../icons';
+import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, ExternalLinkIcon, ClockIcon, ChevronLeftIcon, ShieldCheckIcon } from '../icons';
 import { getArticleHtml, generateArticleHtml, downloadArticlePdf, getSpiderArticleDetail } from '../../api/intelligence';
 import { marked } from 'marked';
 
@@ -28,6 +28,9 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [fullContent, setFullContent] = useState<string>('');
     const [articleUrl, setArticleUrl] = useState<string>('');
+    const [displayTitle, setDisplayTitle] = useState<string>('');
+    const [isRefined, setIsRefined] = useState<boolean>(false);
+    
     const [isHtmlLoading, setIsHtmlLoading] = useState(false);
     const [isContentLoading, setIsContentLoading] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -41,12 +44,25 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
         
         let active = true;
         setHtmlContent(null);
-        setFullContent(selectedArticle.content || '');
-        setArticleUrl(selectedArticle.original_url || ''); // Init from prop
+        
+        // Initial set from list object
+        setArticleUrl(selectedArticle.original_url || ''); 
+        setDisplayTitle(selectedArticle.refined_title || selectedArticle.title);
+        
+        // Use refined_content if available, otherwise content
+        if (selectedArticle.refined_content) {
+            setFullContent(selectedArticle.refined_content);
+            setIsRefined(true);
+        } else {
+            setFullContent(selectedArticle.content || '');
+            setIsRefined(false);
+        }
         
         const loadData = async () => {
-            // Always fetch detail if content is missing or too short
-            const needsDetail = !selectedArticle.original_url || !selectedArticle.content || selectedArticle.content.length < 100;
+            // Check if we need to fetch details (content missing/short or need to check for refined content on server)
+            // Even if we have content, we might want to check for refined content if it wasn't in the list
+            const needsDetail = !selectedArticle.original_url || 
+                                (!selectedArticle.refined_content && (!selectedArticle.content || selectedArticle.content.length < 100));
 
             if (needsDetail) {
                 setIsContentLoading(true);
@@ -54,7 +70,15 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                     const detail = await getSpiderArticleDetail(selectedArticle.id);
                     if (active) {
                         if (detail.original_url) setArticleUrl(detail.original_url);
-                        if (detail.content) setFullContent(detail.content);
+                        
+                        // Update title/content logic based on detail
+                        const titleToUse = detail.refined_title || detail.title;
+                        const contentToUse = detail.refined_content || detail.content || '';
+                        
+                        setDisplayTitle(titleToUse);
+                        setFullContent(contentToUse);
+                        setIsRefined(!!detail.refined_content);
+
                         // If detail also reports it's atomized, we should respect that
                         if (detail.is_atomized) selectedArticle.is_atomized = true;
                     }
@@ -272,10 +296,17 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                                     <span className="text-[10px] uppercase tracking-wider">AI Atomized</span>
                                 </div>
                             )}
+
+                            {isRefined && (
+                                <div className="flex items-center gap-1 text-green-600 font-bold ml-auto" title="内容已由AI重构，规避版权风险">
+                                    <ShieldCheckIcon className="w-3.5 h-3.5" />
+                                    <span className="text-[10px] uppercase tracking-wider">AI Refined</span>
+                                </div>
+                            )}
                         </div>
                         
                         <h3 className="font-extrabold text-slate-900 text-lg md:text-xl md:text-2xl leading-tight line-clamp-2 md:line-clamp-none">
-                            {selectedArticle.title}
+                            {displayTitle}
                         </h3>
                     </div>
                 </div>

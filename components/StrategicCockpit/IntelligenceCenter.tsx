@@ -26,9 +26,9 @@ const ArticleCard: React.FC<{
             <div className="absolute left-0 top-3 bottom-3 w-1 bg-indigo-500 rounded-r-full"></div>
         )}
         
-        {/* Title */}
+        {/* Title: Prefer refined_title if available */}
         <h4 className={`text-[14px] md:text-[15px] font-bold leading-snug line-clamp-2 mb-2.5 transition-colors ${isActive ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-700'}`}>
-            {article.title}
+            {article.refined_title || article.title}
         </h4>
 
         {/* Metadata Row */}
@@ -50,6 +50,14 @@ const ArticleCard: React.FC<{
                     <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-600 border border-purple-100/50">
                         <SparklesIcon className="w-2.5 h-2.5" />
                         {(article.similarity * 100).toFixed(0)}%
+                    </span>
+                )}
+                
+                {/* Refined Indicator */}
+                {article.has_refined_content && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-50 text-green-600 border border-green-100/50" title="AI重构内容">
+                        <ShieldCheckIcon className="w-2.5 h-2.5" />
+                        AI重构
                     </span>
                 )}
             </div>

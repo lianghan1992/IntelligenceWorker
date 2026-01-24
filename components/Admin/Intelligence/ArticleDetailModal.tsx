@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticleDetail } from '../../../api/intelligence';
-import { CloseIcon, ExternalLinkIcon, ClockIcon } from '../../icons';
+import { CloseIcon, ExternalLinkIcon, ClockIcon, ShieldCheckIcon } from '../../icons';
 import { marked } from 'marked';
 
 interface ArticleDetailModalProps {
@@ -44,9 +44,11 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
     }, [articleUuid]);
 
     const contentHtml = useMemo(() => {
-        if (!article?.content) return '';
+        // Prefer refined content
+        const rawContent = article?.refined_content || article?.content || '';
+        if (!rawContent) return '';
         
-        const decodedContent = unescapeUnicode(article.content);
+        const decodedContent = unescapeUnicode(rawContent);
         
         try {
             return marked.parse(decodedContent) as string;
@@ -60,11 +62,14 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
         if (error) return <div className="p-10 text-center text-red-500">{error}</div>;
         if (!article) return <div className="p-10 text-center text-gray-500">未找到文章</div>;
 
+        const displayTitle = article.refined_title || article.title;
+        const isRefined = !!article.refined_content;
+
         return (
             <div className="flex flex-col h-full">
                 <div className="p-6 border-b bg-white flex justify-between items-start">
                     <div className="pr-8">
-                        <h2 className="text-xl font-bold text-gray-900 leading-snug">{article.title}</h2>
+                        <h2 className="text-xl font-bold text-gray-900 leading-snug">{displayTitle}</h2>
                         <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-gray-500">
                             {article.publish_date && (
                                 <span className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
@@ -77,6 +82,11 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
                             <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
                                 <ExternalLinkIcon className="w-3 h-3"/> 原文链接
                             </a>
+                            {isRefined && (
+                                <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100 font-bold" title="内容已由AI重构">
+                                    <ShieldCheckIcon className="w-3 h-3"/> AI Refined
+                                </span>
+                            )}
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">

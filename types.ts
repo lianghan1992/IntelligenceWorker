@@ -251,7 +251,10 @@ export interface Subscription {
 export interface InfoItem {
     id: string;
     title: string;
+    refined_title?: string;
     content: string;
+    refined_content?: string;
+    has_refined_content?: boolean;
     source_name: string;
     point_name?: string;
     original_url: string;
@@ -326,7 +329,10 @@ export interface SpiderPoint {
 export interface SpiderArticle {
     id: string; // Standardized from uuid
     title: string;
+    refined_title?: string;
     content: string;
+    refined_content?: string;
+    has_refined_content?: boolean;
     url: string;
     source_name: string;
     point_name: string;
