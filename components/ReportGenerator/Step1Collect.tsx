@@ -166,7 +166,6 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
 };
 
 // --- Retrieval Block Component (Grouped Result Display) ---
-// Updated to handle grouped articles
 const RetrievalBlock: React.FC<{ 
     isSearching: boolean; 
     query: string; 
@@ -203,7 +202,6 @@ const RetrievalBlock: React.FC<{
                     {items.map((group, idx) => (
                         <div 
                             key={group.article_id || idx}
-                            // Map grouped item back to InfoItem for viewer
                             onClick={() => onItemClick({
                                 id: group.article_id,
                                 title: group.title,
@@ -439,7 +437,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }
                     
                     // Stream content feedback to UI
-                    if (!toolCallsBuffer.length) {
+                    if (toolCallsBuffer.length === 0) {
                         onResult(accumulatedContent, accumulatedReasoning);
                     }
                 }, () => {
@@ -465,14 +463,19 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             onToolUI(args.query, []); 
 
                             // Execute Search (Grouped)
-                            const searchRes = await searchSemanticGrouped({
-                                query_text: args.query,
-                                page: 1,
-                                size: 5, // Top 5 Articles
-                                similarity_threshold: 0.35
-                            });
-                            
-                            const items = searchRes.items || [];
+                            let items = [];
+                            try {
+                                const searchRes = await searchSemanticGrouped({
+                                    query_text: args.query,
+                                    page: 1,
+                                    size: 5, // Top 5 Articles
+                                    similarity_threshold: 0.35
+                                });
+                                items = searchRes.items || [];
+                            } catch (searchError: any) {
+                                console.error("Search failed", searchError);
+                                items = []; // Fail safe
+                            }
                             
                             // UI Feedback: Results
                             onToolUI(args.query, items);
@@ -497,6 +500,9 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
         } catch (e: any) {
             console.error(e);
+            // Feed error back to UI so user isn't stuck
+            setHistory(prev => [...prev, { role: 'assistant', content: `⚠️ 生成过程中发生错误: ${e.message || '网络连接中断'}`, model: model }]);
+            
             if (e.message === 'INSUFFICIENT_BALANCE' && onHandleInsufficientBalance) {
                 onHandleInsufficientBalance();
             }
@@ -539,6 +545,7 @@ Wrap the JSON in \`\`\`json code block.`;
                 setHistory(prev => {
                     const newHistory = [...prev];
                     const lastIdx = newHistory.length - 1;
+                    // Only update if it's the pending assistant bubble
                     if (newHistory[lastIdx].role === 'assistant' && !newHistory[lastIdx].retrievedItems) {
                          newHistory[lastIdx] = { ...newHistory[lastIdx], reasoning, content };
                     }
@@ -547,13 +554,14 @@ Wrap the JSON in \`\`\`json code block.`;
             },
             (query, items) => {
                 // UI Update for Tool Usage: Append a separate bubble for search results if items exist
+                // Logic update: Ensure we append the tool result AND a new placeholder for the next text generation
                 if (items && items.length > 0) {
                      setHistory(prev => {
-                         // Check if we already have this search result to avoid duplicate keys in strict mode
-                         // Ideally we just append.
+                         // Find the last message. If it was the "Searching..." indicator, we might want to replace it or append.
+                         // For simplicity, we just append the result block.
                          return [...prev, {
                              role: 'assistant',
-                             content: '',
+                             content: '', // Tool block content is handled by RetrievalBlock via retrievedItems
                              isRetrieving: false,
                              searchQuery: query,
                              retrievedItems: items, // This will trigger RetrievalBlock
@@ -572,7 +580,7 @@ Wrap the JSON in \`\`\`json code block.`;
                 ...prev, 
                 topic: partialOutline.title || prev.topic, 
                 outline: partialOutline,
-                referenceMaterials: (prev.referenceMaterials || '') // Note: We don't auto-append tool results to referenceMaterials string anymore, relying on Agent context.
+                referenceMaterials: (prev.referenceMaterials || '') 
             }));
             if (!isRefinement) {
                 setStage('outline');
@@ -689,13 +697,13 @@ Wrap the JSON in \`\`\`json code block.`;
                 });
 
             }, (query, items) => {
-                 // Tool UI Feedback (Same as above)
+                 // Tool UI Feedback
                  if (items && items.length > 0) {
                      setHistory(prev => [...prev, {
                          role: 'assistant',
                          content: '',
                          searchQuery: query,
-                         retrievedItems: items, // Will use Grouped Data
+                         retrievedItems: items, 
                          timestamp: Date.now()
                      }, { role: 'assistant', content: '', model: modelStr }]);
                 }
@@ -721,8 +729,6 @@ Wrap the JSON in \`\`\`json code block.`;
     // Using a simpler placeholder here for modification as it's less affected by RAG flow currently
     const handleModification = async (instruction: string) => {
          // (Keep existing modification logic, ensuring isLlmActive is handled)
-         // For now, assuming user doesn't need explicit new RAG for simple modification unless requested.
-         // Standard implementation...
          setIsLlmActive(true);
          setHistory(prev => [...prev, { role: 'assistant', content: "收到修改指令，正在处理..." }]);
          setTimeout(() => setIsLlmActive(false), 1000); // Mock
