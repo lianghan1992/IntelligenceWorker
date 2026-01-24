@@ -1,12 +1,12 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AgentConfig, AgentCategory } from './types';
 import { AGENT_REGISTRY } from './registry';
 import { 
     SearchIcon, CubeIcon, SparklesIcon, LockClosedIcon, 
     ArrowRightIcon, BrainIcon,
     GlobeIcon, ChipIcon, TruckIcon, UsersIcon, DocumentTextIcon,
-    FilterIcon
+    FilterIcon, PlayIcon
 } from '../icons';
 
 interface MarketHomeProps {
@@ -74,9 +74,50 @@ const BATTLEFIELD_CONFIG: Record<string, {
     }
 };
 
+// --- Hero Banner Data ---
+const HERO_SLIDES = [
+    {
+        id: 1,
+        image: "https://images.unsplash.com/photo-1617788138017-80ad40651399?q=80&w=2070&auto=format&fit=crop",
+        tag: "R&D REVOLUTION",
+        title: "重构汽车研发生产力",
+        desc: "从代码生成到论文研读，让 AI 成为每一位工程师的超级副驾驶，加速技术落地周期。",
+        theme: "indigo"
+    },
+    {
+        id: 2,
+        image: "https://images.unsplash.com/photo-1554744512-d6c603f27c54?q=80&w=2070&auto=format&fit=crop",
+        tag: "MARKET INTELLIGENCE",
+        title: "数据驱动的战略决策",
+        desc: "实时监控全网竞品动态与用户舆情，将海量噪音转化为可执行的商业洞察。",
+        theme: "blue"
+    },
+    {
+        id: 3,
+        image: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=2070&auto=format&fit=crop",
+        tag: "SUPPLY CHAIN RESILIENCE",
+        title: "预见供应链的未来",
+        desc: "通过深度学习预测原材料价格波动与供应风险，构建更具韧性的全球制造网络。",
+        theme: "orange"
+    }
+];
+
 export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState<AgentCategory>('全部');
+    
+    // Carousel State
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [isHovered, setIsHovered] = useState(false);
+
+    // Auto-play Logic
+    useEffect(() => {
+        if (isHovered) return;
+        const timer = setInterval(() => {
+            setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+        }, 6000); // 6 seconds per slide
+        return () => clearInterval(timer);
+    }, [isHovered]);
 
     const filteredAgents = useMemo(() => {
         return AGENT_REGISTRY.filter(agent => {
@@ -97,17 +138,17 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
                     {/* Top Row: Brand & Search */}
                     <div className="px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                         
-                        {/* Left: Title */}
+                        {/* Left: Title (Simplified) */}
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
                                 <BrainIcon className="w-6 h-6" />
                             </div>
                             <div>
                                 <h1 className="text-xl font-extrabold text-slate-800 tracking-tight leading-none">
-                                    AI Digital Workforce
+                                    Efficiency Market
                                 </h1>
                                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                    Automotive Intelligence Hub
+                                    Digital Workforce Platform
                                 </p>
                             </div>
                         </div>
@@ -167,7 +208,59 @@ export const MarketHome: React.FC<MarketHomeProps> = ({ onSelectAgent }) => {
             <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 bg-[#f8fafc]">
                 <div className="max-w-[1920px] mx-auto">
                     
-                    {/* Category Intro Banner (Optional, keep it small) */}
+                    {/* --- Hero Carousel Section (Visual Impact) --- */}
+                    {activeCategory === '全部' && !searchQuery && (
+                        <div 
+                            className="relative w-full h-[280px] md:h-[320px] rounded-2xl overflow-hidden mb-8 shadow-xl shadow-slate-200 group"
+                            onMouseEnter={() => setIsHovered(true)}
+                            onMouseLeave={() => setIsHovered(false)}
+                        >
+                            {HERO_SLIDES.map((slide, index) => (
+                                <div 
+                                    key={slide.id}
+                                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                                >
+                                    {/* Image */}
+                                    <img 
+                                        src={slide.image} 
+                                        alt={slide.title} 
+                                        className="w-full h-full object-cover transform transition-transform duration-[10s] ease-linear scale-100 group-hover:scale-105" 
+                                    />
+                                    
+                                    {/* Gradient Overlay (Left to Right) */}
+                                    <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/40 to-transparent"></div>
+                                    
+                                    {/* Content */}
+                                    <div className="absolute inset-0 flex flex-col justify-center px-8 md:px-16 max-w-3xl">
+                                        <div className={`inline-flex items-center gap-2 mb-4 animate-in fade-in slide-in-from-left-4 duration-700 delay-100`}>
+                                            <span className={`h-6 px-2 rounded flex items-center text-[10px] font-black tracking-widest bg-white/10 text-white backdrop-blur-sm border border-white/20`}>
+                                                {slide.tag}
+                                            </span>
+                                        </div>
+                                        <h2 className="text-3xl md:text-5xl font-black text-white leading-tight mb-4 tracking-tight drop-shadow-md animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
+                                            {slide.title}
+                                        </h2>
+                                        <p className="text-sm md:text-lg text-slate-200 font-medium leading-relaxed max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+                                            {slide.desc}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Indicators */}
+                            <div className="absolute bottom-6 right-8 z-20 flex gap-2">
+                                {HERO_SLIDES.map((_, idx) => (
+                                    <button 
+                                        key={idx}
+                                        onClick={() => setCurrentSlide(idx)}
+                                        className={`h-1 transition-all duration-300 rounded-full ${idx === currentSlide ? 'w-8 bg-white' : 'w-4 bg-white/30 hover:bg-white/60'}`}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Category Intro Banner (When specific category selected) */}
                     {activeCategory !== '全部' && (
                         <div className="mb-6 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
                              <div className="flex items-center gap-3">
