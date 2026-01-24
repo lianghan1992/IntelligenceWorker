@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SystemSource, InfoItem, User } from '../../types';
 import { lookCategories } from './data';
@@ -111,8 +112,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const handleArticleSelect = (article: InfoItem) => {
         setSelectedArticle(article);
         setMobileTab('detail');
-        // ⚡️ 用户主动点击某篇文章后，收起 AI Copilot 腾出空间
-        setIsCopilotExpanded(false);
+        // ⚡️ 用户主动点击某篇文章后，不再自动收起 AI Copilot，保持常驻
+        // setIsCopilotExpanded(false); 
     };
 
     const handlePageChange = (newPage: number) => {
@@ -124,7 +125,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const handleCopilotCitationClick = (item: InfoItem) => {
         setSelectedArticle(item);
         setMobileTab('detail'); 
-        setIsCopilotExpanded(false);
+        // 引用跳转时也不收起 Copilot
+        // setIsCopilotExpanded(false);
     };
 
     return (

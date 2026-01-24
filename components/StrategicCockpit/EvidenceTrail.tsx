@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { InfoItem } from '../../types';
-import { DocumentTextIcon, ExternalLinkIcon, ClockIcon, ChevronLeftIcon, ShieldCheckIcon } from '../icons';
+import { DocumentTextIcon, ExternalLinkIcon, ClockIcon, ChevronLeftIcon, ShieldCheckIcon, ArrowRightIcon, GlobeIcon } from '../icons';
 import { getSpiderArticleDetail } from '../../api/intelligence';
 import { marked } from 'marked';
 
@@ -85,7 +85,6 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
 
         try {
             // Use marked to parse markdown
-            // Basic sanitization should be handled by marked or a separate library if untrusted input
             return marked.parse(decodedContent) as string;
         } catch (e) {
              // Fallback for simple text display if parsing fails
@@ -107,61 +106,83 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
         );
     }
 
+    const formattedDate = new Date(selectedArticle.publish_date || selectedArticle.created_at)
+        .toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })
+        .replace(/\//g, '.');
+
     return (
         <aside className="h-full flex flex-col bg-white overflow-hidden relative shadow-xl z-30 font-serif">
-             {/* Note: font-serif applied to container for heritage feel */}
              
-            {/* Header - Modern & Clean */}
-            <div className="flex-shrink-0 border-b border-slate-100 bg-white z-20 font-sans">
-                <div className="px-4 py-4 md:px-6 md:py-5 flex gap-3">
-                    {/* Mobile Back Button */}
-                    {onBack && (
-                        <button 
-                            onClick={onBack} 
-                            className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 h-fit"
-                        >
-                            <ChevronLeftIcon className="w-6 h-6" />
-                        </button>
-                    )}
-                    
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2 text-xs">
-                            <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md uppercase tracking-wide font-sans">
-                                {selectedArticle.source_name}
-                            </span>
-                            <span className="text-slate-400 flex items-center gap-1 font-medium font-sans">
-                                <ClockIcon className="w-3.5 h-3.5" />
-                                {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric'})}
-                            </span>
+            {/* --- Poster Style Header --- */}
+            <div className="flex-shrink-0 relative overflow-hidden bg-slate-50 border-b border-slate-200">
+                {/* Background Decor */}
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0" 
+                     style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+                </div>
+                <div className="absolute -right-10 -top-10 text-slate-200 pointer-events-none opacity-20 transform rotate-12 z-0">
+                    <DocumentTextIcon className="w-64 h-64" />
+                </div>
+                
+                {/* Mobile Back */}
+                {onBack && (
+                    <button 
+                        onClick={onBack} 
+                        className="md:hidden absolute top-4 left-4 p-2 bg-white/80 backdrop-blur border border-slate-200 rounded-full shadow-sm z-20"
+                    >
+                        <ChevronLeftIcon className="w-5 h-5 text-slate-600" />
+                    </button>
+                )}
 
-                            {isRefined && (
-                                <div className="flex items-center gap-1 text-green-600 font-bold ml-auto" title="内容已由AI重构，规避版权风险">
-                                    <ShieldCheckIcon className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] uppercase tracking-wider font-sans">AI Refined</span>
-                                </div>
+                <div className="relative z-10 px-8 py-10 md:p-12 flex flex-col gap-6">
+                    {/* Meta Top Line */}
+                    <div className="flex flex-wrap items-center gap-4 font-sans">
+                        <span className="bg-slate-900 text-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] shadow-md">
+                            {selectedArticle.source_name}
+                        </span>
+                        <div className="h-px w-8 bg-slate-300"></div>
+                        <span className="flex items-center gap-1.5 text-slate-500 font-mono text-xs font-bold tracking-widest">
+                            <ClockIcon className="w-3.5 h-3.5" />
+                            {formattedDate}
+                        </span>
+                        {isRefined && (
+                            <div className="ml-auto md:ml-4 flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 shadow-sm">
+                                <ShieldCheckIcon className="w-3.5 h-3.5" />
+                                <span className="text-[9px] font-black uppercase tracking-wider">AI Refined</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Main Title - Serif & Huge */}
+                    <h1 className="font-serif font-black text-3xl md:text-4xl lg:text-5xl text-slate-900 leading-[1.2] tracking-tight drop-shadow-sm">
+                        {displayTitle}
+                    </h1>
+
+                    {/* Action Line */}
+                    <div className="pt-6 border-t border-slate-200/60 flex items-center justify-between font-sans">
+                        <div className="flex items-center gap-2">
+                             {articleUrl ? (
+                                <a 
+                                    href={articleUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="group flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors border-b-2 border-transparent hover:border-indigo-600 pb-0.5"
+                                >
+                                    <GlobeIcon className="w-4 h-4" />
+                                    <span>READ ORIGINAL SOURCE</span>
+                                    <ArrowRightIcon className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
+                                </a>
+                            ) : (
+                                <span className="text-xs text-slate-300 cursor-not-allowed flex items-center gap-2">
+                                    <ExternalLinkIcon className="w-3.5 h-3.5"/> 链接已失效
+                                </span>
                             )}
                         </div>
                         
-                        <h3 className="font-extrabold text-slate-900 text-lg md:text-xl md:text-2xl leading-tight line-clamp-3 md:line-clamp-none font-serif tracking-tight">
-                            {displayTitle}
-                        </h3>
+                        {/* ID or Tag */}
+                        <div className="hidden md:block font-mono text-[9px] text-slate-300">
+                            ID: {selectedArticle.id.slice(0, 8)}
+                        </div>
                     </div>
-                </div>
-
-                {/* Toolbar */}
-                <div className="px-6 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-end font-sans">
-                    {articleUrl ? (
-                        <a 
-                            href={articleUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors"
-                        >
-                            阅读原文 <ExternalLinkIcon className="w-3 h-3" />
-                        </a>
-                    ) : (
-                         <span className="text-xs text-slate-300 cursor-not-allowed">原文链接失效</span>
-                    )}
                 </div>
             </div>
 
@@ -173,27 +194,33 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
                         <p className="text-sm font-medium animate-pulse">正在加载深度内容...</p>
                     </div>
                 ) : (
-                    <div className="h-full overflow-y-auto p-6 md:px-10 md:py-8 custom-scrollbar bg-white scroll-smooth">
+                    <div className="h-full overflow-y-auto p-6 md:px-12 md:py-10 custom-scrollbar bg-white scroll-smooth">
                         <article 
                             className="
-                                prose prose-base md:prose-lg max-w-none 
+                                prose prose-base md:prose-lg max-w-3xl mx-auto
                                 text-[#1a202c] 
                                 font-serif 
                                 leading-loose 
                                 tracking-normal
-                                prose-headings:font-bold prose-headings:text-slate-900 prose-headings:font-sans
-                                prose-p:mb-6 prose-p:leading-[2]
-                                prose-li:leading-[1.8]
-                                prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
+                                prose-headings:font-bold prose-headings:text-slate-900 prose-headings:font-sans prose-headings:tracking-tight
+                                prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl
+                                prose-p:mb-6 prose-p:leading-[2] prose-p:text-slate-700
+                                prose-li:leading-[1.8] prose-li:text-slate-700
+                                prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline hover:prose-a:text-indigo-700
                                 prose-strong:font-bold prose-strong:text-slate-900
-                                prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8
-                                prose-blockquote:border-l-4 prose-blockquote:border-slate-200 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-slate-500
+                                prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8 prose-img:border prose-img:border-slate-100
+                                prose-blockquote:border-l-4 prose-blockquote:border-slate-200 prose-blockquote:pl-6 prose-blockquote:py-2 prose-blockquote:italic prose-blockquote:text-slate-500 prose-blockquote:bg-slate-50 prose-blockquote:rounded-r-lg
+                                prose-code:font-mono prose-code:text-xs prose-code:bg-slate-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-slate-600
+                                prose-hr:border-slate-100 prose-hr:my-10
                             "
                             style={{ fontFamily: '"Songti SC", "STSong", "SimSun", "Times New Roman", serif' }}
                             dangerouslySetInnerHTML={{ __html: renderedMarkdown }}
                         />
-                         <div className="mt-12 pt-8 border-t border-slate-100 text-center text-xs text-slate-300 pb-8 font-sans">
-                            — END OF DOCUMENT —
+                         <div className="mt-16 pt-10 border-t border-slate-100 text-center pb-12 font-sans">
+                             <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-300 mb-2">
+                                <DocumentTextIcon className="w-4 h-4" />
+                             </div>
+                             <p className="text-[10px] text-slate-300 uppercase tracking-widest">End of Document</p>
                         </div>
                     </div>
                 )}
