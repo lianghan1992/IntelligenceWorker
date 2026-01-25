@@ -422,10 +422,17 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
         
         // --- 3. Build History for API ---
-        // Filter out retrieval status messages (isRetrieving) and complex UI items to keep context clean
+        // ⚡️ CRITICAL FIX: Ensure `content` is null when `tool_calls` is present for OpenAI compatibility
         let apiHistory = history.filter(m => m.role !== 'system' && !m.isRetrieving).map(m => {
-            const msg: any = { role: m.role, content: m.content };
-            if (m.tool_calls) msg.tool_calls = m.tool_calls;
+            const msg: any = { role: m.role };
+            
+            if (m.tool_calls && m.tool_calls.length > 0) {
+                msg.content = null; // FORCE content to null if tool_calls exist
+                msg.tool_calls = m.tool_calls;
+            } else {
+                msg.content = m.content || "";
+            }
+            
             if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
             return msg;
         });
@@ -509,7 +516,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 // --- Turn Finished, Process Result ---
                 const finalMsg = {
                     role: 'assistant',
-                    content: accumulatedContent, // Allow empty string if it's a tool call
+                    content: accumulatedContent || null, // Ensure strict null if empty for API history
                     tool_calls: toolCallsBuffer.length > 0 ? toolCallsBuffer : undefined
                 };
                 
@@ -579,8 +586,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                         title: i.title,
                                         source: i.source_name,
                                         date: i.publish_date,
-                                        // Provide top 5 segments (highly relevant chunks)
-                                        segments: (i.segments || []).slice(0, 5).map((s: any) => s.content) 
+                                        // Provide top 3 segments (highly relevant chunks) to save token
+                                        segments: (i.segments || []).slice(0, 3).map((s: any) => s.content) 
                                     })));
                                     
                                     // Update global reference materials for Context
