@@ -422,6 +422,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         // --- Execution Loop ---
         let loopCount = 0;
         let keepRunning = true;
+        let hasOutline = false; // Flag to track if successful outline generation occurred
 
         try {
             while (keepRunning && loopCount < MAX_SEARCH_ROUNDS) {
@@ -495,6 +496,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }));
                     if (!isRefinement) setStage('outline');
                     keepRunning = false;
+                    hasOutline = true; // Mark as success
                     break;
                 }
 
@@ -615,6 +617,71 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 } else {
                     // No tool calls, no JSON -> Stop loop (likely asking user clarification)
                     keepRunning = false;
+                }
+            }
+
+            // --- Force Final Generation Fallback ---
+            // If the loop finished because we hit MAX_SEARCH_ROUNDS and we still don't have an outline, force one last generation.
+            if (!hasOutline && loopCount >= MAX_SEARCH_ROUNDS) {
+                const finalPrompt = "System Notification: Maximum search steps reached. Please generate the JSON outline immediately based on the information gathered so far. Do not search again.";
+                apiHistory.push({ role: 'system', content: finalPrompt });
+
+                const finalMsgId = crypto.randomUUID();
+                setHistory(prev => [...prev, { id: finalMsgId, role: 'assistant', content: '', reasoning: '', model: activeModel }]);
+                
+                let finalContent = '';
+                let finalReasoning = '';
+
+                await streamChatCompletions({
+                    model: activeModel,
+                    messages: apiHistory,
+                    stream: true,
+                    temperature: 0.2, // Low temp for robust JSON
+                    enable_billing: true
+                }, (chunk) => {
+                     if (chunk.reasoning) finalReasoning += chunk.reasoning;
+                     if (chunk.content) finalContent += chunk.content;
+                     
+                     // Mask partial JSON in UI
+                     const isJsonLike = finalContent.trim().startsWith('```json') || finalContent.trim().startsWith('{');
+                     const displayContent = isJsonLike ? "🔄 正在构建最终大纲..." : maskToolContent(finalContent);
+
+                     setHistory(prev => {
+                        const newHistory = [...prev];
+                        const idx = newHistory.findIndex(m => m.id === finalMsgId);
+                        if (idx !== -1) {
+                            newHistory[idx] = { ...newHistory[idx], reasoning: finalReasoning, content: displayContent };
+                        }
+                        return newHistory;
+                    });
+                }, () => {
+                     if (onRefreshSession) onRefreshSession();
+                }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR);
+
+                // Attempt to parse final result
+                const finalOutline = tryParsePartialJson(finalContent);
+                if (finalOutline && finalOutline.pages && finalOutline.pages.length > 0) {
+                     setHistory(prev => prev.map(m => m.id === finalMsgId ? {
+                        ...m,
+                        content: `✅ **大纲构建完成 (强制结束)**\n\n已为您生成包含 ${finalOutline.pages.length} 个章节的研报大纲，正在跳转预览...`,
+                        reasoning: finalReasoning
+                    } : m));
+                    
+                    await new Promise(resolve => setTimeout(resolve, 800));
+
+                    setData(prev => ({ 
+                        ...prev, 
+                        topic: finalOutline.title || prev.topic, 
+                        outline: finalOutline 
+                    }));
+                    if (!isRefinement) setStage('outline');
+                } else {
+                    // Fallback to text message if still no JSON
+                     setHistory(prev => prev.map(m => m.id === finalMsgId ? {
+                        ...m,
+                        content: finalContent || "抱歉，无法生成结构化大纲，请尝试重新提问。",
+                        reasoning: finalReasoning
+                    } : m));
                 }
             }
 
