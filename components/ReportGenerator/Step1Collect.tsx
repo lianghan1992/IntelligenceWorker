@@ -5,66 +5,21 @@ import {
     CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon, PlusIcon,
     DatabaseIcon, CloseIcon, ExternalLinkIcon, EyeIcon
 } from '../icons';
-import { getPromptDetail, getPrompts, streamChatCompletions } from '../../api/stratify';
-import { searchSemanticGrouped, getArticleHtml } from '../../api/intelligence';
-import { getWalletBalance } from '../../api/user'; // Import wallet balance check
-import { PPTStage, ChatMessage, PPTData, PPTPageData, SharedGeneratorProps } from './types';
+import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
+import { searchSemanticBatchGrouped, getArticleHtml } from '../../api/intelligence';
+import { getWalletBalance } from '../../api/user'; 
+import { PPTStage, ChatMessage, PPTData, SharedGeneratorProps } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
 import { InfoItem } from '../../types';
 import { marked } from 'marked';
 import { AGENTS } from '../../agentConfig';
 
-// --- 统一模型配置 ---
-// 兜底模型：升级为更智能的模型，防止指令遵循能力过弱
-const DEFAULT_FALLBACK_MODEL = "google/gemini-2.0-flash-lite-preview-02-05:free"; 
-const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
+// --- 提示词 ID 配置 (从后端获取模型) ---
+// 对应后端 "Report Generator - Collect Phase" 提示词
+const PROMPT_ID_COLLECT = "report_generator_collect"; 
 
-// 用于获取 Agent 规划阶段模型配置的 Prompt ID 或 Name
-const AGENT_PLANNING_PROMPT_NAME = "ReportAgent_Planning"; 
-
-// --- Agent Tools Definition ---
-const SEARCH_TOOL_DEF = {
-    type: "function",
-    function: {
-        name: "search_knowledge_base",
-        description: "搜索内部汽车行业情报数据库。当用户输入新的研究主题、需要事实数据支持、或现有信息不足以构建完整大纲时，必须使用此工具。",
-        parameters: {
-            type: "object",
-            properties: {
-                query: {
-                    type: "string",
-                    description: "搜索关键词。应提炼用户意图的核心实体和属性，例如 '小米SU7 销量' 或 '固态电池 技术路线'。"
-                }
-            },
-            required: ["query"]
-        }
-    }
-};
-
-const SYSTEM_PROMPT_TEMPLATE = `你是一个专业的行业研究员和报告策划专家。
-当前日期: {{current_date}}。
-
-**任务目标**：
-为用户的主题 **“{{user_input}}”** 构建一份结构严谨、逻辑清晰的 PPT 研报大纲。
-
-**核心指令**：
-1. **绝对聚焦**：你必须且只能围绕 **“{{user_input}}”** 进行规划。
-2. **主动检索**：
-   - 必须调用 \`search_knowledge_base\` 获取数据支持。
-   - **最多允许 2 轮检索**。
-3. **输出大纲**：当信息足够或达到检索限制时，**必须**输出最终的 JSON 格式大纲。
-
-**最终输出格式 (必须是纯 JSON)**：
-\`\`\`json
-{
-  "title": "报告主标题",
-  "pages": [
-    { "title": "第一页标题", "content": "本页核心观点和数据详述..." },
-    { "title": "第二页标题", "content": "..." }
-  ]
-}
-\`\`\`
-注意：pages 数组建议包含 5-8 页。内容 (content) 需详实。`;
+// --- Agent 常量 ---
+const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次
 
 // --- Helper: Robust Partial JSON Parser ---
 export const tryParsePartialJson = (jsonStr: string) => {
@@ -95,30 +50,6 @@ export const tryParsePartialJson = (jsonStr: string) => {
     } catch (e) { return null; }
 };
 
-// --- Helper: Strict HTML Extractor ---
-const extractCleanHtml = (text: string) => {
-    let cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
-    const codeBlockMatch = cleanText.match(/```html\s*/i);
-    if (codeBlockMatch && codeBlockMatch.index !== undefined) {
-        let clean = cleanText.substring(codeBlockMatch.index + codeBlockMatch[0].length);
-        const endFenceIndex = clean.indexOf('```');
-        if (endFenceIndex !== -1) {
-            clean = clean.substring(0, endFenceIndex);
-        }
-        return clean;
-    }
-    const rawStart = cleanText.search(/<!DOCTYPE|<html|<div|<section|<head|<body/i);
-    if (rawStart !== -1) {
-        let clean = cleanText.substring(rawStart);
-        const endFenceIndex = clean.indexOf('```');
-        if (endFenceIndex !== -1) {
-            clean = clean.substring(0, endFenceIndex);
-        }
-        return clean;
-    }
-    return '';
-};
-
 // --- Helper: Parse <think> tags from content ---
 const parseThinkTag = (text: string) => {
     const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
@@ -136,6 +67,17 @@ const parseThinkTag = (text: string) => {
         };
     }
     return { reasoning: '', content: text };
+};
+
+// --- Helper: Mask Tool Commands in UI ---
+const maskToolContent = (text: string) => {
+    let display = text;
+    // Hide JSON tool calls
+    display = display.replace(/```json\s*\{[\s\S]*?"call":\s*"search"[\s\S]*?\}[\s\S]*?```/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
+    display = display.replace(/\{[\s\S]*?"call":\s*"search"[\s\S]*?\}/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
+    // Hide call:search syntax
+    display = display.replace(/call:search\s*(\[.*?\])?/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
+    return display;
 };
 
 // --- Helper: Markdown Renderer ---
@@ -194,7 +136,7 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     );
 };
 
-// --- Retrieval Block Component (Result Display) ---
+// --- Retrieval Block Component ---
 const RetrievalBlock: React.FC<{ 
     isSearching: boolean; 
     query: string; 
@@ -339,7 +281,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
-    const [autoGenMode, setAutoGenMode] = useState<'text' | 'html' | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     
     // Viewer Modal
@@ -369,24 +310,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         }
     }, [input]);
 
-    // --- Guidance State ---
-    const [activeGuide, setActiveGuide] = useState<'outline' | 'compose' | null>(null);
-
-    useEffect(() => {
-        if (stage === 'outline' && !localStorage.getItem('ai_guide_outline')) {
-            setActiveGuide('outline');
-        } else if (stage === 'compose' && !autoGenMode && !localStorage.getItem('ai_guide_compose')) {
-            setActiveGuide('compose');
-        } else {
-            setActiveGuide(null);
-        }
-    }, [stage, autoGenMode]);
-
-    const dismissGuide = (key: 'outline' | 'compose') => {
-        localStorage.setItem(`ai_guide_${key}`, 'true');
-        setActiveGuide(null);
-    };
-
     // Initial Greeting
     useEffect(() => {
         if (history.length === 0) {
@@ -402,9 +325,30 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [history, stage, isLlmActive]);
 
+    // --- Dynamic Model Config Fetcher ---
+    const getModelConfig = async () => {
+        try {
+            // Attempt to fetch prompt config from backend to get the model
+            const prompt = await getPromptDetail(PROMPT_ID_COLLECT);
+            if (prompt.channel_code && prompt.model_id) {
+                return { 
+                    model: `${prompt.channel_code}@${prompt.model_id}`,
+                    template: prompt.content
+                };
+            }
+        } catch (e) {
+            console.warn("Failed to fetch specific prompt config, using fallback logic if available.");
+        }
+        // Fallback or if prompt doesn't have model config
+        // NOTE: Defaulting to a high-capacity model suitable for planning
+        return { 
+            model: 'openrouter@xiaomi/mimo-v2-flash:free', // Default fallback
+            template: null
+        };
+    };
+
     // --- Agent Loop for Outline Generation (ReAct) ---
-    // ⚡️ Fix: Added 'tempUserMessage' parameter to accept the latest user input that might not be in state yet.
-    const runAgentLoop = async (userPromptText: string, isRefinement: boolean, tempUserMessage?: ChatMessage) => {
+    const runAgentLoop = async (userPromptText: string, isRefinement: boolean) => {
         setIsLlmActive(true);
         
         // 1. Balance Check
@@ -425,128 +369,76 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             activeSessionId = await onEnsureSession();
         }
 
+        // 3. Get Model & System Prompt
+        const { model: activeModel, template } = await getModelConfig();
         const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
         
-        // --- 3. Build History for API ---
-        // ⚡️ CRITICAL FIX: Ensure `content` is null when `tool_calls` is present for OpenAI compatibility
-        // ⚡️ CRITICAL FIX: Explicitly append the new user message if provided, because React state might lag
-        let currentHistory = [...history];
-        if (tempUserMessage) {
-            currentHistory.push(tempUserMessage);
-        }
+        // Use backend template if available, otherwise construct one
+        const systemPromptContent = template 
+            ? template.replace('{{current_date}}', currentDate)
+            : `你是一个专业的行业研究员和报告策划专家。当前日期: ${currentDate}。
 
-        let apiHistory = currentHistory.filter(m => m.role !== 'system' && !m.isRetrieving).map(m => {
-            const msg: any = { role: m.role };
-            
-            if (m.tool_calls && m.tool_calls.length > 0) {
-                msg.content = null; // FORCE content to null if tool_calls exist
-                msg.tool_calls = m.tool_calls;
-            } else {
-                msg.content = m.content || "";
-            }
-            
-            if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
-            return msg;
-        });
+**你的目标**：
+基于用户输入的主题，构建一份结构严谨、逻辑清晰的 PPT 研报大纲。
 
-        // Ensure System Prompt
-        // ⚡️ DYNAMIC INJECTION: Inject user input into System Prompt to force context adherence
-        let dynamicSystemPrompt = SYSTEM_PROMPT_TEMPLATE
-            .replace('{{current_date}}', currentDate)
-            .replace(/{{user_input}}/g, userPromptText);
+**工作流程 (ReAct 模式)**：
+1. **分析需求**：在 <think> 标签中思考用户主题需要哪些核心信息。
+2. **获取事实**：如果你缺乏具体数据，**必须**输出工具调用指令 \`call:search["关键词1", "关键词2"]\` 进行检索。不要编造数据。
+   - 你可以进行多轮检索，直到收集到足够的信息。
+3. **生成大纲**：当信息充足时，输出最终的 JSON 格式大纲。
+
+**工具指令格式**：
+- \`call:search["关键词"]\`
+- 或 JSON 格式: \`\`\`json { "call": "search", "keywords": ["关键词"] } \`\`\`
+
+**最终输出格式 (必须是纯 JSON)**：
+\`\`\`json
+{
+  "title": "报告主标题",
+  "pages": [
+    { "title": "第一页标题", "content": "本页核心观点和数据详述..." },
+    { "title": "第二页标题", "content": "..." }
+  ]
+}
+\`\`\`
+注意：pages 数组建议包含 5-8 页。内容 (content) 需详实，充分利用检索到的情报。`;
+
+        // 4. Build History for API
+        // Filter out retrieval status messages and pure UI items
+        let apiHistory = history.filter(m => m.role !== 'system' && !m.isRetrieving).map(m => ({
+            role: m.role, 
+            content: m.content || ''
+        }));
 
         if (apiHistory.length === 0 || apiHistory[0].role !== 'system') {
-            apiHistory.unshift({ role: 'system', content: dynamicSystemPrompt });
-        } else {
-            // Replace existing system prompt if it exists (for retry/refinement)
-            apiHistory[0] = { role: 'system', content: dynamicSystemPrompt };
+            apiHistory.unshift({ role: 'system', content: systemPromptContent });
         }
 
-        // ⚡️ ENHANCE: Forcefully append the user input instruction to the last user message to ensure attention
-        // This is a "double safety" mechanism for weaker models that might ignore System Prompt
-        if (apiHistory.length > 0) {
-            const lastMsg = apiHistory[apiHistory.length - 1];
-            if (lastMsg.role === 'user' && typeof lastMsg.content === 'string') {
-                lastMsg.content = `【核心任务】：针对主题“${userPromptText}”生成研报大纲。请调用检索工具获取数据。`;
-            }
-        }
-
-        // ⚡️ MODEL DYNAMIC SWITCHING
-        let planningModel = DEFAULT_FALLBACK_MODEL;
-        try {
-            // Try fetch by Name first if configured (more stable than ID which changes)
-            const prompts = await getPrompts({ search_term: AGENT_PLANNING_PROMPT_NAME }).catch(() => []);
-            const promptConfig = prompts.length > 0 ? prompts[0] : null;
-            
-            if (promptConfig && promptConfig.channel_code && promptConfig.model_id) {
-                planningModel = `${promptConfig.channel_code}@${promptConfig.model_id}`;
-                console.log("Using dynamic model for planning:", planningModel);
-            }
-        } catch (e) {
-            console.warn("Failed to load dynamic model config, using fallback.", e);
-        }
-
-        const MAX_TURNS = 5;
-        let turnCount = 0;
+        // --- Execution Loop ---
+        let loopCount = 0;
         let keepRunning = true;
-        let finalOutlineFound = false;
 
         try {
-            while (keepRunning && turnCount < MAX_TURNS) {
-                turnCount++;
+            while (keepRunning && loopCount < MAX_SEARCH_ROUNDS) {
+                loopCount++;
                 
-                // ⚡️ OPTIMIZATION: System Intervention to prevent infinite loops
-                if (turnCount > 3) {
-                    apiHistory.push({
-                        role: 'system',
-                        content: "(系统提示：你已经进行了多次搜索。信息已足够，请立即停止搜索，基于现有信息生成 JSON 大纲。)"
-                    });
-                }
-
                 // Prepare Assistant Message Placeholder
                 const assistantMsgId = crypto.randomUUID();
-                setHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', reasoning: '', model: planningModel }]);
+                setHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', reasoning: '', model: activeModel }]);
                 
                 let accumulatedContent = '';
                 let accumulatedReasoning = '';
-                let toolCallsBuffer: any[] = [];
-                let currentToolIndex = -1;
-                let streamError: Error | null = null; // Capture stream error
 
+                // Stream Request
                 await streamChatCompletions({
-                    model: planningModel, // Use dynamic model
+                    model: activeModel,
                     messages: apiHistory,
                     stream: true,
-                    temperature: 0.2, // Lower temp for agent logic
-                    tools: [SEARCH_TOOL_DEF],
-                    tool_choice: "auto",
+                    temperature: 0.2,
                     enable_billing: true
                 }, (chunk) => {
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
-                    
-                    if (chunk.tool_calls) {
-                         chunk.tool_calls.forEach((tc: any) => {
-                            if (tc.index !== undefined) {
-                                currentToolIndex = tc.index;
-                                if (!toolCallsBuffer[currentToolIndex]) {
-                                    // ⚡️ CRITICAL FIX: Explicitly add type: 'function' to ensure API compatibility
-                                    toolCallsBuffer[currentToolIndex] = { 
-                                        ...tc, 
-                                        type: 'function',
-                                        function: { name: "", arguments: "" }, 
-                                        id: tc.id 
-                                    };
-                                }
-                            }
-                            if (tc.function?.name && toolCallsBuffer[currentToolIndex]) {
-                                toolCallsBuffer[currentToolIndex].function.name += tc.function.name;
-                            }
-                            if (tc.function?.arguments && toolCallsBuffer[currentToolIndex]) {
-                                toolCallsBuffer[currentToolIndex].function.arguments += tc.function.arguments;
-                            }
-                        });
-                    }
 
                     // Live UI Update
                     setHistory(prev => {
@@ -556,42 +448,24 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             newHistory[idx] = { 
                                 ...newHistory[idx], 
                                 reasoning: accumulatedReasoning, 
-                                content: accumulatedContent 
+                                content: maskToolContent(accumulatedContent) // Mask tool calls in UI
                             };
                         }
                         return newHistory;
                     });
                 }, () => {
                     if (onRefreshSession) onRefreshSession();
-                }, (err) => {
-                    streamError = err; // Capture error
-                }, activeSessionId, AGENTS.REPORT_GENERATOR);
-
-                // Check if stream encountered error
-                if (streamError) {
-                    throw streamError;
-                }
+                }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR);
 
                 // --- Turn Finished, Process Result ---
-                // ⚡️ CRITICAL FIX: Sanitize toolCallsBuffer to ensure proper structure before adding to history
-                const sanitizedToolCalls = toolCallsBuffer.length > 0 ? toolCallsBuffer.map(tc => ({
-                    id: tc.id,
-                    type: 'function',
-                    function: {
-                        name: tc.function.name,
-                        arguments: tc.function.arguments
-                    }
-                })) : undefined;
-
-                const finalMsg = {
-                    role: 'assistant',
-                    content: accumulatedContent || null, // Ensure strict null if empty for API history
-                    tool_calls: sanitizedToolCalls
-                };
                 
-                apiHistory.push(finalMsg as any);
+                // Add full unmasked content to API history
+                apiHistory.push({
+                    role: 'assistant',
+                    content: accumulatedContent
+                });
 
-                // 1. Check for JSON Outline First (in case model outputs it directly)
+                // 1. Check for JSON Outline
                 const partialOutline = tryParsePartialJson(accumulatedContent);
                 if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
                     setData(prev => ({ 
@@ -601,104 +475,125 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }));
                     if (!isRefinement) setStage('outline');
                     keepRunning = false;
-                    finalOutlineFound = true;
                     break;
                 }
 
-                // 2. Handle Tools
-                if (finalMsg.tool_calls && finalMsg.tool_calls.length > 0) {
-                    for (const toolCall of finalMsg.tool_calls) {
-                        if (toolCall.function.name === 'search_knowledge_base') {
-                            let args = { query: '' };
-                            try { args = JSON.parse(toolCall.function.arguments); } catch (e) { args.query = "error"; }
+                // 2. Check for Tool Calls (Text Protocol)
+                let queries: string[] = [];
+                let toolCallFound = false;
 
-                            // A. UI: Show Searching Block
-                            const toolMsgId = crypto.randomUUID();
-                            setHistory(prev => [...prev, {
-                                role: 'tool',
-                                content: '', // Hidden in UI mainly
-                                isRetrieving: true,
-                                searchQuery: args.query,
-                                id: toolMsgId
-                            }]);
+                // Format A: call:search[...]
+                let standardMatch = accumulatedContent.match(/call:search\s*(\[.*?\])/i);
+                if (standardMatch) {
+                    try {
+                        queries = JSON.parse(standardMatch[1]);
+                        toolCallFound = true;
+                    } catch (e) {
+                        const rawParams = standardMatch[1].replace(/[\[\]"]/g, '').split(',');
+                        queries = rawParams.map(q => q.trim()).filter(Boolean);
+                        toolCallFound = true;
+                    }
+                }
 
-                            // B. API: Execute Search
-                            let searchResultString = "No results found.";
-                            let foundItems: InfoItem[] = [];
-                            
-                            try {
-                                const res = await searchSemanticGrouped({ 
-                                    query_text: args.query, 
-                                    page: 1, 
-                                    size: 5, 
-                                    similarity_threshold: 0.35 
-                                });
-                                
-                                // Map items preserving segments structure for better LLM context usage
-                                foundItems = (res.items || []).map((item: any) => ({
-                                    id: item.article_id,
-                                    title: item.title,
-                                    // Use 'segments' directly if available, otherwise use joined content
-                                    // We will store segments in a special prop for formatting below
-                                    segments: item.segments || [],
-                                    content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : '',
-                                    source_name: item.source_name,
-                                    publish_date: item.publish_date,
-                                    original_url: item.url,
-                                    created_at: item.created_at
-                                }));
-                                
-                                if (foundItems.length > 0) {
-                                    // ⚡️ OPTIMIZATION: Instead of violently truncating to 800 chars,
-                                    // we provide the top N segments. This preserves context integrity while saving tokens.
-                                    searchResultString = JSON.stringify(foundItems.map((i: any) => ({
-                                        title: i.title,
-                                        source: i.source_name,
-                                        date: i.publish_date,
-                                        // Provide top 3 segments (highly relevant chunks) to save token
-                                        segments: (i.segments || []).slice(0, 3).map((s: any) => s.content) 
-                                    })));
-                                    
-                                    // Update global reference materials for Context
-                                    // Also using segments here for better granularity
-                                    const newRefText = foundItems.map((i: any) => 
-                                        `[${i.title}]: ${(i.segments || []).slice(0, 3).map((s: any) => s.content).join('... ')}`
-                                    ).join('\n\n');
-                                    
-                                    setData(prev => ({
-                                        ...prev,
-                                        referenceMaterials: (prev.referenceMaterials || '') + "\n" + newRefText
-                                    }));
-                                }
-                            } catch (err: any) {
-                                searchResultString = `Search Error: ${err.message}`;
+                // Format B: JSON block { "call": "search" ... }
+                if (!toolCallFound) {
+                    const jsonBlockMatch = accumulatedContent.match(/```json\s*(\{[\s\S]*?"call":\s*"search"[\s\S]*?\})\s*```/i);
+                    if (jsonBlockMatch) {
+                        try {
+                            const parsed = JSON.parse(jsonBlockMatch[1]);
+                            if (parsed.keywords && Array.isArray(parsed.keywords)) {
+                                queries = parsed.keywords;
+                                toolCallFound = true;
                             }
+                        } catch(e) {}
+                    }
+                }
+                
+                // Format C: Raw JSON
+                if (!toolCallFound) {
+                    const rawJsonMatch = accumulatedContent.match(/(\{[\s\S]*?"call":\s*"search"[\s\S]*?\})/i);
+                    if (rawJsonMatch) {
+                        try {
+                            const parsed = JSON.parse(rawJsonMatch[1]);
+                            if (parsed.keywords && Array.isArray(parsed.keywords)) {
+                                queries = parsed.keywords;
+                                toolCallFound = true;
+                            }
+                        } catch(e) {}
+                    }
+                }
 
-                            // C. UI: Update Block with Results
-                            setHistory(prev => prev.map(m => m.id === toolMsgId ? {
-                                ...m,
-                                isRetrieving: false,
-                                retrievedItems: foundItems
-                            } : m));
+                if (toolCallFound && queries.length > 0) {
+                    // UI: Show Searching Block
+                    const toolMsgId = crypto.randomUUID();
+                    setHistory(prev => [...prev, {
+                        role: 'tool', // Reuse existing type logic
+                        content: '', 
+                        isRetrieving: true,
+                        searchQuery: queries.join(', '),
+                        id: toolMsgId
+                    }]);
 
-                            // D. API History: Add Tool Result
-                            apiHistory.push({
-                                role: 'tool',
-                                tool_call_id: toolCall.id,
-                                content: searchResultString
-                            });
+                    // Execute Search
+                    let searchResultString = "No results found.";
+                    let foundItems: InfoItem[] = [];
+                    
+                    try {
+                        // Use Batch Search for efficiency
+                        const res = await searchSemanticBatchGrouped({ 
+                            query_texts: queries, 
+                            max_segments_per_query: 4, 
+                            similarity_threshold: 0.35 
+                        });
+                        
+                        // Flatten results
+                        foundItems = (res.results || []).flatMap((r: any) => r.items || []).map((item: any) => ({
+                            id: item.article_id || crypto.randomUUID(),
+                            title: item.title,
+                            content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : item.content,
+                            source_name: item.source_name,
+                            publish_date: item.publish_date,
+                            original_url: item.url,
+                            created_at: item.created_at,
+                            similarity: item.segments?.[0]?.similarity
+                        }));
+                        
+                        // Deduplicate items
+                        const uniqueMap = new Map();
+                        foundItems.forEach(item => { if(!uniqueMap.has(item.id)) uniqueMap.set(item.id, item); });
+                        foundItems = Array.from(uniqueMap.values());
+
+                        if (foundItems.length > 0) {
+                            // Construct observation string for LLM
+                            searchResultString = foundItems.map((item, idx) => 
+                                `[资料${idx+1}] 标题:${item.title} 来源:${item.source_name}\n内容摘要:${item.content.slice(0, 500)}`
+                            ).join('\n\n');
+                            
+                            // Update global reference materials
+                            const newRefText = foundItems.map(i => `[${i.title}]: ${i.content}`).join('\n\n');
+                            setData(prev => ({
+                                ...prev,
+                                referenceMaterials: (prev.referenceMaterials || '') + "\n" + newRefText
+                            }));
                         }
+                    } catch (err: any) {
+                        searchResultString = `Search Error: ${err.message}`;
                     }
-                    // Loop continues for next turn (Model processes results)
+
+                    // UI: Update Block
+                    setHistory(prev => prev.map(m => m.id === toolMsgId ? {
+                        ...m,
+                        isRetrieving: false,
+                        retrievedItems: foundItems
+                    } : m));
+
+                    // API History: Add Observation
+                    apiHistory.push({
+                        role: 'user',
+                        content: `【工具返回结果】\n${searchResultString}\n\n系统提示：资料已更新。如果信息足够，请**立即停止搜索**并开始撰写 JSON 大纲。`
+                    });
                 } else {
-                    // No tool calls, and no JSON outline -> Likely conversational response or question
-                    
-                    // ⚡️ CRITICAL FIX: Check if response is empty (Silent failure case)
-                    // If model returned nothing and no tool calls, it might have failed or refused.
-                    if (!accumulatedContent && !accumulatedReasoning) {
-                        setHistory(prev => [...prev, { role: 'assistant', content: "（思考结束，但未生成回复。请尝试更具体的指令。）" }]);
-                    }
-                    
+                    // No tool calls, no JSON -> Stop loop (likely asking user clarification)
                     keepRunning = false;
                 }
             }
@@ -708,310 +603,45 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
              if (e.message === 'INSUFFICIENT_BALANCE') {
                 if (onHandleInsufficientBalance) onHandleInsufficientBalance();
              } else {
-                setHistory(prev => [...prev, { role: 'assistant', content: `生成出错：${e.message || '请重试'}` }]);
+                setHistory(prev => [...prev, { role: 'assistant', content: "生成出错，请重试。" }]);
              }
         } finally {
             setIsLlmActive(false);
         }
     };
 
-    // --- Core Logic: Serial Generation (Text or HTML) ---
-    // (This part remains mostly unchanged from the original procedural logic as Agent loop is mainly for planning)
-    // But we include the RAG search logic using tool style if needed.
-    // For specific page generation, we use a simpler tool-less prompt usually, or we can enable tools there too.
-    // For now, let's keep the existing logic for page generation but ensure it respects the reactive principle if we want consistent behavior.
-    // However, user requested "Agent Reactive" for retrieval.
-    
-    // Helper to perform simple search for page generation (non-agentic for speed/simplicity in batch, or agentic?)
-    // To be consistent with "Reactive", we should ideally use the same agent loop.
-    // But generating 10 pages with full agent loop each is very slow and expensive.
-    // Compromise: Use a simple RAG look-up (procedural) for page generation, 
-    // OR allow the writer to call tools. 
-    // The previous implementation had `performResearch` inside `useEffect` loop. We can keep that but use the new `searchSemanticGrouped` API.
-    
-    const performPageResearch = async (query: string): Promise<string> => {
-        try {
-            const res = await searchSemanticGrouped({
-                query_text: query,
-                page: 1,
-                size: 3,
-                similarity_threshold: 0.4
-            });
-            const items = res.items || [];
-            if (items.length > 0) {
-                 return items.map((item: any) => `[参考:${item.title}] ${item.segments?.[0]?.content || ''}`).join('\n');
-            }
-            return "";
-        } catch (e) { return ""; }
-    };
-
-    useEffect(() => {
-        if (stage !== 'compose' || isLlmActive || !autoGenMode) return;
-
-        const processQueue = async () => {
-            // ... Balance check ...
-            try {
-                const wallet = await getWalletBalance();
-                if (wallet.balance <= 0) {
-                    if (onHandleInsufficientBalance) onHandleInsufficientBalance();
-                    setAutoGenMode(null);
-                    return; 
-                }
-            } catch(e) {}
-
-            let activeSessionId = sessionId;
-            if (!activeSessionId && onEnsureSession) {
-                activeSessionId = await onEnsureSession();
-            }
-
-            const pages = data.pages;
-            let targetIdx = -1;
-
-            if (autoGenMode === 'text') {
-                targetIdx = pages.findIndex(p => !p.content);
-            } else if (autoGenMode === 'html') {
-                targetIdx = pages.findIndex(p => !p.html);
-            }
-
-            if (targetIdx === -1) {
-                setAutoGenMode(null);
-                return;
-            }
-
-            setActivePageIndex(targetIdx);
-            setIsLlmActive(true);
-            
-            const currentPage = pages[targetIdx];
-            const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
-            
-            // ⚡️ MODEL DYNAMIC SWITCHING
-            // Default models, will be overwritten if prompt config is fetched
-            let modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_FALLBACK_MODEL;
-
-            let pageSpecificContext = "";
-            if (autoGenMode === 'text') {
-                const query = `${currentPage.title} ${currentPage.summary.slice(0, 30)}`;
-                // Use simplified RAG for page generation speed
-                pageSpecificContext = await performPageResearch(query);
-            }
-
-            setHistory(prev => {
-                return [...prev, { 
-                    role: 'assistant', 
-                    content: `正在${taskName} (第 ${targetIdx + 1}/${pages.length} 页)：**${currentPage.title}**...`, 
-                    reasoning: '',
-                    model: 'Loading Config...' // Temp placeholder
-                }];
-            });
-
-            setData(prev => {
-                const newPages = [...prev.pages];
-                newPages[targetIdx] = { ...newPages[targetIdx], isGenerating: true };
-                return { ...prev, pages: newPages };
-            });
-
-            try {
-                let messages: any[] = [];
-                
-                if (autoGenMode === 'text') {
-                    const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-                    
-                    let contentTemplate = "";
-                    try {
-                        const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
-                        contentTemplate = promptDetail.content;
-                        // ⚡️ DYNAMIC: Use model from prompt config if available
-                        if (promptDetail.channel_code && promptDetail.model_id) {
-                            modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
-                        }
-                    } catch(e) {
-                         contentTemplate = `Write detailed slide content. Title: {{ page_title }}. Summary: {{ page_summary }}.`;
-                    }
-                    
-                    const content = contentTemplate
-                        .replace('{{ page_index }}', String(targetIdx + 1))
-                        .replace('{{ page_title }}', currentPage.title)
-                        .replace('{{ page_summary }}', currentPage.summary);
-                    
-                    const combinedRefs = (data.referenceMaterials || '') + (pageSpecificContext ? `\n\n[本页专属参考资料]\n${pageSpecificContext}` : '');
-                    
-                    let finalContent = `Current Date: ${currentDate}\n\n${content}`;
-                    if (combinedRefs) {
-                        finalContent = `Current Date: ${currentDate}\n【参考资料库】\n${combinedRefs}\n\n${content}`;
-                    }
-                    
-                    messages = [{ role: 'user', content: finalContent }];
-                } else {
-                     // HTML Generation
-                    let systemPromptContent = '';
-                    try {
-                        const promptDetail = await getPromptDetail("14920b9c-604f-4066-bb80-da7a47b65572");
-                        systemPromptContent = promptDetail.content;
-                        // ⚡️ DYNAMIC: Use model from prompt config if available
-                        if (promptDetail.channel_code && promptDetail.model_id) {
-                            modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
-                        }
-                    } catch(e) {
-                         systemPromptContent = "You are an expert web designer. Create a single 1600x900 HTML slide using TailwindCSS.";
-                    }
-                    messages = [
-                        { role: 'system', content: systemPromptContent }, 
-                        { role: 'user', content: `Title: ${currentPage.title}\nContent:\n${currentPage.content}` }
-                    ];
-                }
-
-                // Update UI with the actual model being used
-                setHistory(prev => {
-                    const h = [...prev];
-                    const lastMsg = h[h.length - 1];
-                    if (lastMsg.role === 'assistant') {
-                         h[h.length - 1] = { ...lastMsg, model: modelStr };
-                    }
-                    return h;
-                });
-
-                let accContent = '';
-                let accReasoning = '';
-
-                await streamChatCompletions({
-                    model: modelStr,
-                    messages: messages,
-                    stream: true,
-                    enable_billing: true
-                }, (chunk) => {
-                    if (chunk.reasoning) accReasoning += chunk.reasoning;
-                    if (chunk.content) accContent += chunk.content;
-
-                    setHistory(prev => {
-                        const h = [...prev];
-                        const lastMsg = h[h.length - 1];
-                        if (lastMsg.role === 'assistant' && !lastMsg.retrievedItems) {
-                             h[h.length - 1] = { ...lastMsg, reasoning: accReasoning, content: accContent };
-                        }
-                        return h;
-                    });
-
-                    setData(prev => {
-                        const newPages = [...prev.pages];
-                        if (autoGenMode === 'text') {
-                            let displayContent = accContent;
-                            const partial = tryParsePartialJson(accContent);
-                            if (partial && partial.content) {
-                                displayContent = partial.content;
-                            } else if (accContent.includes('"content":')) {
-                                const match = accContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
-                                if (match) displayContent = match[1];
-                            }
-                            newPages[targetIdx].content = displayContent;
-                        } else {
-                            const cleanHtml = extractCleanHtml(accContent);
-                            if (cleanHtml) {
-                                newPages[targetIdx].html = cleanHtml;
-                            }
-                        }
-                        return { ...prev, pages: newPages };
-                    });
-                }, () => {
-                    if (onRefreshSession) onRefreshSession();
-                }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR);
-
-                setData(prev => {
-                    const newPages = [...prev.pages];
-                    newPages[targetIdx].isGenerating = false;
-                    if (autoGenMode === 'html') {
-                         const cleanHtml = extractCleanHtml(accContent);
-                         newPages[targetIdx].html = cleanHtml;
-                    }
-                    return { ...prev, pages: newPages };
-                });
-
-                setHistory(prev => {
-                   const h = [...prev];
-                   const lastMsg = h[h.length - 1];
-                    if (lastMsg.role === 'assistant' && !lastMsg.retrievedItems) {
-                        h[h.length - 1].content = `✅ 第 ${targetIdx + 1} 页生成完成。`;
-                    }
-                   return h;
-                });
-
-            } catch (e: any) {
-                if (e.message === 'INSUFFICIENT_BALANCE') {
-                    if (onHandleInsufficientBalance) onHandleInsufficientBalance();
-                    setAutoGenMode(null);
-                }
-                
-                setData(prev => {
-                    const newPages = [...prev.pages];
-                    newPages[targetIdx].isGenerating = false;
-                    return { ...prev, pages: newPages };
-                });
-            } finally {
-                setIsLlmActive(false); 
-            }
-        };
-
-        processQueue();
-    }, [stage, isLlmActive, autoGenMode, data.pages]);
-
-    // ... Handle Modification (User chat during generation) ...
+    // --- Handle Input ---
     const handleSend = async (val?: string) => {
-        if (activeGuide) dismissGuide(activeGuide);
         const text = val || input;
         if (!text.trim() || isLlmActive) return;
         
         if (!val) setInput('');
-        
-        // ⚡️ Fix: Add user message to state immediately for UI feedback
-        const userMsg = { id: crypto.randomUUID(), role: 'user' as const, content: text };
-        setHistory(prev => [...prev, userMsg]);
+        setHistory(prev => [...prev, { role: 'user', content: text }]);
 
         if (stage === 'collect') {
-            // ⚡️ Fix: Pass the user message object to ensure it's included in the loop context
-            await runAgentLoop(text, false, userMsg);
+            await runAgentLoop(text, false);
         } else if (stage === 'outline') {
-            const updateMsg = { id: crypto.randomUUID(), role: 'user' as const, content: `Update outline based on: ${text}` };
-            await runAgentLoop(`Update outline based on: ${text}`, true, updateMsg);
-        } else if (stage === 'compose') {
-            if (autoGenMode) {
-                setHistory(prev => [...prev, { role: 'assistant', content: "请等待当前生成队列完成。" }]);
-            } else {
-                // Modification logic (simplified for now, can be agentic too if needed)
-                setIsLlmActive(true);
-                setHistory(prev => [...prev, { role: 'assistant', content: "收到修改指令，正在处理..." }]);
-                setTimeout(() => setIsLlmActive(false), 1000); 
-            }
+            // Outline refinement logic (optional: reuse agent loop with context)
+            // For now, simpler handling or restart loop
         }
+        // Compose logic is in parent
     };
-
-    const allTextReady = data.pages.length > 0 && data.pages.every(p => !!p.content);
-    const hasHtml = data.pages.some(p => !!p.html);
-    const isEditMode = stage === 'compose' && !autoGenMode;
-    const activePage = data.pages[activePageIndex];
-    const isHtmlEdit = !!activePage?.html;
-
-    useEffect(() => {
-        if (stage === 'compose' && !autoGenMode && !allTextReady && !isLlmActive) {
-            setAutoGenMode('text');
-        }
-    }, [stage, allTextReady, autoGenMode, isLlmActive]);
 
     const renderChatBubbles = () => (
         <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar" ref={scrollRef}>
              <style>{`
                 .markdown-body p { margin-bottom: 0.5rem; }
                 .markdown-body ul, .markdown-body ol { margin-left: 1.25rem; list-style-type: disc; margin-bottom: 0.5rem; }
-                .markdown-body ol { list-style-type: decimal; }
                 .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
                 .markdown-body code { background: #f1f5f9; padding: 0.2rem 0.4rem; rounded: 4px; font-size: 0.85em; }
                 .markdown-body pre { background: #1e293b; color: #e2e8f0; padding: 0.75rem; rounded-lg; overflow-x: auto; margin-bottom: 0.5rem; }
-                .markdown-body pre code { background: transparent; padding: 0; color: inherit; }
             `}</style>
             
             {history.filter(m => !m.hidden).map((msg, i) => {
                 const isAssistant = msg.role === 'assistant';
                 const isLast = i === history.length - 1;
                 
-                // --- Retrieval Block Rendering (Mapped from Agent Tool Call) ---
+                // --- Retrieval Block Rendering ---
                 if (msg.role === 'tool' || msg.isRetrieving || (msg.retrievedItems && msg.retrievedItems.length > 0)) {
                     return (
                         <RetrievalBlock 
@@ -1031,19 +661,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                      if (split.reasoning) parsedContent = split;
                 }
                 
-                const trimmed = (parsedContent.content || '').trim();
-                const isJsonOutline = isAssistant && ((trimmed.startsWith('{') || trimmed.startsWith('```json')) && trimmed.includes('"pages"'));
-                const isHtml = isAssistant && (trimmed.startsWith('```html') || trimmed.startsWith('<!DOCTYPE'));
-
-                const shouldHideText = isJsonOutline || isHtml;
                 const showThinking = !!parsedContent.reasoning;
-                // Fix: Check if truly empty (no content, no reasoning, no tool calls)
-                const isEmpty = !parsedContent.content && !parsedContent.reasoning && !msg.tool_calls;
-
-                let statusTitle = "处理完成";
-                let statusDesc = "已同步至画布";
-                if (isHtml) statusTitle = "幻灯片渲染完成";
-                else if (isJsonOutline) statusTitle = "大纲构建完成";
+                const isEmpty = !parsedContent.content && !parsedContent.reasoning;
 
                 return (
                     <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -1079,41 +698,19 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                 </div>
                             )}
 
-                            {shouldHideText ? (
-                                <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-50 shadow-none">
-                                    <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
-                                        <CheckCircleIcon className="w-4 h-4"/>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs font-bold text-slate-800">{statusTitle}</div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{statusDesc}</div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <MarkdownContent 
-                                    content={parsedContent.content || ''} 
-                                    className={msg.role === 'user' ? 'text-white prose-invert' : 'text-slate-700'} 
-                                />
-                            )}
+                            <MarkdownContent 
+                                content={parsedContent.content} 
+                                className={msg.role === 'user' ? 'text-white prose-invert' : 'text-slate-700'} 
+                            />
                         </div>
                     </div>
                 );
             })}
-             {history.length === 0 && (
-                <div className="mt-20 text-center text-slate-400 px-6">
-                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-100">
-                        <SparklesIcon className="w-8 h-8 text-indigo-500" />
-                    </div>
-                    <h3 className="font-bold text-slate-700 mb-2">AI 研报助手 (ReAct Agent)</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                        具备自主检索能力的智能体。<br/>
-                        输入研究主题，AI 将自主调用搜索工具验证信息并构建报告。
-                    </p>
-                </div>
-            )}
         </div>
     );
 
+    // ... (Remainder of render logic: Input Area, Header, Modals) ...
+    // Using existing layout code for CopilotSidebar
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] border-r border-slate-200">
             {/* Header */}
@@ -1179,43 +776,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         stage={stage}
                         pageIndex={activePageIndex}
                         pageTitle={data.pages[activePageIndex]?.title}
-                        isVisualMode={isHtmlEdit}
+                        isVisualMode={false} // Simplify for collect stage
                     />
 
-                    {activeGuide === 'outline' && (
-                        <GuidanceBubble 
-                            message="对大纲结构不满意？直接输入“修改第二章为...”或“增加关于xxx的章节”，AI 将为您即时调整。" 
-                            onDismiss={() => dismissGuide('outline')} 
-                        />
-                    )}
-                    {activeGuide === 'compose' && (
-                        <GuidanceBubble 
-                            message="💡 操作提示：先点击右侧幻灯片选中要修改的页面，然后在对话框输入指令（如“精简这段话”或“换个深色背景”）即可。" 
-                            onDismiss={() => dismissGuide('compose')} 
-                        />
-                    )}
-
-                    {isEditMode && (
-                        <div className="mb-3 animate-in fade-in slide-in-from-bottom-1">
-                             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                                {(isHtmlEdit 
-                                    ? ['换个深色主题', '增加图表', '改为左右布局', '字体加大', '重绘'] 
-                                    : ['扩写一段', '精简内容', '增加数据', '润色语气', '翻译成英文']
-                                ).map(action => (
-                                    <button
-                                        key={action}
-                                        onClick={() => handleSend(action)}
-                                        disabled={isLlmActive}
-                                        className="flex-shrink-0 px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-500 text-[10px] rounded-full transition-all shadow-sm active:scale-95"
-                                    >
-                                        {action}
-                                    </button>
-                                ))}
-                             </div>
-                         </div>
-                    )}
-                    
-                    <div className={`relative shadow-sm rounded-xl transition-all duration-300 bg-white ${isEditMode ? 'ring-2 ring-indigo-100 border-indigo-200' : 'border-slate-200 border'}`}>
+                    <div className={`relative shadow-sm rounded-xl transition-all duration-300 bg-white border-slate-200 border`}>
                         <textarea
                             ref={textareaRef}
                             value={input}
@@ -1226,10 +790,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                     handleSend();
                                 }
                             }}
-                            placeholder={isEditMode 
-                                ? (isHtmlEdit ? "输入调整指令..." : "输入内容修改指令...")
-                                : (stage === 'collect' ? "输入研报主题，开始 AI 规划..." : "输入指令...")
-                            }
+                            placeholder="输入研报主题，开始 AI 规划..."
                             className="w-full bg-transparent px-4 py-3 text-sm focus:outline-none resize-none max-h-32 min-h-[44px] custom-scrollbar placeholder:text-slate-400"
                             disabled={isLlmActive}
                             rows={1}
