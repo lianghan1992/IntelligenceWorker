@@ -291,6 +291,10 @@ export const getPrompts = (params: any = {}): Promise<StratifyPrompt[]> => {
     return apiFetch<StratifyPrompt[]>(`${STRATIFY_SERVICE_PATH}/prompts${query}`);
 }
 
+// NEW: Get prompts for a specific scenario
+export const getScenarioPrompts = (scenarioId: string): Promise<StratifyPrompt[]> =>
+    apiFetch<StratifyPrompt[]>(`${STRATIFY_SERVICE_PATH}/scenarios/${scenarioId}/prompts`);
+
 export const getPromptDetail = async (id: string): Promise<StratifyPrompt> => {
     const all = await getPrompts(); 
     const found = all.find(p => p.id === id);

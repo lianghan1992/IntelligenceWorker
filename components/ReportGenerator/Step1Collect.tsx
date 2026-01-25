@@ -5,7 +5,7 @@ import {
     CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon, PlusIcon,
     DatabaseIcon, CloseIcon, ExternalLinkIcon, EyeIcon
 } from '../icons';
-import { getPromptDetail, streamChatCompletions, getPrompts } from '../../api/stratify';
+import { getPromptDetail, streamChatCompletions, getPrompts, getScenarioPrompts } from '../../api/stratify';
 import { searchSemanticBatchGrouped, getArticleHtml } from '../../api/intelligence';
 import { getWalletBalance } from '../../api/user'; 
 import { PPTStage, ChatMessage, PPTData, SharedGeneratorProps } from './types';
@@ -330,12 +330,20 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const getModelConfig = async () => {
         try {
             // Attempt to fetch prompt config from backend to get the model
-            // Priority 1: Try fetching by Name (More robust than ID)
-            const allPrompts = await getPrompts();
-            const prompt = allPrompts.find(p => p.name === PROMPT_ID_COLLECT);
+            // Priority 1: Fetch prompts specific to this scenario to get accurate model config
+            // Use the specific API for this scenario
+            const scenarioPrompts = await getScenarioPrompts(AGENTS.REPORT_GENERATOR);
+            const prompt = scenarioPrompts.find(p => p.name === PROMPT_ID_COLLECT);
             
-            if (prompt && prompt.channel_code && prompt.model_id) {
-                const fullModel = `${prompt.channel_code}@${prompt.model_id}`;
+            if (prompt) {
+                // Determine model from prompt config
+                // If backend returns specific channel/model, use it.
+                let fullModel = 'openrouter@xiaomi/mimo-v2-flash:free'; // Default fallback
+                
+                if (prompt.channel_code && prompt.model_id) {
+                    fullModel = `${prompt.channel_code}@${prompt.model_id}`;
+                }
+                
                 setActiveModelName(fullModel);
                 return { 
                     model: fullModel,
