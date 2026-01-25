@@ -436,8 +436,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             apiHistory.unshift({ role: 'system', content: systemPromptContent });
         }
 
-        // Add current user prompt if not already in history (it should be added by handleSend)
-        
         const MAX_TURNS = 5;
         let turnCount = 0;
         let keepRunning = true;
@@ -473,7 +471,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             if (tc.index !== undefined) {
                                 currentToolIndex = tc.index;
                                 if (!toolCallsBuffer[currentToolIndex]) {
-                                    toolCallsBuffer[currentToolIndex] = { ...tc, function: { name: "", arguments: "" }, id: tc.id };
+                                    // ⚡️ CRITICAL FIX: Explicitly add type: 'function' to ensure API compatibility
+                                    toolCallsBuffer[currentToolIndex] = { 
+                                        ...tc, 
+                                        type: 'function',
+                                        function: { name: "", arguments: "" }, 
+                                        id: tc.id 
+                                    };
                                 }
                             }
                             if (tc.function?.name && toolCallsBuffer[currentToolIndex]) {
@@ -505,9 +509,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 // --- Turn Finished, Process Result ---
                 const finalMsg = {
                     role: 'assistant',
-                    content: accumulatedContent,
+                    content: accumulatedContent, // Allow empty string if it's a tool call
                     tool_calls: toolCallsBuffer.length > 0 ? toolCallsBuffer : undefined
                 };
+                
                 apiHistory.push(finalMsg as any);
 
                 // 1. Check for JSON Outline First (in case model outputs it directly)
@@ -552,9 +557,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                     size: 5, 
                                     similarity_threshold: 0.35 
                                 });
+                                
+                                // Map items preserving segments structure for better LLM context usage
                                 foundItems = (res.items || []).map((item: any) => ({
                                     id: item.article_id,
                                     title: item.title,
+                                    // Use 'segments' directly if available, otherwise use joined content
+                                    // We will store segments in a special prop for formatting below
+                                    segments: item.segments || [],
                                     content: item.segments ? item.segments.map((s: any) => s.content).join('\n') : '',
                                     source_name: item.source_name,
                                     publish_date: item.publish_date,
@@ -563,15 +573,22 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                 }));
                                 
                                 if (foundItems.length > 0) {
-                                    searchResultString = JSON.stringify(foundItems.map(i => ({
+                                    // ⚡️ OPTIMIZATION: Instead of violently truncating to 800 chars,
+                                    // we provide the top N segments. This preserves context integrity while saving tokens.
+                                    searchResultString = JSON.stringify(foundItems.map((i: any) => ({
                                         title: i.title,
                                         source: i.source_name,
                                         date: i.publish_date,
-                                        content: i.content
+                                        // Provide top 5 segments (highly relevant chunks)
+                                        segments: (i.segments || []).slice(0, 5).map((s: any) => s.content) 
                                     })));
                                     
                                     // Update global reference materials for Context
-                                    const newRefText = foundItems.map(i => `[${i.title}]: ${i.content}`).join('\n\n');
+                                    // Also using segments here for better granularity
+                                    const newRefText = foundItems.map((i: any) => 
+                                        `[${i.title}]: ${(i.segments || []).slice(0, 3).map((s: any) => s.content).join('... ')}`
+                                    ).join('\n\n');
+                                    
                                     setData(prev => ({
                                         ...prev,
                                         referenceMaterials: (prev.referenceMaterials || '') + "\n" + newRefText
@@ -599,6 +616,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     // Loop continues for next turn (Model processes results)
                 } else {
                     // No tool calls, and no JSON outline -> Likely conversational response or question
+                    
+                    // ⚡️ CRITICAL FIX: Check if response is empty (Silent failure case)
+                    // If model returned nothing and no tool calls, it might have failed or refused.
+                    if (!accumulatedContent && !accumulatedReasoning) {
+                        setHistory(prev => [...prev, { role: 'assistant', content: "（思考结束，但未生成回复。请尝试更具体的指令。）" }]);
+                    }
+                    
                     keepRunning = false;
                 }
             }
