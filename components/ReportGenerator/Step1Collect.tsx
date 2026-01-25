@@ -5,7 +5,7 @@ import {
     CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon, PlusIcon,
     DatabaseIcon, CloseIcon, ExternalLinkIcon, EyeIcon
 } from '../icons';
-import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
+import { getPromptDetail, streamChatCompletions, getPrompts } from '../../api/stratify';
 import { searchSemanticBatchGrouped, getArticleHtml } from '../../api/intelligence';
 import { getWalletBalance } from '../../api/user'; 
 import { PPTStage, ChatMessage, PPTData, SharedGeneratorProps } from './types';
@@ -282,6 +282,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [activeModelName, setActiveModelName] = useState<string>('');
     
     // Viewer Modal
     const [viewingItem, setViewingItem] = useState<InfoItem | null>(null);
@@ -329,24 +330,34 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const getModelConfig = async () => {
         try {
             // Attempt to fetch prompt config from backend to get the model
-            const prompt = await getPromptDetail(PROMPT_ID_COLLECT);
+            // Priority 1: Try fetching by Name (More robust than ID)
+            const allPrompts = await getPrompts();
+            const prompt = allPrompts.find(p => p.name === PROMPT_ID_COLLECT);
+            
             if (prompt && prompt.channel_code && prompt.model_id) {
-                // console.debug("Loaded remote model config:", prompt.channel_code, prompt.model_id);
+                const fullModel = `${prompt.channel_code}@${prompt.model_id}`;
+                setActiveModelName(fullModel);
                 return { 
-                    model: `${prompt.channel_code}@${prompt.model_id}`,
+                    model: fullModel,
                     template: prompt.content
                 };
             }
         } catch (e) {
-            console.warn("Failed to fetch specific prompt config, using fallback logic.", e);
+            console.warn("Failed to fetch specific prompt config, using fallback.", e);
         }
-        // Fallback or if prompt doesn't have model config
-        // NOTE: Defaulting to a high-capacity model suitable for planning
+        // Fallback
+        const fallback = 'openrouter@xiaomi/mimo-v2-flash:free';
+        setActiveModelName(fallback);
         return { 
-            model: 'openrouter@xiaomi/mimo-v2-flash:free', // Default fallback
+            model: fallback,
             template: null
         };
     };
+
+    // Init Model Name Display
+    useEffect(() => {
+        getModelConfig();
+    }, []);
 
     // --- Agent Loop for Outline Generation (ReAct) ---
     const runAgentLoop = async (userPromptText: string, isRefinement: boolean) => {
@@ -866,6 +877,16 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         pageTitle={data.pages[activePageIndex]?.title}
                         isVisualMode={false} // Simplify for collect stage
                     />
+
+                    {/* Model Indicator Badge - NEW */}
+                    {activeModelName && (
+                        <div className="mb-2 flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-lg w-fit transition-all duration-300 animate-in fade-in slide-in-from-bottom-1">
+                            <ServerIcon className="w-3 h-3 text-indigo-600" />
+                            <span className="text-[10px] font-bold text-indigo-700 font-mono tracking-wide">
+                                Model: {activeModelName.replace('openrouter@', '').replace(':free', '')}
+                            </span>
+                        </div>
+                    )}
 
                     <div className={`relative shadow-sm rounded-xl transition-all duration-300 bg-white border-slate-200 border`}>
                         <textarea
