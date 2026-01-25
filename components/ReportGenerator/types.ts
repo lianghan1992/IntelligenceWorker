@@ -3,14 +3,29 @@ import { StratifyOutline, InfoItem } from '../../types';
 
 export type PPTStage = 'collect' | 'outline' | 'compose' | 'finalize';
 
+export interface ToolCall {
+    id: string;
+    type: 'function';
+    function: {
+        name: string;
+        arguments: string;
+    };
+}
+
 export interface ChatMessage {
-    role: 'system' | 'user' | 'assistant';
+    id?: string;
+    role: 'system' | 'user' | 'assistant' | 'tool'; // Added 'tool' role
     content: string;
     hidden?: boolean;
     reasoning?: string;
     model?: string; // Model used for generation
+    timestamp?: number;
     
-    // RAG Metadata
+    // Agent Metadata
+    tool_calls?: ToolCall[];
+    tool_call_id?: string;
+
+    // RAG Metadata (UI State)
     isRetrieving?: boolean; // Is currently searching?
     searchQuery?: string;   // What was searched
     retrievedItems?: InfoItem[]; // Results found
