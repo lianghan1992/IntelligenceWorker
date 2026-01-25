@@ -5,7 +5,7 @@ import {
     CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon, PlusIcon,
     DatabaseIcon, CloseIcon, ExternalLinkIcon, EyeIcon
 } from '../icons';
-import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
+import { getPromptDetail, getPrompts, streamChatCompletions } from '../../api/stratify';
 import { searchSemanticGrouped, getArticleHtml } from '../../api/intelligence';
 import { getWalletBalance } from '../../api/user'; // Import wallet balance check
 import { PPTStage, ChatMessage, PPTData, PPTPageData, SharedGeneratorProps } from './types';
@@ -15,12 +15,12 @@ import { marked } from 'marked';
 import { AGENTS } from '../../agentConfig';
 
 // --- 统一模型配置 ---
-// 兜底模型，仅在 API 获取配置失败时使用
-const DEFAULT_FALLBACK_MODEL = "xiaomi/mimo-v2-flash:free";
+// 兜底模型：升级为更智能的模型，防止指令遵循能力过弱
+const DEFAULT_FALLBACK_MODEL = "google/gemini-2.0-flash-lite-preview-02-05:free"; 
 const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
 
-// 用于获取 Agent 规划阶段模型配置的 Prompt ID (需后端配合配置，若无则回退)
-const AGENT_PLANNING_PROMPT_ID = "report-agent-planning"; 
+// 用于获取 Agent 规划阶段模型配置的 Prompt ID 或 Name
+const AGENT_PLANNING_PROMPT_NAME = "ReportAgent_Planning"; 
 
 // --- Agent Tools Definition ---
 const SEARCH_TOOL_DEF = {
@@ -41,18 +41,17 @@ const SEARCH_TOOL_DEF = {
     }
 };
 
-// ⚡️ CRITICAL OPTIMIZATION: Inject {{user_input}} directly into system prompt to prevent context loss
 const SYSTEM_PROMPT_TEMPLATE = `你是一个专业的行业研究员和报告策划专家。
 当前日期: {{current_date}}。
 
-**当前任务目标**：
+**任务目标**：
 为用户的主题 **“{{user_input}}”** 构建一份结构严谨、逻辑清晰的 PPT 研报大纲。
 
 **核心指令**：
-1. **绝对聚焦**：你必须且只能围绕 **“{{user_input}}”** 进行规划。严禁自行假设其他无关主题（如固态电池等，除非用户明确提到）。
+1. **绝对聚焦**：你必须且只能围绕 **“{{user_input}}”** 进行规划。
 2. **主动检索**：
-   - 如果你缺乏关于“{{user_input}}”的具体数据，**必须**调用 \`search_knowledge_base\`。
-   - **最多允许 2 轮检索**。不要为了追求“完美”而反复检索。
+   - 必须调用 \`search_knowledge_base\` 获取数据支持。
+   - **最多允许 2 轮检索**。
 3. **输出大纲**：当信息足够或达到检索限制时，**必须**输出最终的 JSON 格式大纲。
 
 **最终输出格式 (必须是纯 JSON)**：
@@ -463,10 +462,22 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             apiHistory[0] = { role: 'system', content: dynamicSystemPrompt };
         }
 
+        // ⚡️ ENHANCE: Forcefully append the user input instruction to the last user message to ensure attention
+        // This is a "double safety" mechanism for weaker models that might ignore System Prompt
+        if (apiHistory.length > 0) {
+            const lastMsg = apiHistory[apiHistory.length - 1];
+            if (lastMsg.role === 'user' && typeof lastMsg.content === 'string') {
+                lastMsg.content = `【核心任务】：针对主题“${userPromptText}”生成研报大纲。请调用检索工具获取数据。`;
+            }
+        }
+
         // ⚡️ MODEL DYNAMIC SWITCHING
         let planningModel = DEFAULT_FALLBACK_MODEL;
         try {
-            const promptConfig = await getPromptDetail(AGENT_PLANNING_PROMPT_ID).catch(() => null);
+            // Try fetch by Name first if configured (more stable than ID which changes)
+            const prompts = await getPrompts({ search_term: AGENT_PLANNING_PROMPT_NAME }).catch(() => []);
+            const promptConfig = prompts.length > 0 ? prompts[0] : null;
+            
             if (promptConfig && promptConfig.channel_code && promptConfig.model_id) {
                 planningModel = `${promptConfig.channel_code}@${promptConfig.model_id}`;
                 console.log("Using dynamic model for planning:", planningModel);
