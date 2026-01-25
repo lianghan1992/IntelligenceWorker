@@ -20,7 +20,7 @@ interface Step4FinalizeProps extends SharedGeneratorProps {
     onStreamingUpdate?: (msg: any) => void;
 }
 
-const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
+// 默认兜底值，仅在 API 获取失败时使用
 const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
 const PROMPT_ID_HTML = "14920b9c-604f-4066-bb80-da7a47b65572";
 
@@ -149,12 +149,19 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
 
         try {
             const prompt = await getPromptDetail(PROMPT_ID_HTML);
+            
+            // ⚡️ DYNAMIC MODEL SELECTION: 
+            // 优先使用 Prompt 配置中的 channel 和 model，否则回退到 hardcoded constant
+            let modelToUse = HTML_GENERATION_MODEL;
+            if (prompt.channel_code && prompt.model_id) {
+                modelToUse = `${prompt.channel_code}@${prompt.model_id}`;
+            }
+
             const userPrompt = `主题: ${topic}\n内容:\n${page.content}`;
             let accumulatedText = '';
             
-            // 使用更先进的 HTML 生成模型
             await streamChatCompletions({
-                model: HTML_GENERATION_MODEL,
+                model: modelToUse,
                 messages: [
                     { role: 'system', content: prompt.content },
                     { role: 'user', content: userPrompt }

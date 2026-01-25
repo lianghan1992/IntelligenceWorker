@@ -43,11 +43,13 @@ const SYSTEM_PROMPT_TEMPLATE = `你是一个专业的行业研究员和报告策
 **你的目标**：
 基于用户输入的主题，构建一份结构严谨、逻辑清晰的 PPT 研报大纲。
 
-**工作流程 (ReAct 模式)**：
-1. **分析需求**：思考用户主题需要哪些核心信息（市场背景、竞品、技术参数等）。
-2. **获取事实**：如果你缺乏具体数据，**必须**调用 \`search_knowledge_base\` 工具进行检索。不要编造数据。
-   - 你可以进行多轮检索，直到收集到足够的信息。
-3. **生成大纲**：当信息充足时，输出最终的 JSON 格式大纲。
+**核心指令**：
+1. **优先响应用户**：必须基于用户的具体输入（如“小米汽车26年战略”）进行规划，严禁忽略用户输入而自行假设主题。
+2. **适度检索**：
+   - 只有在确实缺乏核心事实时才调用 \`search_knowledge_base\`。
+   - **最多允许 2 轮检索**。如果检索结果已部分覆盖或检索 2 次后仍不完美，请立即基于现有信息和你的通用知识生成大纲。
+   - **禁止死循环**：不要为了追求“完美”而反复检索类似内容。
+3. **输出大纲**：当信息足够或达到检索限制时，**必须**输出最终的 JSON 格式大纲，不要再说废话。
 
 **最终输出格式 (必须是纯 JSON)**：
 \`\`\`json
@@ -59,7 +61,7 @@ const SYSTEM_PROMPT_TEMPLATE = `你是一个专业的行业研究员和报告策
   ]
 }
 \`\`\`
-注意：pages 数组建议包含 5-8 页。内容 (content) 需详实，充分利用检索到的情报。`;
+注意：pages 数组建议包含 5-8 页。内容 (content) 需详实。`;
 
 // --- Helper: Robust Partial JSON Parser ---
 export const tryParsePartialJson = (jsonStr: string) => {
@@ -398,7 +400,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     }, [history, stage, isLlmActive]);
 
     // --- Agent Loop for Outline Generation (ReAct) ---
-    const runAgentLoop = async (userPromptText: string, isRefinement: boolean) => {
+    // ⚡️ Fix: Added 'tempUserMessage' parameter to accept the latest user input that might not be in state yet.
+    const runAgentLoop = async (userPromptText: string, isRefinement: boolean, tempUserMessage?: ChatMessage) => {
         setIsLlmActive(true);
         
         // 1. Balance Check
@@ -423,7 +426,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         
         // --- 3. Build History for API ---
         // ⚡️ CRITICAL FIX: Ensure `content` is null when `tool_calls` is present for OpenAI compatibility
-        let apiHistory = history.filter(m => m.role !== 'system' && !m.isRetrieving).map(m => {
+        // ⚡️ CRITICAL FIX: Explicitly append the new user message if provided, because React state might lag
+        let currentHistory = [...history];
+        if (tempUserMessage) {
+            currentHistory.push(tempUserMessage);
+        }
+
+        let apiHistory = currentHistory.filter(m => m.role !== 'system' && !m.isRetrieving).map(m => {
             const msg: any = { role: m.role };
             
             if (m.tool_calls && m.tool_calls.length > 0) {
@@ -452,6 +461,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             while (keepRunning && turnCount < MAX_TURNS) {
                 turnCount++;
                 
+                // ⚡️ OPTIMIZATION: System Intervention to prevent infinite loops
+                if (turnCount > 3) {
+                    apiHistory.push({
+                        role: 'system',
+                        content: "(系统提示：你已经进行了多次搜索。信息已足够，请立即停止搜索，基于现有信息生成 JSON 大纲。)"
+                    });
+                }
+
                 // Prepare Assistant Message Placeholder
                 const assistantMsgId = crypto.randomUUID();
                 setHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', reasoning: '' }]);
@@ -460,6 +477,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 let accumulatedReasoning = '';
                 let toolCallsBuffer: any[] = [];
                 let currentToolIndex = -1;
+                let streamError: Error | null = null; // Capture stream error
 
                 await streamChatCompletions({
                     model: DEFAULT_STABLE_MODEL,
@@ -511,13 +529,30 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     });
                 }, () => {
                     if (onRefreshSession) onRefreshSession();
-                }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR);
+                }, (err) => {
+                    streamError = err; // Capture error
+                }, activeSessionId, AGENTS.REPORT_GENERATOR);
+
+                // Check if stream encountered error
+                if (streamError) {
+                    throw streamError;
+                }
 
                 // --- Turn Finished, Process Result ---
+                // ⚡️ CRITICAL FIX: Sanitize toolCallsBuffer to ensure proper structure before adding to history
+                const sanitizedToolCalls = toolCallsBuffer.length > 0 ? toolCallsBuffer.map(tc => ({
+                    id: tc.id,
+                    type: 'function',
+                    function: {
+                        name: tc.function.name,
+                        arguments: tc.function.arguments
+                    }
+                })) : undefined;
+
                 const finalMsg = {
                     role: 'assistant',
                     content: accumulatedContent || null, // Ensure strict null if empty for API history
-                    tool_calls: toolCallsBuffer.length > 0 ? toolCallsBuffer : undefined
+                    tool_calls: sanitizedToolCalls
                 };
                 
                 apiHistory.push(finalMsg as any);
@@ -639,7 +674,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
              if (e.message === 'INSUFFICIENT_BALANCE') {
                 if (onHandleInsufficientBalance) onHandleInsufficientBalance();
              } else {
-                setHistory(prev => [...prev, { role: 'assistant', content: "生成出错，请重试。" }]);
+                setHistory(prev => [...prev, { role: 'assistant', content: `生成出错：${e.message || '请重试'}` }]);
              }
         } finally {
             setIsLlmActive(false);
@@ -714,7 +749,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             
             const currentPage = pages[targetIdx];
             const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
-            const modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
+            
+            // ⚡️ MODEL DYNAMIC SWITCHING
+            // Default models, will be overwritten if prompt config is fetched
+            let modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
             let pageSpecificContext = "";
             if (autoGenMode === 'text') {
@@ -728,7 +766,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     role: 'assistant', 
                     content: `正在${taskName} (第 ${targetIdx + 1}/${pages.length} 页)：**${currentPage.title}**...`, 
                     reasoning: '',
-                    model: modelStr
+                    model: 'Loading Config...' // Temp placeholder
                 }];
             });
 
@@ -748,6 +786,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     try {
                         const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
                         contentTemplate = promptDetail.content;
+                        // ⚡️ DYNAMIC: Use model from prompt config if available
+                        if (promptDetail.channel_code && promptDetail.model_id) {
+                            modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
+                        }
                     } catch(e) {
                          contentTemplate = `Write detailed slide content. Title: {{ page_title }}. Summary: {{ page_summary }}.`;
                     }
@@ -771,6 +813,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     try {
                         const promptDetail = await getPromptDetail("14920b9c-604f-4066-bb80-da7a47b65572");
                         systemPromptContent = promptDetail.content;
+                        // ⚡️ DYNAMIC: Use model from prompt config if available
+                        if (promptDetail.channel_code && promptDetail.model_id) {
+                            modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
+                        }
                     } catch(e) {
                          systemPromptContent = "You are an expert web designer. Create a single 1600x900 HTML slide using TailwindCSS.";
                     }
@@ -779,6 +825,16 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         { role: 'user', content: `Title: ${currentPage.title}\nContent:\n${currentPage.content}` }
                     ];
                 }
+
+                // Update UI with the actual model being used
+                setHistory(prev => {
+                    const h = [...prev];
+                    const lastMsg = h[h.length - 1];
+                    if (lastMsg.role === 'assistant') {
+                         h[h.length - 1] = { ...lastMsg, model: modelStr };
+                    }
+                    return h;
+                });
 
                 let accContent = '';
                 let accReasoning = '';
@@ -870,12 +926,17 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         if (!text.trim() || isLlmActive) return;
         
         if (!val) setInput('');
-        setHistory(prev => [...prev, { role: 'user', content: text }]);
+        
+        // ⚡️ Fix: Add user message to state immediately for UI feedback
+        const userMsg = { id: crypto.randomUUID(), role: 'user' as const, content: text };
+        setHistory(prev => [...prev, userMsg]);
 
         if (stage === 'collect') {
-            await runAgentLoop(text, false);
+            // ⚡️ Fix: Pass the user message object to ensure it's included in the loop context
+            await runAgentLoop(text, false, userMsg);
         } else if (stage === 'outline') {
-            await runAgentLoop(`Update outline based on: ${text}`, true);
+            const updateMsg = { id: crypto.randomUUID(), role: 'user' as const, content: `Update outline based on: ${text}` };
+            await runAgentLoop(`Update outline based on: ${text}`, true, updateMsg);
         } else if (stage === 'compose') {
             if (autoGenMode) {
                 setHistory(prev => [...prev, { role: 'assistant', content: "请等待当前生成队列完成。" }]);
@@ -936,13 +997,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                      if (split.reasoning) parsedContent = split;
                 }
                 
-                const trimmed = parsedContent.content.trim();
+                const trimmed = (parsedContent.content || '').trim();
                 const isJsonOutline = isAssistant && ((trimmed.startsWith('{') || trimmed.startsWith('```json')) && trimmed.includes('"pages"'));
                 const isHtml = isAssistant && (trimmed.startsWith('```html') || trimmed.startsWith('<!DOCTYPE'));
 
                 const shouldHideText = isJsonOutline || isHtml;
                 const showThinking = !!parsedContent.reasoning;
-                const isEmpty = !parsedContent.content && !parsedContent.reasoning;
+                // Fix: Check if truly empty (no content, no reasoning, no tool calls)
+                const isEmpty = !parsedContent.content && !parsedContent.reasoning && !msg.tool_calls;
 
                 let statusTitle = "处理完成";
                 let statusDesc = "已同步至画布";
@@ -995,7 +1057,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                 </div>
                             ) : (
                                 <MarkdownContent 
-                                    content={parsedContent.content} 
+                                    content={parsedContent.content || ''} 
                                     className={msg.role === 'user' ? 'text-white prose-invert' : 'text-slate-700'} 
                                 />
                             )}
