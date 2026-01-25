@@ -265,29 +265,8 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         const raw = activePage.content || '';
         
         // If it starts with JSON structure, try to parse partial
-        if (raw.trim().startsWith('{') || raw.trim().startsWith('```json')) {
-            const partial = tryParsePartialJson(raw);
-            if (partial && partial.content) {
-                return partial.content;
-            }
-            
-            // Fallback: Use Regex to extract content if JSON parser fails completely (e.g. malformed escape chars in stream)
-            const match = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
-            if (match) {
-                // Try to clean up the extracted string for display
-                // Replace escaped newlines with actual newlines, escaped quotes with quotes
-                let clean = match[1];
-                try {
-                    clean = clean.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                } catch(e) {}
-                return clean;
-            }
-            
-            // Critical Fix: If parser returns null and regex fails, return raw string instead of empty string
-            // This ensures user sees *something* happening (even if it's raw JSON) rather than a blank screen
-            return raw; 
-        }
-        return raw;
+        // The side effect update happens in Step1Collect, here we just read
+        return raw; 
     }, [activePage?.content]);
     
     // --- MANUAL EDIT HANDLER ---
@@ -295,9 +274,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         if (!setData) return;
         setData(prev => {
             const newPages = [...prev.pages];
-            // We directly update the content. If JSON parsing was involved, 
-            // this assumes the user is editing the *extracted* text, 
-            // so we save it back as the raw content to be consistent.
             newPages[activePageIndex] = { ...newPages[activePageIndex], content: newContent };
             return { ...prev, pages: newPages };
         });
@@ -320,6 +296,12 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
 
 
     const hasReadyHtmlForButtons = data.pages.some(p => !!p.html);
+
+    // --- Trigger Generation via Sidebar ---
+    // Instead of local generation, we use a hidden trigger or rely on user using the chat.
+    // However, to support "Click to start", we can simulate a user request to the sidebar if needed.
+    // But Step1Collect (Sidebar) owns the LLM logic.
+    // For now, we direct user to the sidebar.
 
     // --- Views ---
 
@@ -382,8 +364,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
 
     if (!activePage) return <div className="p-10 text-center">Loading...</div>;
 
-    // Fix: hasContent should be true if there is ANY content to show, not just if displayContent is non-empty
-    // We fall back to showing something to avoid empty state during loading
     const hasContent = !!displayContent || isGenerating;
 
     return (
@@ -406,30 +386,20 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                          >
                              {/* Thumbnail Preview */}
                              <div className="aspect-[16/9] bg-slate-100 rounded border border-slate-200 mb-2 overflow-hidden relative flex items-center justify-center">
-                                 {/* 
-                                     Three States for Thumbnail:
-                                     1. HTML Ready (Not Generating): Show Scaled Iframe (1600x900)
-                                     2. Generating HTML: Show "Rendering" code view
-                                     3. Text Only: Show Text
-                                 */}
                                  {p.html && !p.isGenerating ? (
-                                    // Fixed wrapper for scaling 1600x900 to approx 220px width (scale ~0.14)
                                      <div className="w-full h-full relative overflow-hidden bg-white">
                                          <div className="absolute top-0 left-0 w-[1600px] h-[900px] origin-top-left transform scale-[0.135]">
                                              <iframe srcDoc={p.html} className="w-full h-full border-none pointer-events-none" tabIndex={-1} />
                                          </div>
                                      </div>
                                  ) : p.isGenerating && p.html ? (
-                                     // Generating HTML state - Show Code/Terminal look
                                      <div className="w-full h-full bg-[#1e1e1e] p-2 text-[5px] font-mono text-slate-300 overflow-hidden leading-tight opacity-90 break-all whitespace-pre-wrap">
-                                         {/* Use dangerouslySetInnerHTML to show colorized mini preview */}
                                          <span dangerouslySetInnerHTML={{ __html: highlightHtmlStream(p.html.slice(-500)) }}></span>
                                          <div className="absolute bottom-1 right-1">
                                              <RefreshIcon className="w-3 h-3 animate-spin text-white"/>
                                          </div>
                                      </div>
                                  ) : p.content ? (
-                                     // Text Content State
                                      <div className="p-2 text-[5px] text-slate-400 leading-tight overflow-hidden text-left h-full w-full select-none bg-white">
                                         {p.content.startsWith('{') ? 'Content Generating...' : p.content.slice(0, 300)}
                                      </div>
@@ -437,7 +407,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                      <span className="text-[10px] text-slate-300">{idx+1}</span>
                                  )}
                                  
-                                 {/* Loading Overlay (only if not showing the code view above) */}
                                  {p.isGenerating && !p.html && (
                                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
                                          <RefreshIcon className="w-4 h-4 text-indigo-500 animate-spin"/>
@@ -469,17 +438,10 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {genModel && (
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 border border-slate-100 mr-2" title={`Generative Model: ${genModel}`}>
-                                <ServerIcon className="w-3 h-3 text-slate-300" />
-                                <span className="text-[9px] font-mono text-slate-400 truncate max-w-[150px]">{genModel}</span>
-                            </div>
-                        )}
-
                         {hasReadyHtmlForButtons && (
                             <div className="flex items-center gap-2 border-l border-slate-200 pl-3 ml-2 relative">
                                  
-                                 {/* Export Buttons Group (Button + Text style) */}
+                                 {/* Export Buttons Group */}
                                  <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
                                      <button 
                                         onClick={handleExportSingle}
@@ -504,7 +466,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
 
                                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
                                 
-                                {/* Visual Editor Button with Hint */}
                                 <div className="relative">
                                     <button 
                                         onClick={handleEnterFinalize} 
@@ -514,13 +475,10 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                         <span>可视化精修</span>
                                     </button>
 
-                                    {/* First-time User Hint */}
                                     {showVisualEditorHint && (
                                         <div className="absolute top-full right-0 mt-3 z-50 w-64 animate-in fade-in slide-in-from-top-2 duration-500">
                                             <div className="relative bg-slate-900 text-white p-4 rounded-xl shadow-2xl border border-slate-700">
-                                                {/* Arrow */}
                                                 <div className="absolute -top-1.5 right-6 w-3 h-3 bg-slate-900 rotate-45 border-l border-t border-slate-700"></div>
-                                                
                                                 <div className="flex justify-between items-start mb-2">
                                                     <h4 className="font-bold text-yellow-400 flex items-center gap-1.5 text-xs uppercase tracking-wide">
                                                         <SparklesIcon className="w-3.5 h-3.5" /> 全新功能
@@ -529,28 +487,12 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                                         <CloseIcon className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
-                                                
                                                 <p className="text-xs text-slate-300 leading-relaxed mb-3">
                                                     觉得排版不够完美？<br/>
                                                     点击这里进入<strong>可视化精修</strong>模式，像编辑 PPT 一样自由拖拽、修改元素！
                                                 </p>
-                                                
                                                 <div className="flex justify-end">
-                                                    <div className="relative">
-                                                        <div className="absolute -left-8 top-1 w-6 h-6 animate-bounce">
-                                                            {/* Hand Cursor SVG */}
-                                                            <svg viewBox="0 0 24 24" fill="none" className="w-full h-full drop-shadow-md text-white">
-                                                                <path d="M7 19l2.5-8l3 3l2-6l2 0.5l-2 6l4 0.5L7 19z" fill="currentColor" />
-                                                                <path d="M7 19l-1.5-13l12 6.5l-5.5 2.5L7 19z" fill="white" stroke="black" strokeWidth="1.5" strokeLinejoin="round"/>
-                                                            </svg>
-                                                        </div>
-                                                        <button 
-                                                            onClick={handleDismissHint}
-                                                            className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1 rounded transition-colors"
-                                                        >
-                                                            知道了
-                                                        </button>
-                                                    </div>
+                                                    <button onClick={handleDismissHint} className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1 rounded transition-colors">知道了</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -567,22 +509,16 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                         ref={containerRef}
                         className={`w-full h-full flex flex-col justify-center transition-all duration-500`}
                     >
-                        
-                        {/* 1. HTML View (Highest Priority if exists and NOT generating) */}
+                        {/* 1. HTML View */}
                         {hasHtml && !isGenerating ? (
                             <ScaledSlide html={activePage.html!} width={containerSize.width} height={containerSize.height} />
                         ) : hasHtml && isGenerating ? (
-                            /* 2. Streaming Code View (Prevents Flicker) */
+                            /* 2. Streaming Code View */
                             <div className="w-full max-w-[1200px] h-full max-h-[800px] bg-[#1e1e1e] rounded-xl shadow-2xl border border-slate-700 p-0 overflow-hidden flex flex-col relative mx-auto animate-in fade-in zoom-in-95 duration-300">
                                 <div className="bg-[#2d2d2d] px-4 py-2 flex items-center justify-between border-b border-black/20">
                                     <div className="flex items-center gap-2 text-green-400 font-mono text-xs">
                                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                         <span>Compiling HTML Slide...</span>
-                                    </div>
-                                    <div className="flex gap-1.5">
-                                        <div className="w-2.5 h-2.5 rounded-full bg-red-500/20"></div>
-                                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20"></div>
-                                        <div className="w-2.5 h-2.5 rounded-full bg-green-500/20"></div>
                                     </div>
                                 </div>
                                 <div className="flex-1 overflow-auto p-6 font-mono text-xs custom-scrollbar-dark relative">
@@ -593,23 +529,18 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                 </div>
                             </div>
                         ) : (
-                            /* 3. Editable Text Editor View (Default) */
+                            /* 3. Text Editor / Empty State */
                             <div className="w-full max-w-[900px] h-full bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col mx-auto overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                    <h1 className="text-xl font-bold text-slate-900 leading-tight truncate">
-                                        {activePage.title}
-                                    </h1>
-                                    <span className="text-xs text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">
-                                        可直接编辑
-                                    </span>
+                                    <h1 className="text-xl font-bold text-slate-900 leading-tight truncate">{activePage.title}</h1>
+                                    <span className="text-xs text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">可直接编辑</span>
                                 </div>
                                 <div className="flex-1 relative">
-                                    {/* Editable Text Area */}
                                     <textarea
                                         value={displayContent}
                                         onChange={(e) => handleContentEdit(e.target.value)}
                                         className="w-full h-full p-8 md:px-12 resize-none outline-none text-slate-700 leading-relaxed font-mono text-sm custom-scrollbar bg-transparent"
-                                        placeholder="AI 正在撰写内容..."
+                                        placeholder="AI 正在撰写内容... (或在此处手动输入)"
                                         spellCheck={false}
                                     />
                                     {isGenerating && (
@@ -621,7 +552,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                 </div>
                             </div>
                         )}
-
                     </div>
                 </div>
             </div>
