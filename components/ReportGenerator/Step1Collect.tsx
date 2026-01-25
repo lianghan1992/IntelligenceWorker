@@ -15,8 +15,12 @@ import { marked } from 'marked';
 import { AGENTS } from '../../agentConfig';
 
 // --- 统一模型配置 ---
-const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
+// 兜底模型，仅在 API 获取配置失败时使用
+const DEFAULT_FALLBACK_MODEL = "xiaomi/mimo-v2-flash:free";
 const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
+
+// 用于获取 Agent 规划阶段模型配置的 Prompt ID (需后端配合配置，若无则回退)
+const AGENT_PLANNING_PROMPT_ID = "report-agent-planning"; 
 
 // --- Agent Tools Definition ---
 const SEARCH_TOOL_DEF = {
@@ -37,19 +41,19 @@ const SEARCH_TOOL_DEF = {
     }
 };
 
+// ⚡️ CRITICAL OPTIMIZATION: Inject {{user_input}} directly into system prompt to prevent context loss
 const SYSTEM_PROMPT_TEMPLATE = `你是一个专业的行业研究员和报告策划专家。
 当前日期: {{current_date}}。
 
-**你的目标**：
-基于用户输入的主题，构建一份结构严谨、逻辑清晰的 PPT 研报大纲。
+**当前任务目标**：
+为用户的主题 **“{{user_input}}”** 构建一份结构严谨、逻辑清晰的 PPT 研报大纲。
 
 **核心指令**：
-1. **优先响应用户**：必须基于用户的具体输入（如“小米汽车26年战略”）进行规划，严禁忽略用户输入而自行假设主题。
-2. **适度检索**：
-   - 只有在确实缺乏核心事实时才调用 \`search_knowledge_base\`。
-   - **最多允许 2 轮检索**。如果检索结果已部分覆盖或检索 2 次后仍不完美，请立即基于现有信息和你的通用知识生成大纲。
-   - **禁止死循环**：不要为了追求“完美”而反复检索类似内容。
-3. **输出大纲**：当信息足够或达到检索限制时，**必须**输出最终的 JSON 格式大纲，不要再说废话。
+1. **绝对聚焦**：你必须且只能围绕 **“{{user_input}}”** 进行规划。严禁自行假设其他无关主题（如固态电池等，除非用户明确提到）。
+2. **主动检索**：
+   - 如果你缺乏关于“{{user_input}}”的具体数据，**必须**调用 \`search_knowledge_base\`。
+   - **最多允许 2 轮检索**。不要为了追求“完美”而反复检索。
+3. **输出大纲**：当信息足够或达到检索限制时，**必须**输出最终的 JSON 格式大纲。
 
 **最终输出格式 (必须是纯 JSON)**：
 \`\`\`json
@@ -447,9 +451,28 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         });
 
         // Ensure System Prompt
-        const systemPromptContent = SYSTEM_PROMPT_TEMPLATE.replace('{{current_date}}', currentDate);
+        // ⚡️ DYNAMIC INJECTION: Inject user input into System Prompt to force context adherence
+        let dynamicSystemPrompt = SYSTEM_PROMPT_TEMPLATE
+            .replace('{{current_date}}', currentDate)
+            .replace(/{{user_input}}/g, userPromptText);
+
         if (apiHistory.length === 0 || apiHistory[0].role !== 'system') {
-            apiHistory.unshift({ role: 'system', content: systemPromptContent });
+            apiHistory.unshift({ role: 'system', content: dynamicSystemPrompt });
+        } else {
+            // Replace existing system prompt if it exists (for retry/refinement)
+            apiHistory[0] = { role: 'system', content: dynamicSystemPrompt };
+        }
+
+        // ⚡️ MODEL DYNAMIC SWITCHING
+        let planningModel = DEFAULT_FALLBACK_MODEL;
+        try {
+            const promptConfig = await getPromptDetail(AGENT_PLANNING_PROMPT_ID).catch(() => null);
+            if (promptConfig && promptConfig.channel_code && promptConfig.model_id) {
+                planningModel = `${promptConfig.channel_code}@${promptConfig.model_id}`;
+                console.log("Using dynamic model for planning:", planningModel);
+            }
+        } catch (e) {
+            console.warn("Failed to load dynamic model config, using fallback.", e);
         }
 
         const MAX_TURNS = 5;
@@ -471,7 +494,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 // Prepare Assistant Message Placeholder
                 const assistantMsgId = crypto.randomUUID();
-                setHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', reasoning: '' }]);
+                setHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', reasoning: '', model: planningModel }]);
                 
                 let accumulatedContent = '';
                 let accumulatedReasoning = '';
@@ -480,7 +503,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 let streamError: Error | null = null; // Capture stream error
 
                 await streamChatCompletions({
-                    model: DEFAULT_STABLE_MODEL,
+                    model: planningModel, // Use dynamic model
                     messages: apiHistory,
                     stream: true,
                     temperature: 0.2, // Lower temp for agent logic
@@ -752,7 +775,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             
             // ⚡️ MODEL DYNAMIC SWITCHING
             // Default models, will be overwritten if prompt config is fetched
-            let modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
+            let modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_FALLBACK_MODEL;
 
             let pageSpecificContext = "";
             if (autoGenMode === 'text') {
