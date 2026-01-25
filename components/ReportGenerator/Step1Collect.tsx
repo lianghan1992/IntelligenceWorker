@@ -330,14 +330,15 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         try {
             // Attempt to fetch prompt config from backend to get the model
             const prompt = await getPromptDetail(PROMPT_ID_COLLECT);
-            if (prompt.channel_code && prompt.model_id) {
+            if (prompt && prompt.channel_code && prompt.model_id) {
+                // console.debug("Loaded remote model config:", prompt.channel_code, prompt.model_id);
                 return { 
                     model: `${prompt.channel_code}@${prompt.model_id}`,
                     template: prompt.content
                 };
             }
         } catch (e) {
-            console.warn("Failed to fetch specific prompt config, using fallback logic if available.");
+            console.warn("Failed to fetch specific prompt config, using fallback logic.", e);
         }
         // Fallback or if prompt doesn't have model config
         // NOTE: Defaulting to a high-capacity model suitable for planning
@@ -404,11 +405,15 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 注意：pages 数组建议包含 5-8 页。内容 (content) 需详实，充分利用检索到的情报。`;
 
         // 4. Build History for API
-        // Filter out retrieval status messages and pure UI items
+        // FIX: The `history` state here is STALE (does not contain the user message added in handleSend).
+        // We must manually construct the API history to include the latest user prompt.
         let apiHistory = history.filter(m => m.role !== 'system' && !m.isRetrieving).map(m => ({
             role: m.role, 
             content: m.content || ''
         }));
+
+        // Explicitly add the new user prompt to the API payload
+        apiHistory.push({ role: 'user', content: userPromptText });
 
         if (apiHistory.length === 0 || apiHistory[0].role !== 'system') {
             apiHistory.unshift({ role: 'system', content: systemPromptContent });
@@ -431,7 +436,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 // Stream Request
                 await streamChatCompletions({
-                    model: activeModel,
+                    model: activeModel, // Use the dynamic model
                     messages: apiHistory,
                     stream: true,
                     temperature: 0.2,
@@ -445,10 +450,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         const newHistory = [...prev];
                         const idx = newHistory.findIndex(m => m.id === assistantMsgId);
                         if (idx !== -1) {
+                            // Mask JSON while streaming to prevent flickering and ugly raw data
+                            const isJsonLike = accumulatedContent.trim().startsWith('```json') || accumulatedContent.trim().startsWith('{');
+                            const displayContent = isJsonLike ? "🔄 正在构建大纲数据结构..." : maskToolContent(accumulatedContent);
+
                             newHistory[idx] = { 
                                 ...newHistory[idx], 
                                 reasoning: accumulatedReasoning, 
-                                content: maskToolContent(accumulatedContent) // Mask tool calls in UI
+                                content: displayContent
                             };
                         }
                         return newHistory;
@@ -468,6 +477,17 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 // 1. Check for JSON Outline
                 const partialOutline = tryParsePartialJson(accumulatedContent);
                 if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
+                    
+                    // Replace the raw JSON message with a user-friendly success message
+                    setHistory(prev => prev.map(m => m.id === assistantMsgId ? {
+                        ...m,
+                        content: `✅ **大纲构建完成**\n\n已为您生成包含 ${partialOutline.pages.length} 个章节的研报大纲，正在跳转预览...`,
+                        reasoning: accumulatedReasoning
+                    } : m));
+                    
+                    // Wait a bit to show the message before transition
+                    await new Promise(resolve => setTimeout(resolve, 800));
+
                     setData(prev => ({ 
                         ...prev, 
                         topic: partialOutline.title || prev.topic, 
@@ -630,11 +650,12 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const renderChatBubbles = () => (
         <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar" ref={scrollRef}>
              <style>{`
+                .markdown-body { color: inherit; }
                 .markdown-body p { margin-bottom: 0.5rem; }
                 .markdown-body ul, .markdown-body ol { margin-left: 1.25rem; list-style-type: disc; margin-bottom: 0.5rem; }
                 .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
                 .markdown-body code { background: #f1f5f9; padding: 0.2rem 0.4rem; rounded: 4px; font-size: 0.85em; }
-                .markdown-body pre { background: #1e293b; color: #e2e8f0; padding: 0.75rem; rounded-lg; overflow-x: auto; margin-bottom: 0.5rem; }
+                .markdown-body pre { background: #0f172a !important; color: #f1f5f9 !important; padding: 0.75rem; rounded-lg; overflow-x: auto; margin-bottom: 0.5rem; }
             `}</style>
             
             {history.filter(m => !m.hidden).map((msg, i) => {
@@ -681,7 +702,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             max-w-[95%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm border transition-all
                             ${msg.role === 'user' 
                                 ? 'bg-indigo-600 text-white rounded-tr-sm border-indigo-600 shadow-indigo-100' 
-                                : 'bg-white text-slate-700 border-slate-200 rounded-tl-sm'
+                                : 'bg-white text-slate-900 border-slate-200 rounded-tl-sm'
                             }
                         `}>
                             {showThinking && (
@@ -700,7 +721,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                             <MarkdownContent 
                                 content={parsedContent.content} 
-                                className={msg.role === 'user' ? 'text-white prose-invert' : 'text-slate-700'} 
+                                className={msg.role === 'user' ? 'text-white prose-invert' : 'text-slate-900'} 
                             />
                         </div>
                     </div>
