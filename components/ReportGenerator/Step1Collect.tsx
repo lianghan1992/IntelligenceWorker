@@ -15,8 +15,8 @@ import { marked } from 'marked';
 import { AGENTS } from '../../agentConfig';
 
 // --- 提示词 ID 配置 (从后端获取模型) ---
-// 对应后端 "Report Generator - Collect Phase" 提示词
-const PROMPT_ID_COLLECT = "report_generator_collect"; 
+// 修正：使用 Prompt 名称而非 ID，以保持稳定性，并匹配后端返回
+const PROMPT_NAME_COLLECT = "01.大纲撰写"; 
 
 // --- Agent 常量 ---
 const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次
@@ -333,7 +333,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             // Priority 1: Fetch prompts specific to this scenario to get accurate model config
             // Use the specific API for this scenario
             const scenarioPrompts = await getScenarioPrompts(AGENTS.REPORT_GENERATOR);
-            const prompt = scenarioPrompts.find(p => p.name === PROMPT_ID_COLLECT);
+            const prompt = scenarioPrompts.find(p => p.name === PROMPT_NAME_COLLECT);
             
             if (prompt) {
                 // Determine model from prompt config

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTPageData, SharedGeneratorProps } from './types';
-import { streamChatCompletions, getPromptDetail, generateBatchPdf, generatePdf } from '../../api/stratify'; 
+import { streamChatCompletions, getScenarioPrompts, generateBatchPdf, generatePdf } from '../../api/stratify'; 
 import { getWalletBalance } from '../../api/user'; // Import wallet balance check
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
@@ -20,9 +20,8 @@ interface Step4FinalizeProps extends SharedGeneratorProps {
     onStreamingUpdate?: (msg: any) => void;
 }
 
-const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
-const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
-const PROMPT_ID_HTML = "14920b9c-604f-4066-bb80-da7a47b65572";
+// 对应后端 "Report Generator - HTML Generation" 提示词
+const PROMPT_NAME_HTML = "03.HTML生成";
 
 const extractStreamingHtml = (rawText: string): string => {
     return rawText.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
@@ -91,6 +90,10 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(0.6); // Default scale
     const [showGuide, setShowGuide] = useState(true);
+    
+    // Model Config State
+    const [htmlPromptContent, setHtmlPromptContent] = useState<string>('');
+    const [htmlModel, setHtmlModel] = useState<string>('');
 
     // Load guide visibility preference
     useEffect(() => {
@@ -98,6 +101,32 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
         if (isClosed === 'true') {
             setShowGuide(false);
         }
+    }, []);
+
+    // Load HTML Generation Config
+    useEffect(() => {
+        const loadConfig = async () => {
+             try {
+                 const scenarioPrompts = await getScenarioPrompts(AGENTS.REPORT_GENERATOR);
+                 const prompt = scenarioPrompts.find(p => p.name === PROMPT_NAME_HTML);
+                 
+                 if (prompt) {
+                     setHtmlPromptContent(prompt.content);
+                     if (prompt.channel_code && prompt.model_id) {
+                         setHtmlModel(`${prompt.channel_code}@${prompt.model_id}`);
+                     } else {
+                         setHtmlModel("google/gemini-3-flash-preview"); // Fallback
+                     }
+                 } else {
+                     console.warn("HTML prompt not found, using defaults");
+                     setHtmlModel("google/gemini-3-flash-preview");
+                 }
+             } catch (e) {
+                 console.warn("Failed to load HTML prompt config", e);
+                 setHtmlModel("google/gemini-3-flash-preview");
+             }
+        };
+        loadConfig();
     }, []);
 
     const handleCloseGuide = () => {
@@ -128,7 +157,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     // HTML Generation
     const generateHtml = useCallback(async (idx: number) => {
         const page = pages[idx];
-        if (!page || page.html || page.isGenerating) return;
+        if (!page || page.html || page.isGenerating || !htmlModel) return;
 
         // --- Pre-check Balance ---
         try {
@@ -148,15 +177,13 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
         onUpdatePages(newPagesStart); 
 
         try {
-            const prompt = await getPromptDetail(PROMPT_ID_HTML);
             const userPrompt = `主题: ${topic}\n内容:\n${page.content}`;
             let accumulatedText = '';
             
-            // 使用更先进的 HTML 生成模型
             await streamChatCompletions({
-                model: HTML_GENERATION_MODEL,
+                model: htmlModel,
                 messages: [
-                    { role: 'system', content: prompt.content },
+                    { role: 'system', content: htmlPromptContent || "Convert to HTML slide." },
                     { role: 'user', content: userPrompt }
                 ],
                 stream: true,
@@ -175,7 +202,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
             }, (err) => {
                 onLlmStatusChange?.(false);
                 throw err; // Propagate to catch
-            }, sessionId, AGENTS.REPORT_GENERATOR); // Added AGENTS.REPORT_GENERATOR
+            }, sessionId, AGENTS.REPORT_GENERATOR); 
         } catch (e: any) {
             onLlmStatusChange?.(false);
             if (e.message === 'INSUFFICIENT_BALANCE' && onHandleInsufficientBalance) {
@@ -187,16 +214,19 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                 onUpdatePages(errorPages);
             }
         }
-    }, [pages, topic, onLlmStatusChange, onUpdatePages, sessionId, onRefreshSession, onHandleInsufficientBalance]);
+    }, [pages, topic, htmlModel, htmlPromptContent, onLlmStatusChange, onUpdatePages, sessionId, onRefreshSession, onHandleInsufficientBalance]);
 
     useEffect(() => {
+        // Only start generating when model config is ready
+        if (!htmlModel) return;
+
         const isBusy = pages.some(p => p.isGenerating);
         if (isBusy) return;
         const nextIdx = pages.findIndex(p => !p.html);
         if (nextIdx !== -1) {
             generateHtml(nextIdx);
         }
-    }, [pages, generateHtml]);
+    }, [pages, generateHtml, htmlModel]);
 
     const activePage = pages[activeIdx];
     const allRendered = pages.every(p => p.html && !p.isGenerating);
@@ -255,6 +285,13 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      </p>
                  </div>
                  <div className="flex items-center gap-4">
+                     {/* Model Indicator (Optional debug) */}
+                     {htmlModel && (
+                         <div className="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 text-[9px] text-white/40 font-mono">
+                             Using: {htmlModel.replace('openrouter@', '')}
+                         </div>
+                     )}
+
                      <div className="flex items-center gap-1.5 text-[10px] text-green-400 font-medium bg-green-500/10 px-2.5 py-1 rounded-full border border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.1)]">
                         <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
                         实时自动保存
