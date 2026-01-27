@@ -22,43 +22,62 @@ const PROMPT_NAME_CONTENT = "02.详细内容生成";
 const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次
 
 // --- Helper: Robust Partial JSON Parser ---
-// 增强版：支持流式不完整 JSON 的解析
+// 增强版：支持流式不完整 JSON 的解析，实现打字机效果
 export const tryParsePartialJson = (jsonStr: string) => {
     if (!jsonStr) return null;
     let cleanStr = jsonStr.trim();
-    // 移除可能的 markdown 标记
-    cleanStr = cleanStr.replace(/```json/gi, '').replace(/```/g, '').trim();
+    // 移除 markdown 标记
+    cleanStr = cleanStr.replace(/^```json/, '').replace(/^```/, '').replace(/```$/, '').trim();
     // 移除 thinking 标签
     cleanStr = cleanStr.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     
+    // 尝试直接解析
     try {
         return JSON.parse(cleanStr);
     } catch (e) {
-        // 尝试修复不完整的 JSON
+        // 失败，尝试深度修复
         try {
-            // 1. 尝试闭合大纲数组
-            if (cleanStr.startsWith('{') && cleanStr.includes('"pages": [')) {
-                 // 这是一个对象，尝试闭合
-                 // 简单启发式：如果在 pages 数组里，尝试补全
-                 if (!cleanStr.endsWith('}')) {
-                     if (cleanStr.endsWith(',')) cleanStr = cleanStr.slice(0, -1);
-                     if (!cleanStr.endsWith(']')) cleanStr += ']';
-                     cleanStr += '}';
-                     return JSON.parse(cleanStr);
-                 }
-            }
-            // 2. 尝试闭合内容生成的 JSON
+            // 1. 如果是对象开始
             if (cleanStr.startsWith('{')) {
-                if (!cleanStr.endsWith('}')) {
-                     // 可能是 content 字段没闭合
-                     if (cleanStr.match(/"content":\s*"/)) {
-                         if (!cleanStr.endsWith('"')) cleanStr += '"';
-                         cleanStr += '}';
-                         return JSON.parse(cleanStr);
-                     }
+                // 简单的栈模拟，用于补全
+                let stack = [];
+                let inString = false;
+                let escaped = false;
+                
+                for (let char of cleanStr) {
+                    if (char === '"' && !escaped) inString = !inString;
+                    if (!inString) {
+                        if (char === '{') stack.push('}');
+                        else if (char === '[') stack.push(']');
+                        else if (char === '}') stack.pop();
+                        else if (char === ']') stack.pop();
+                    }
+                    if (char === '\\') escaped = !escaped;
+                    else escaped = false;
                 }
+
+                // 移除尾部可能导致错误的逗号
+                // 查找最后一个非空白字符
+                let lastValidIndex = cleanStr.length - 1;
+                while(lastValidIndex >= 0 && /\s/.test(cleanStr[lastValidIndex])) lastValidIndex--;
+                
+                if (cleanStr[lastValidIndex] === ',') {
+                    cleanStr = cleanStr.slice(0, lastValidIndex) + cleanStr.slice(lastValidIndex + 1);
+                }
+
+                // 如果在字符串内部中断，补全引号
+                if (inString) cleanStr += '"';
+
+                // 补全所有未闭合的括号
+                while (stack.length > 0) {
+                    cleanStr += stack.pop();
+                }
+
+                return JSON.parse(cleanStr);
             }
-        } catch (e2) {}
+        } catch (e2) {
+            // console.warn("Partial JSON parse failed", e2);
+        }
     }
     return null;
 };
@@ -462,9 +481,11 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
 
-                    // Real-time JSON Parsing & Update Data
+                    // Real-time Partial JSON Parsing
+                    // 尝试从流式内容中提取不完整的 JSON 结构
                     const partialOutline = tryParsePartialJson(accumulatedContent);
-                    if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
+                    if (partialOutline && partialOutline.pages && Array.isArray(partialOutline.pages)) {
+                        // 只要有部分页面数据，就立即更新，实现流式大纲渲染
                         setData(prev => ({
                             ...prev,
                             topic: partialOutline.title || prev.topic,
@@ -509,8 +530,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         reasoning: accumulatedReasoning
                     } : m));
                     
-                    await new Promise(resolve => setTimeout(resolve, 800));
-
+                    // Final State Update
                     setData(prev => ({ 
                         ...prev, 
                         topic: partialOutline.title || prev.topic, 
@@ -697,27 +717,33 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     // Live Update the Page Content!
                     // Try to parse JSON "content" field if the model outputs JSON as per prompt "02"
                     // The prompt says: JSON object { "title": "...", "content": "..." }
-                    // We need to robustly extract "content" from the partial JSON stream
                     
                     let contentToDisplay = accumulatedContent;
                     
-                    // Simple extraction if it looks like JSON
+                    // --- 增强版流式内容提取 ---
+                    // 1. 尝试使用正则匹配JSON中的 content 字段
                     const match = accumulatedContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
                     if (match) {
-                         // Very rough streaming extraction, handle escaped chars
+                         // 简单的转义字符处理
                          let raw = match[1];
                          try {
                             raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
                          } catch(e) {}
                          contentToDisplay = raw;
-                    } else if (accumulatedContent.trim().startsWith('{')) {
-                        // If parsing full JSON fails, fall back to raw or wait
+                    } 
+                    // 2. 如果正则匹配失败（例如开头不是标准的JSON结构），且不是JSON开始符，直接显示文本
+                    else if (!accumulatedContent.trim().startsWith('{')) {
+                        contentToDisplay = accumulatedContent;
+                    }
+                    // 3. 如果是JSON结构但还没匹配到 content，尝试部分解析
+                    else {
                         const parsed = tryParsePartialJson(accumulatedContent);
                         if (parsed && parsed.content) {
                             contentToDisplay = parsed.content;
                         }
                     }
 
+                    // 实时更新数据
                     setData(prev => {
                         const newPages = [...prev.pages];
                         newPages[activePageIndex] = { ...newPages[activePageIndex], content: contentToDisplay };
