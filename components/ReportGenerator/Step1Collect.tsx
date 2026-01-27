@@ -22,7 +22,6 @@ const PROMPT_NAME_CONTENT = "02.详细内容生成";
 const MAX_SEARCH_ROUNDS = 3; // 最大自主检索轮次
 
 // --- Helper: Robust Partial JSON Parser ---
-// 增强版：支持流式不完整 JSON 的解析，实现打字机效果
 export const tryParsePartialJson = (jsonStr: string) => {
     if (!jsonStr) return null;
     let cleanStr = jsonStr.trim();
@@ -31,53 +30,15 @@ export const tryParsePartialJson = (jsonStr: string) => {
     // 移除 thinking 标签
     cleanStr = cleanStr.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     
-    // 尝试直接解析
     try {
         return JSON.parse(cleanStr);
     } catch (e) {
-        // 失败，尝试深度修复
         try {
-            // 1. 如果是对象开始
-            if (cleanStr.startsWith('{')) {
-                // 简单的栈模拟，用于补全
-                let stack = [];
-                let inString = false;
-                let escaped = false;
-                
-                for (let char of cleanStr) {
-                    if (char === '"' && !escaped) inString = !inString;
-                    if (!inString) {
-                        if (char === '{') stack.push('}');
-                        else if (char === '[') stack.push(']');
-                        else if (char === '}') stack.pop();
-                        else if (char === ']') stack.pop();
-                    }
-                    if (char === '\\') escaped = !escaped;
-                    else escaped = false;
-                }
-
-                // 移除尾部可能导致错误的逗号
-                // 查找最后一个非空白字符
-                let lastValidIndex = cleanStr.length - 1;
-                while(lastValidIndex >= 0 && /\s/.test(cleanStr[lastValidIndex])) lastValidIndex--;
-                
-                if (cleanStr[lastValidIndex] === ',') {
-                    cleanStr = cleanStr.slice(0, lastValidIndex) + cleanStr.slice(lastValidIndex + 1);
-                }
-
-                // 如果在字符串内部中断，补全引号
-                if (inString) cleanStr += '"';
-
-                // 补全所有未闭合的括号
-                while (stack.length > 0) {
-                    cleanStr += stack.pop();
-                }
-
-                return JSON.parse(cleanStr);
+            // 简单修复尝试
+            if (cleanStr.startsWith('{') && !cleanStr.endsWith('}')) {
+                return JSON.parse(cleanStr + '}');
             }
-        } catch (e2) {
-            // console.warn("Partial JSON parse failed", e2);
-        }
+        } catch (e2) {}
     }
     return null;
 };
@@ -104,10 +65,8 @@ const parseThinkTag = (text: string) => {
 // --- Helper: Mask Tool Commands in UI ---
 const maskToolContent = (text: string) => {
     let display = text;
-    // Hide JSON tool calls
     display = display.replace(/```json\s*\{[\s\S]*?"call":\s*"search"[\s\S]*?\}[\s\S]*?```/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
     display = display.replace(/\{[\s\S]*?"call":\s*"search"[\s\S]*?\}/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
-    // Hide call:search syntax
     display = display.replace(/call:search\s*(\[.*?\])?/gi, '\n(⚡️ 正在调用全网检索工具...)\n');
     return display;
 };
@@ -135,22 +94,11 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     const [isExpanded, setIsExpanded] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // 自动滚动到底部
     useEffect(() => {
         if (isStreaming && isExpanded && scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [content, isStreaming, isExpanded]);
-
-    // 思考结束后自动折叠
-    useEffect(() => {
-        if (!isStreaming && content && isExpanded) {
-            const timer = setTimeout(() => {
-                setIsExpanded(false);
-            }, 1500); // 1.5秒后自动折叠，给用户一点反应时间
-            return () => clearTimeout(timer);
-        }
-    }, [isStreaming]);
 
     if (!content) return null;
 
@@ -374,16 +322,11 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     // --- Dynamic Model Config Fetcher ---
     const getModelConfig = async (promptName: string) => {
         try {
-            // Attempt to fetch prompt config from backend to get the model
-            // Priority 1: Fetch prompts specific to this scenario to get accurate model config
-            // Use the specific API for this scenario
             const scenarioPrompts = await getScenarioPrompts(AGENTS.REPORT_GENERATOR);
             const prompt = scenarioPrompts.find(p => p.name === promptName);
             
             if (prompt) {
-                // Determine model from prompt config
-                // If backend returns specific channel/model, use it.
-                let fullModel = 'openrouter@xiaomi/mimo-v2-flash:free'; // Default fallback
+                let fullModel = 'openrouter@xiaomi/mimo-v2-flash:free'; 
                 
                 if (prompt.channel_code && prompt.model_id) {
                     fullModel = `${prompt.channel_code}@${prompt.model_id}`;
@@ -398,7 +341,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         } catch (e) {
             console.warn("Failed to fetch specific prompt config, using fallback.", e);
         }
-        // Fallback
         const fallback = 'openrouter@xiaomi/mimo-v2-flash:free';
         setActiveModelName(fallback);
         return { 
@@ -416,7 +358,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const runAgentLoop = async (userPromptText: string, isRefinement: boolean) => {
         setIsLlmActive(true);
         
-        // 1. Balance Check
         try {
             const wallet = await getWalletBalance();
             if (wallet.balance <= 0) {
@@ -428,22 +369,18 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             console.warn("Failed check balance", e);
         }
 
-        // 2. Session
         let activeSessionId = sessionId;
         if (!activeSessionId && onEnsureSession) {
             activeSessionId = await onEnsureSession();
         }
 
-        // 3. Get Model & System Prompt (Use Collect/Outline Prompt)
         const { model: activeModel, template } = await getModelConfig(PROMPT_NAME_COLLECT);
         const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
         
-        // Use backend template if available, otherwise construct one
         const systemPromptContent = template 
             ? template.replace('{{current_date}}', currentDate)
             : `你是一个专业的行业研究员。请为用户生成研报大纲。`;
 
-        // 4. Build History for API
         let apiHistory = history.filter(m => m.role !== 'system' && !m.isRetrieving).map(m => ({
             role: m.role, 
             content: m.content || ''
@@ -455,7 +392,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             apiHistory.unshift({ role: 'system', content: systemPromptContent });
         }
 
-        // --- Execution Loop ---
         let loopCount = 0;
         let keepRunning = true;
         let hasOutline = false; 
@@ -470,7 +406,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 let accumulatedContent = '';
                 let accumulatedReasoning = '';
 
-                // Stream Request
                 await streamChatCompletions({
                     model: activeModel, 
                     messages: apiHistory,
@@ -481,11 +416,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
 
-                    // Real-time Partial JSON Parsing & Update Data
-                    // 尝试从流式内容中提取不完整的 JSON 结构
                     const partialOutline = tryParsePartialJson(accumulatedContent);
                     if (partialOutline && partialOutline.pages && Array.isArray(partialOutline.pages)) {
-                        // 只要有部分页面数据，就立即更新，实现流式大纲渲染
                         setData(prev => ({
                             ...prev,
                             topic: partialOutline.title || prev.topic,
@@ -493,16 +425,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         }));
                     }
 
-                    // Live UI Update
                     setHistory(prev => {
                         const newHistory = [...prev];
                         const idx = newHistory.findIndex(m => m.id === assistantMsgId);
                         if (idx !== -1) {
                             const isJsonLike = accumulatedContent.trim().startsWith('```json') || accumulatedContent.trim().startsWith('{');
-                            // 如果检测到有效的 JSON 结构（即大纲开始生成），显示生成进度
                             let displayContent = isJsonLike ? "🔄 正在构建大纲结构..." : maskToolContent(accumulatedContent);
                             
-                            // 如果能解析出部分页数，显示页数
                             if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
                                 displayContent = `🔄 正在构建大纲... (已生成 ${partialOutline.pages.length} 页)`;
                             }
@@ -519,24 +448,19 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     if (onRefreshSession) onRefreshSession();
                 }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR);
 
-                // --- Turn Finished, Process Result ---
-                
                 apiHistory.push({
                     role: 'assistant',
                     content: accumulatedContent
                 });
 
-                // 1. Check for JSON Outline (Final Validation)
                 const partialOutline = tryParsePartialJson(accumulatedContent);
                 if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
-                    
                     setHistory(prev => prev.map(m => m.id === assistantMsgId ? {
                         ...m,
                         content: `✅ **大纲构建完成**\n\n已为您生成包含 ${partialOutline.pages.length} 个章节的研报大纲，请在右侧预览确认。`,
                         reasoning: accumulatedReasoning
                     } : m));
                     
-                    // Final State Update
                     setData(prev => ({ 
                         ...prev, 
                         topic: partialOutline.title || prev.topic, 
@@ -549,9 +473,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     break;
                 }
 
-                // 2. Check for Tool Calls (Text Protocol)
-                // ... (Tool Call Logic same as before, simplified for brevity here, assuming it works) ...
-                // Re-using existing tool parsing logic
                 let queries: string[] = [];
                 let toolCallFound = false;
                 let standardMatch = accumulatedContent.match(/call:search\s*(\[.*?\])/i);
@@ -637,11 +558,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 }
             }
 
-            // Force final fallback if loop exhausted
-            if (!hasOutline && loopCount >= MAX_SEARCH_ROUNDS) {
-                 // ... (Fallback logic similar to original, omitted for brevity but should be kept) ...
-            }
-
         } catch (e: any) {
              console.error(e);
              if (e.message === 'INSUFFICIENT_BALANCE') {
@@ -671,21 +587,17 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 activeSessionId = await onEnsureSession();
             }
 
-            // 1. Get Prompt "02.详细内容生成"
             const { model: activeModel, template } = await getModelConfig(PROMPT_NAME_CONTENT);
             
-            // 2. Prepare Context from current active page
             const currentPage = data.pages[activePageIndex];
             if (!currentPage) return;
 
-            // Set UI to generating state
             setData(prev => {
                 const newPages = [...prev.pages];
                 newPages[activePageIndex] = { ...newPages[activePageIndex], isGenerating: true };
                 return { ...prev, pages: newPages };
             });
 
-            // 3. Construct Prompt
             let promptContent = template || "";
             if (!promptContent) {
                 promptContent = `请为第 ${activePageIndex+1} 页生成详细内容。\n页标题：${currentPage.title}\n页摘要：${currentPage.summary}`;
@@ -700,17 +612,15 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 promptContent += `\n\n用户额外指令：${instructions}`;
             }
 
-            // 4. Stream Response
             let accumulatedContent = '';
             let accumulatedReasoning = '';
             
-            // Temporary message for UI feedback in chat
             const assistantMsgId = crypto.randomUUID();
             setHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: `正在为 **${currentPage.title}** 撰写内容...`, model: activeModel }]);
 
             await streamChatCompletions({
                 model: activeModel,
-                messages: [{ role: 'user', content: promptContent }], // Note: Phase 2 usually single turn or carries minimal context
+                messages: [{ role: 'user', content: promptContent }],
                 stream: true,
                 temperature: 0.7,
                 enable_billing: true
@@ -721,36 +631,24 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     accumulatedContent += chunk.content;
                     
                     // --- 增强版流式内容提取 ---
-                    // 目标：即使 JSON 不完整，也要尽可能提取 content 字段的值
                     let contentToDisplay = "";
-
-                    // 1. 简单情况：内容不是 JSON，直接显示
-                    if (!accumulatedContent.trim().startsWith('{')) {
-                        contentToDisplay = accumulatedContent;
-                    } 
-                    // 2. 内容是 JSON，尝试暴力正则提取 "content" 字段
-                    else {
-                        // 匹配 "content": "..." 结构，捕获引号后的所有内容
-                        // 注意：这个正则假设 content 是最后一个字段或者我们只关心 content
-                        // (?:[^"\\]|\\.)*  匹配非引号字符或转义字符
-                        const match = accumulatedContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
-                        if (match) {
-                            let raw = match[1];
-                            try {
-                                // 简单的反转义处理，让显示更自然
-                                raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                            } catch(e) {}
-                            contentToDisplay = raw;
-                        } else {
-                             // 如果还没匹配到 content，尝试部分解析（兜底）
-                            const parsed = tryParsePartialJson(accumulatedContent);
-                            if (parsed && parsed.content) {
-                                contentToDisplay = parsed.content;
-                            }
-                        }
+                    const match = accumulatedContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
+                    if (match) {
+                        let raw = match[1];
+                        try {
+                            raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                        } catch(e) {}
+                        contentToDisplay = raw;
+                    } else {
+                         const parsed = tryParsePartialJson(accumulatedContent);
+                         if (parsed && parsed.content) {
+                             contentToDisplay = parsed.content;
+                         } else if (!accumulatedContent.trim().startsWith('{')) {
+                             // Fallback: raw markdown if model ignores JSON instruction
+                             contentToDisplay = accumulatedContent;
+                         }
                     }
 
-                    // 实时更新数据
                     if (contentToDisplay) {
                         setData(prev => {
                             const newPages = [...prev.pages];
@@ -760,25 +658,20 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }
                 }
                 
-                // Update history with reasoning stream
                 setHistory(prev => prev.map(m => m.id === assistantMsgId ? { ...m, reasoning: accumulatedReasoning } : m));
             }, () => {
                 if (onRefreshSession) onRefreshSession();
-                // Finalize: Ensure we parse the final JSON correctly if possible
                 const finalParsed = tryParsePartialJson(accumulatedContent);
                 let finalContent = "";
                 
                 if (finalParsed && finalParsed.content) {
                     finalContent = finalParsed.content;
                 } else {
-                    // Fallback regex for final cleanup
                     const match = accumulatedContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
                     if (match) {
                          try {
-                            // Wrapping in quotes to handle escapes via JSON.parse
                             finalContent = JSON.parse(`"${match[1]}"`); 
                          } catch(e) {
-                             // If parse fails, use raw capture
                              finalContent = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
                          }
                     } else if (!accumulatedContent.trim().startsWith('{')) {
@@ -786,7 +679,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }
                 }
 
-                // Apply final content if found, otherwise keep partial
                 if (finalContent) {
                      setData(prev => {
                         const newPages = [...prev.pages];
@@ -798,7 +690,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         return { ...prev, pages: newPages };
                     });
                 } else {
-                     // Just mark as done
                      setData(prev => {
                         const newPages = [...prev.pages];
                         newPages[activePageIndex] = { 
@@ -830,13 +721,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     // --- Outline Modification Logic ---
     const runOutlineModification = async (instruction: string) => {
-        // Simple implementation: Send instruction to LLM to update JSON
         setIsLlmActive(true);
-        // ... (Similar structure to runAgentLoop but focused on modifying existing outline JSON) ...
-        // For brevity, reuse runAgentLoop but with a prompt prefix:
-        // "Current outline: [JSON]. User request: [Instruction]. Update the outline."
-        // ...
-        // Since the prompt provided is for "01.大纲撰写", we can re-run it with user instruction appended.
         await runAgentLoop(`基于当前大纲，进行修改：${instruction}`, true);
     };
 
@@ -852,10 +737,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         if (stage === 'collect') {
             await runAgentLoop(text, false);
         } else if (stage === 'outline') {
-             // Modification request during outline review
              await runOutlineModification(text);
         } else if (stage === 'compose') {
-             // Content generation or modification request
              await runContentGeneration(text);
         }
     };
@@ -875,7 +758,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 const isAssistant = msg.role === 'assistant';
                 const isLast = i === history.length - 1;
                 
-                // --- Retrieval Block Rendering ---
                 if (msg.role === 'tool' || msg.isRetrieving || (msg.retrievedItems && msg.retrievedItems.length > 0)) {
                     return (
                         <RetrievalBlock 
@@ -888,7 +770,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     );
                 }
 
-                // --- Standard Message Rendering ---
                 let parsedContent = { reasoning: msg.reasoning || '', content: msg.content };
                 if (!parsedContent.reasoning && parsedContent.content) {
                      const split = parseThinkTag(parsedContent.content);
@@ -943,8 +824,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         </div>
     );
 
-    // ... (Remainder of render logic: Input Area, Header, Modals) ...
-    // Using existing layout code for CopilotSidebar
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] border-r border-slate-200">
             {/* Header */}
@@ -1010,7 +889,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         stage={stage}
                         pageIndex={activePageIndex}
                         pageTitle={data.pages[activePageIndex]?.title}
-                        isVisualMode={false} // Simplify for collect stage
+                        isVisualMode={false} 
                     />
 
                     {/* Model Indicator Badge - NEW */}
