@@ -481,7 +481,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
 
-                    // Real-time Partial JSON Parsing
+                    // Real-time Partial JSON Parsing & Update Data
                     // 尝试从流式内容中提取不完整的 JSON 结构
                     const partialOutline = tryParsePartialJson(accumulatedContent);
                     if (partialOutline && partialOutline.pages && Array.isArray(partialOutline.pages)) {
@@ -499,7 +499,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         const idx = newHistory.findIndex(m => m.id === assistantMsgId);
                         if (idx !== -1) {
                             const isJsonLike = accumulatedContent.trim().startsWith('```json') || accumulatedContent.trim().startsWith('{');
-                            const displayContent = isJsonLike ? "🔄 正在构建大纲结构..." : maskToolContent(accumulatedContent);
+                            // 如果检测到有效的 JSON 结构（即大纲开始生成），显示生成进度
+                            let displayContent = isJsonLike ? "🔄 正在构建大纲结构..." : maskToolContent(accumulatedContent);
+                            
+                            // 如果能解析出部分页数，显示页数
+                            if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
+                                displayContent = `🔄 正在构建大纲... (已生成 ${partialOutline.pages.length} 页)`;
+                            }
 
                             newHistory[idx] = { 
                                 ...newHistory[idx], 
@@ -714,41 +720,44 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 if (chunk.content) {
                     accumulatedContent += chunk.content;
                     
-                    // Live Update the Page Content!
-                    // Try to parse JSON "content" field if the model outputs JSON as per prompt "02"
-                    // The prompt says: JSON object { "title": "...", "content": "..." }
-                    
-                    let contentToDisplay = accumulatedContent;
-                    
                     // --- 增强版流式内容提取 ---
-                    // 1. 尝试使用正则匹配JSON中的 content 字段
-                    const match = accumulatedContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
-                    if (match) {
-                         // 简单的转义字符处理
-                         let raw = match[1];
-                         try {
-                            raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                         } catch(e) {}
-                         contentToDisplay = raw;
-                    } 
-                    // 2. 如果正则匹配失败（例如开头不是标准的JSON结构），且不是JSON开始符，直接显示文本
-                    else if (!accumulatedContent.trim().startsWith('{')) {
+                    // 目标：即使 JSON 不完整，也要尽可能提取 content 字段的值
+                    let contentToDisplay = "";
+
+                    // 1. 简单情况：内容不是 JSON，直接显示
+                    if (!accumulatedContent.trim().startsWith('{')) {
                         contentToDisplay = accumulatedContent;
-                    }
-                    // 3. 如果是JSON结构但还没匹配到 content，尝试部分解析
+                    } 
+                    // 2. 内容是 JSON，尝试暴力正则提取 "content" 字段
                     else {
-                        const parsed = tryParsePartialJson(accumulatedContent);
-                        if (parsed && parsed.content) {
-                            contentToDisplay = parsed.content;
+                        // 匹配 "content": "..." 结构，捕获引号后的所有内容
+                        // 注意：这个正则假设 content 是最后一个字段或者我们只关心 content
+                        // (?:[^"\\]|\\.)*  匹配非引号字符或转义字符
+                        const match = accumulatedContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
+                        if (match) {
+                            let raw = match[1];
+                            try {
+                                // 简单的反转义处理，让显示更自然
+                                raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                            } catch(e) {}
+                            contentToDisplay = raw;
+                        } else {
+                             // 如果还没匹配到 content，尝试部分解析（兜底）
+                            const parsed = tryParsePartialJson(accumulatedContent);
+                            if (parsed && parsed.content) {
+                                contentToDisplay = parsed.content;
+                            }
                         }
                     }
 
                     // 实时更新数据
-                    setData(prev => {
-                        const newPages = [...prev.pages];
-                        newPages[activePageIndex] = { ...newPages[activePageIndex], content: contentToDisplay };
-                        return { ...prev, pages: newPages };
-                    });
+                    if (contentToDisplay) {
+                        setData(prev => {
+                            const newPages = [...prev.pages];
+                            newPages[activePageIndex] = { ...newPages[activePageIndex], content: contentToDisplay };
+                            return { ...prev, pages: newPages };
+                        });
+                    }
                 }
                 
                 // Update history with reasoning stream
@@ -757,7 +766,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 if (onRefreshSession) onRefreshSession();
                 // Finalize: Ensure we parse the final JSON correctly if possible
                 const finalParsed = tryParsePartialJson(accumulatedContent);
-                let finalContent = accumulatedContent;
+                let finalContent = "";
+                
                 if (finalParsed && finalParsed.content) {
                     finalContent = finalParsed.content;
                 } else {
@@ -765,20 +775,39 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     const match = accumulatedContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
                     if (match) {
                          try {
-                            finalContent = JSON.parse(`"${match[1]}"`); // Use JSON.parse to handle escapes correctly
-                         } catch(e) {}
+                            // Wrapping in quotes to handle escapes via JSON.parse
+                            finalContent = JSON.parse(`"${match[1]}"`); 
+                         } catch(e) {
+                             // If parse fails, use raw capture
+                             finalContent = match[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                         }
+                    } else if (!accumulatedContent.trim().startsWith('{')) {
+                        finalContent = accumulatedContent;
                     }
                 }
 
-                setData(prev => {
-                    const newPages = [...prev.pages];
-                    newPages[activePageIndex] = { 
-                        ...newPages[activePageIndex], 
-                        content: finalContent, 
-                        isGenerating: false 
-                    };
-                    return { ...prev, pages: newPages };
-                });
+                // Apply final content if found, otherwise keep partial
+                if (finalContent) {
+                     setData(prev => {
+                        const newPages = [...prev.pages];
+                        newPages[activePageIndex] = { 
+                            ...newPages[activePageIndex], 
+                            content: finalContent, 
+                            isGenerating: false 
+                        };
+                        return { ...prev, pages: newPages };
+                    });
+                } else {
+                     // Just mark as done
+                     setData(prev => {
+                        const newPages = [...prev.pages];
+                        newPages[activePageIndex] = { 
+                            ...newPages[activePageIndex], 
+                            isGenerating: false 
+                        };
+                        return { ...prev, pages: newPages };
+                    });
+                }
                 
                 setHistory(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: `✅ **${currentPage.title}** 内容撰写完成。`, reasoning: accumulatedReasoning } : m));
 
