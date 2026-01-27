@@ -116,35 +116,48 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     const [isExpanded, setIsExpanded] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
 
+    // 自动滚动到底部
     useEffect(() => {
         if (isStreaming && isExpanded && scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [content, isStreaming, isExpanded]);
 
+    // 思考结束后自动折叠
+    useEffect(() => {
+        if (!isStreaming && content && isExpanded) {
+            const timer = setTimeout(() => {
+                setIsExpanded(false);
+            }, 1500); // 1.5秒后自动折叠，给用户一点反应时间
+            return () => clearTimeout(timer);
+        }
+    }, [isStreaming]);
+
     if (!content) return null;
 
     return (
-        <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/50 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2">
+        <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/50 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2 transition-all duration-500">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-indigo-600 hover:bg-indigo-100/50 transition-colors"
             >
                 <BrainIcon className={`w-3.5 h-3.5 ${isStreaming ? 'animate-pulse' : ''}`} />
                 <span>深度思考过程 {isStreaming ? '...' : ''}</span>
-                <ChevronDownIcon className={`w-3 h-3 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-3 h-3 ml-auto transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
-            {isExpanded && (
+            <div 
+                className={`transition-all duration-500 ease-in-out overflow-hidden ${isExpanded ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'}`}
+            >
                 <div className="px-3 pb-3">
                     <div 
                         ref={scrollRef}
-                        className="text-[11px] font-mono text-slate-600 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto custom-scrollbar border-l-2 border-indigo-200 pl-3 italic break-words"
+                        className="text-[11px] font-mono text-slate-600 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto custom-scrollbar border-l-2 border-indigo-200 pl-3 italic break-words scroll-smooth"
                     >
                         {content}
                         {isStreaming && <span className="inline-block w-1.5 h-3 ml-1 bg-indigo-400 animate-pulse align-middle"></span>}
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 };
@@ -449,7 +462,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
 
-                    // Real-time JSON Parsing
+                    // Real-time JSON Parsing & Update Data
                     const partialOutline = tryParsePartialJson(accumulatedContent);
                     if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
                         setData(prev => ({
@@ -711,6 +724,9 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         return { ...prev, pages: newPages };
                     });
                 }
+                
+                // Update history with reasoning stream
+                setHistory(prev => prev.map(m => m.id === assistantMsgId ? { ...m, reasoning: accumulatedReasoning } : m));
             }, () => {
                 if (onRefreshSession) onRefreshSession();
                 // Finalize: Ensure we parse the final JSON correctly if possible

@@ -315,6 +315,33 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             }
         };
 
+        // NEW: Real-time Outline Preview Logic
+        // 如果正在构建大纲（数据中已包含大纲页），直接显示 Step2Outline 以实现流式预览效果
+        if (data.outline && data.outline.pages && data.outline.pages.length > 0) {
+             return (
+                 <Step2Outline 
+                     topic={data.topic} 
+                     outlineData={data.outline} 
+                     setData={setData} // Pass setData for real-time editing capability
+                     onConfirm={() => {
+                         if (data.outline && setData && setStage) {
+                             setData(prev => ({ 
+                                 ...prev, 
+                                 pages: prev.outline!.pages.map(p => ({ 
+                                     title: p.title, 
+                                     summary: p.content, 
+                                     content: '', 
+                                     isGenerating: false 
+                                 }))
+                             }));
+                             setStage('compose');
+                             setActivePageIndex(0);
+                         }
+                     }}
+                 />
+             );
+        }
+
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-10 text-center animate-in fade-in duration-700 bg-slate-50 h-full overflow-y-auto custom-scrollbar relative">
                 <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-xl mb-8 border border-slate-200">
