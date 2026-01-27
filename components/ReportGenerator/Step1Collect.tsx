@@ -616,7 +616,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             let accumulatedReasoning = '';
             
             const assistantMsgId = crypto.randomUUID();
-            setHistory(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: `正在为 **${currentPage.title}** 撰写内容...`, model: activeModel }]);
+            // Initial message in chat clearly stating what is being written
+            setHistory(prev => [...prev, { 
+                id: assistantMsgId, 
+                role: 'assistant', 
+                content: `正在为第 ${activePageIndex + 1} 页：**${currentPage.title}** 撰写详细内容...`, 
+                model: activeModel,
+                reasoning: ''
+            }]);
 
             await streamChatCompletions({
                 model: activeModel,
@@ -625,42 +632,56 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 temperature: 0.7,
                 enable_billing: true
             }, (chunk) => {
-                if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
+                // Real-time Thinking Update
+                if (chunk.reasoning) {
+                    accumulatedReasoning += chunk.reasoning;
+                    setHistory(prev => prev.map(m => m.id === assistantMsgId ? { ...m, reasoning: accumulatedReasoning } : m));
+                }
                 
+                // Real-time Content Extraction
                 if (chunk.content) {
                     accumulatedContent += chunk.content;
                     
-                    // --- 增强版流式内容提取 ---
-                    let contentToDisplay = "";
-                    const match = accumulatedContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
+                    // --- Improved Streaming Extraction for Right Canvas ---
+                    let contentValue = "";
+                    
+                    // 1. Try to find the start of the "content" field value in JSON
+                    const jsonStartPattern = /"content"\s*:\s*"/;
+                    const match = accumulatedContent.match(jsonStartPattern);
+                    
                     if (match) {
-                        let raw = match[1];
-                        try {
-                            raw = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                        } catch(e) {}
-                        contentToDisplay = raw;
-                    } else {
-                         const parsed = tryParsePartialJson(accumulatedContent);
-                         if (parsed && parsed.content) {
-                             contentToDisplay = parsed.content;
-                         } else if (!accumulatedContent.trim().startsWith('{')) {
-                             // Fallback: raw markdown if model ignores JSON instruction
-                             contentToDisplay = accumulatedContent;
-                         }
+                        const start = match.index! + match[0].length;
+                        // Extract everything after key as value
+                        let rawValue = accumulatedContent.substring(start);
+                        
+                        // Simple unescape for display
+                        contentValue = rawValue
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\"/g, '"')
+                            .replace(/\\\\/g, '\\')
+                            .replace(/\\t/g, '\t');
+                            
+                    } else if (accumulatedContent.length > 50 && !accumulatedContent.trim().startsWith('{') && !accumulatedContent.trim().startsWith('```')) {
+                        // Fallback: If not looking like JSON after 50 chars, assume direct text response
+                        contentValue = accumulatedContent;
                     }
 
-                    if (contentToDisplay) {
+                    if (contentValue) {
                         setData(prev => {
                             const newPages = [...prev.pages];
-                            newPages[activePageIndex] = { ...newPages[activePageIndex], content: contentToDisplay };
+                            // Only update specific page content
+                            newPages[activePageIndex] = { 
+                                ...newPages[activePageIndex], 
+                                content: contentValue 
+                            };
                             return { ...prev, pages: newPages };
                         });
                     }
                 }
-                
-                setHistory(prev => prev.map(m => m.id === assistantMsgId ? { ...m, reasoning: accumulatedReasoning } : m));
             }, () => {
                 if (onRefreshSession) onRefreshSession();
+                
+                // Final Parsing to ensure JSON correctness
                 const finalParsed = tryParsePartialJson(accumulatedContent);
                 let finalContent = "";
                 
